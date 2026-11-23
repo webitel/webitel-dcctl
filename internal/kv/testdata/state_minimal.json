@@ -1,0 +1,8 @@
+{
+  "generation": 1,
+  "active_datacenter": "dc_a",
+  "op_id": "9e2b7c41-0a5d-4f6e-8b3a-1c4d2e5f6a70",
+  "forced": false,
+  "patroni_timeline": 1,
+  "updated_at": "2026-11-20T09:00:00Z"
+}
