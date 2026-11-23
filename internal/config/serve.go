@@ -1,6 +1,9 @@
 package config
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 // DefaultServePath is where Ansible renders the serve config.
 const DefaultServePath = "/etc/webitel/dcctl/config.yaml"
@@ -61,6 +64,9 @@ type User struct {
 // Role is what a user is allowed to do.
 type Role string
 
+// RoleOperator is the only role in v1; it allows every action.
+const RoleOperator Role = "operator"
+
 // Consul lists the Consul servers of every datacenter.
 type Consul struct {
 	// NodeMetaKey is the node_meta key that holds the datacenter of a node.
@@ -119,6 +125,15 @@ type Status struct {
 	// RabbitMQService is the RabbitMQ service name in Consul; see RabbitMQServiceFor.
 	RabbitMQService string   `yaml:"rabbitmq_service"`
 	InfoServices    []string `yaml:"info_services"`
+}
+
+// datacenterPlaceholder in Status.RabbitMQService is replaced with the
+// datacenter being checked.
+const datacenterPlaceholder = "{datacenter}"
+
+// RabbitMQServiceFor returns the RabbitMQ service name of datacenter.
+func (s Status) RabbitMQServiceFor(datacenter string) string {
+	return strings.ReplaceAll(s.RabbitMQService, datacenterPlaceholder, datacenter)
 }
 
 // Journal holds the journal settings.

@@ -23,7 +23,7 @@ tls:
 auth:
   users:
     - name: support
-      password_hash: "$2b$04$KCyNgzP9CbHYbCvmwW2O8u3BqUIMTDn9GyKNvyAGPIAuBBbI9PTtK"
+      password_hash: "$2b$04$AUJV.yvHyWu9LFhtKITeVe9BxDVcAbATExWTJydZmwFgjLQTijFUW"
       role: operator
 consul:
   node_meta_key: webitel_datacenter
@@ -89,7 +89,7 @@ func TestParseServe_rendered(t *testing.T) {
 	}, got.Listen)
 	assert.Equal(t, []User{{
 		Name:         "support",
-		PasswordHash: "$2b$04$KCyNgzP9CbHYbCvmwW2O8u3BqUIMTDn9GyKNvyAGPIAuBBbI9PTtK",
+		PasswordHash: "$2b$04$AUJV.yvHyWu9LFhtKITeVe9BxDVcAbATExWTJydZmwFgjLQTijFUW",
 		Role:         "operator",
 	}}, got.Auth.Users)
 	assert.Equal(t, []ConsulServer{
