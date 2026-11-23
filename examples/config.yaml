@@ -1,0 +1,54 @@
+profile: warm_standby
+datacenter: dc_a
+listen:
+  http: 127.0.0.1:10022
+  peer: 10.1.0.81:10023
+  health: 127.0.0.1:10025
+tls:
+  ca: /etc/ssl/app/ca.pem
+  cert: /etc/ssl/app/dc_a_nginx.pem
+  key: /etc/ssl/app/dc_a_nginx-key.pem
+auth:
+  users:
+    - name: support
+      password_hash: "$2b$12$5JsgkeXq0VpHX5qL7YjF0ehOnpvnVEdUXMgeYG/w6Zxe3wR8r.SqC"
+      role: operator
+consul:
+  node_meta_key: webitel_datacenter
+  servers:
+    - address: 10.1.0.89:8500
+      datacenter: dc_a
+    - address: 10.2.0.89:8500
+      datacenter: dc_b
+patroni:
+  scope: webitel-postgres
+  username: patroni
+  password: "change-me"
+  endpoints: []
+  planned_max_lag_bytes: 1048576
+  timeouts:
+    demote: 120s
+    catchup: 60s
+    promote: 120s
+    repoint: 300s
+    rewind: 600s
+coordination:
+  session_ttl: 15s
+  lock_delay: 15s
+  lease_period: 30s
+  lease_acquire_after: 30s
+apps:
+  stop_timeout: 120s
+  stage_start_timeout: 180s
+  failover_stop_timeout: 30s
+  min_healthy_time: 10s
+status:
+  interval: 5s
+  request_timeout: 3s
+  degraded_after: 60s
+  rabbitmq_service: rabbitmq
+  info_services: [opensips, engine, storage, grafana]
+journal:
+  max_entries: 1000
+arbiter:
+  address: 10.9.0.10:10024

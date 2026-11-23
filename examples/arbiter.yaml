@@ -1,0 +1,11 @@
+listen:
+  api: 10.9.0.10:10024
+  health: 127.0.0.1:10025
+data_dir: /var/lib/webitel/webitel-dcctl-arbiter
+tls:
+  ca: /etc/ssl/app/ca.pem
+  cert: /etc/ssl/app/arbiter.pem
+  key: /etc/ssl/app/arbiter-key.pem
+clients:
+  - 10.1.0.81
+  - 10.2.0.81
