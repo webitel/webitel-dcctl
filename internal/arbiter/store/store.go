@@ -9,10 +9,12 @@ package store
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -69,29 +71,73 @@ type Store struct {
 }
 
 // Open opens or creates the store file in dir. The directory must exist.
-// It fails with [ErrLocked] when another process holds the file.
+// It fails with [ErrLocked] when another process holds the file, and with an
+// error when the file is truncated or corrupt.
 func Open(dir string) (*Store, error) {
 	path := filepath.Join(dir, fileName)
 
-	db, err := bolt.Open(path, 0o600, &bolt.Options{Timeout: lockTimeout})
-	if errors.Is(err, bolterrors.ErrTimeout) {
-		err = ErrLocked
-	}
-
+	db, err := openDB(path)
 	if err != nil {
 		return nil, fmt.Errorf("open arbiter store %s: %w", path, err)
 	}
 
-	err = db.Update(func(tx *bolt.Tx) error {
-		_, err := tx.CreateBucketIfNotExists(bucket)
-
-		return err
-	})
-	if err != nil {
+	if err := prepare(db, path); err != nil {
 		return nil, errors.Join(fmt.Errorf("open arbiter store %s: %w", path, err), db.Close())
 	}
 
 	return &Store{db: db, now: time.Now}, nil
+}
+
+// openDB returns bbolt's panic on a corrupt file as an error.
+func openDB(path string) (db *bolt.DB, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			db, err = nil, fmt.Errorf("corrupt file: %v", r)
+		}
+	}()
+
+	db, err = bolt.Open(path, 0o600, &bolt.Options{Timeout: lockTimeout})
+	if errors.Is(err, bolterrors.ErrTimeout) {
+		return nil, ErrLocked
+	}
+
+	return db, err
+}
+
+// prepare checks the file before the first write and creates the bucket.
+// The size check goes first: bbolt reads a truncated file past its end
+// through mmap, and that crashes the process instead of panicking.
+func prepare(db *bolt.DB, path string) error {
+	err := db.View(func(tx *bolt.Tx) error {
+		fi, err := os.Stat(path)
+		if err != nil {
+			return err
+		}
+
+		if fi.Size() < tx.Size() {
+			return fmt.Errorf("file is truncated: %d of %d bytes", fi.Size(), tx.Size())
+		}
+
+		var first error
+		for err := range tx.Check() {
+			first = cmp.Or(first, err)
+		}
+
+		if first != nil {
+			return fmt.Errorf("corrupt file: %w", first)
+		}
+
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	return db.Update(func(tx *bolt.Tx) error {
+		_, err := tx.CreateBucketIfNotExists(bucket)
+
+		return err
+	})
 }
 
 // Close closes the store file. Further calls fail.
