@@ -64,11 +64,6 @@ func (c *Serve) Validate() error {
 	return errors.Join(v...)
 }
 
-// LoadServe reads, applies defaults to and validates the serve config at path.
-func LoadServe(path string) (*Serve, error) {
-	return load(path, parseServe, (*Serve).Validate)
-}
-
 type violations []error
 
 func (v *violations) add(key, format string, args ...any) {

@@ -182,6 +182,11 @@ func defaultServe() Serve {
 	}
 }
 
+// LoadServe reads, applies defaults to and validates the serve config at path.
+func LoadServe(path string) (*Serve, error) {
+	return load(path, parseServe, (*Serve).Validate)
+}
+
 func parseServe(data []byte) (*Serve, error) {
 	cfg := defaultServe()
 	if err := decode(data, &cfg); err != nil {
