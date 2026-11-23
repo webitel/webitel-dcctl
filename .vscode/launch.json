@@ -1,0 +1,86 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run: serve",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "program": "${workspaceFolder}",
+      "args": ["serve"],
+      "envFile": "${workspaceFolder}/.env.serve",
+      "hideSystemGoroutines": true,
+      "presentation": { "group": "1-run" }
+    },
+    {
+      "name": "Run: arbiter",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "program": "${workspaceFolder}",
+      "args": ["arbiter"],
+      "envFile": "${workspaceFolder}/.env.arbiter",
+      "hideSystemGoroutines": true,
+      "presentation": { "group": "1-run" }
+    },
+    {
+      "name": "Run: serve (with race)",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "program": "${workspaceFolder}",
+      "args": ["serve"],
+      "envFile": "${workspaceFolder}/.env.serve",
+      "env": { "CGO_ENABLED": "1" },
+      "buildFlags": "-race",
+      "hideSystemGoroutines": true,
+      "presentation": { "group": "2-race" }
+    },
+    {
+      "name": "Run: arbiter (with race)",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "program": "${workspaceFolder}",
+      "args": ["arbiter"],
+      "envFile": "${workspaceFolder}/.env.arbiter",
+      "env": { "CGO_ENABLED": "1" },
+      "buildFlags": "-race",
+      "hideSystemGoroutines": true,
+      "presentation": { "group": "2-race" }
+    },
+    {
+      "name": "Tests: current package",
+      "type": "go",
+      "request": "launch",
+      "mode": "test",
+      "program": "${fileDirname}",
+      "envFile": "${workspaceFolder}/.env.serve",
+      "hideSystemGoroutines": true,
+      "presentation": { "group": "3-debug" }
+    },
+    {
+      "name": "Attach: local process",
+      "type": "go",
+      "request": "attach",
+      "mode": "local",
+      "processId": "${command:pickGoProcess}",
+      "hideSystemGoroutines": true,
+      "presentation": { "group": "3-debug" }
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Run: all",
+      "configurations": ["Run: serve", "Run: arbiter"],
+      "stopAll": true,
+      "presentation": { "group": "1-run" }
+    },
+    {
+      "name": "Run: all (with race)",
+      "configurations": ["Run: serve (with race)", "Run: arbiter (with race)"],
+      "stopAll": true,
+      "presentation": { "group": "2-race" }
+    }
+  ]
+}
