@@ -1,0 +1,15 @@
+{
+  "holder": "dc_b",
+  "generation": 8,
+  "counter": 1042,
+  "fencing": false,
+  "renew_time": "2026-11-23T15:30:10Z",
+  "period": {
+    "seconds": 30
+  },
+  "voters": [
+    "dc_a",
+    "dc_b",
+    "arbiter"
+  ]
+}
