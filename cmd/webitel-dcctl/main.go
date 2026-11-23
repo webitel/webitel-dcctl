@@ -8,6 +8,7 @@ import (
 	"github.com/urfave/cli/v2"
 
 	"github.com/webitel/webitel-dcctl/internal/buildinfo"
+	"github.com/webitel/webitel-dcctl/internal/config"
 )
 
 var errNotImplemented = errors.New("not implemented")
@@ -28,12 +29,14 @@ func newApp() *cli.App {
 			{
 				Name:   "serve",
 				Usage:  "Run the dcctl daemon",
-				Action: notImplemented,
+				Flags:  []cli.Flag{configFlag(config.DefaultServePath)},
+				Action: serve,
 			},
 			{
 				Name:   "arbiter",
 				Usage:  "Run the arbiter daemon",
-				Action: notImplemented,
+				Flags:  []cli.Flag{configFlag(config.DefaultArbiterPath)},
+				Action: arbiter,
 			},
 			{
 				Name:   "version",
@@ -44,7 +47,28 @@ func newApp() *cli.App {
 	}
 }
 
-func notImplemented(c *cli.Context) error {
+func configFlag(path string) *cli.StringFlag {
+	return &cli.StringFlag{
+		Name:    "config",
+		Aliases: []string{"c"},
+		Usage:   "Path to the config file",
+		Value:   path,
+	}
+}
+
+func serve(c *cli.Context) error {
+	if _, err := config.LoadServe(c.String("config")); err != nil {
+		return err
+	}
+
+	return fmt.Errorf("%s: %w", c.Command.Name, errNotImplemented)
+}
+
+func arbiter(c *cli.Context) error {
+	if _, err := config.LoadArbiter(c.String("config")); err != nil {
+		return err
+	}
+
 	return fmt.Errorf("%s: %w", c.Command.Name, errNotImplemented)
 }
 
