@@ -1,0 +1,78 @@
+[Unit]
+Description=Webitel DC Control arbiter
+# The listen address is a node IP, so wait until the network is configured.
+After=network-online.target
+Wants=network-online.target
+# The package enables its units on install, before Ansible renders the config.
+# Without the file the unit is skipped instead of failing.
+ConditionPathExists=/etc/webitel/dcctl/arbiter.yaml
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Service]
+Type=notify
+User=webitel-svc
+Group=webitel-svc
+LogsDirectory=webitel
+StateDirectory=webitel/webitel-dcctl-arbiter
+StateDirectoryMode=0750
+
+EnvironmentFile=/etc/default/webitel-dcctl-arbiter
+EnvironmentFile=-/etc/default/webitel-otel
+EnvironmentFile=-/etc/default/webitel
+ExecStart=/usr/local/bin/webitel-dcctl arbiter
+
+Restart=on-failure
+RestartSec=5
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStartSec=60s
+TimeoutStopSec=30
+WatchdogSec=30s
+LimitNOFILE=64000
+LimitNPROC=4096
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=webitel-dcctl-arbiter
+
+# Filesystem isolation
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+NoExecPaths=/
+ExecPaths=/usr/local/bin/webitel-dcctl
+
+# Process isolation
+PrivateUsers=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectProc=invisible
+ProcSubset=pid
+NoNewPrivileges=yes
+PrivateMounts=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+RemoveIPC=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+ProtectClock=yes
+ProtectHostname=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+UMask=0077
+
+# Capabilities & syscalls
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged
+SystemCallFilter=~@resources
+SystemCallFilter=~@obsolete
+SystemCallErrorNumber=EPERM
+
+[Install]
+WantedBy=multi-user.target
