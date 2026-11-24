@@ -18,8 +18,6 @@ import (
 )
 
 const (
-	// serviceName is the Consul service of the peer listener.
-	serviceName         = "webitel-dcctl"
 	defaultAgentAddress = "127.0.0.1:8500"
 	// agentTimeout bounds one call to the local Consul agent.
 	agentTimeout = 5 * time.Second
@@ -77,8 +75,8 @@ func (c Consul) checkDatacenter(ctx context.Context) error {
 	return nil
 }
 
-// register registers the peer listener as serviceName with a TTL check that
-// follows readiness. The returned func deregisters within its ctx.
+// register registers the peer listener as buildinfo.ServiceName with a TTL
+// check that follows readiness. The returned func deregisters within its ctx.
 func (c Consul) register(ctx context.Context, peer net.Addr, ready func() (bool, error), log *slog.Logger) (func(context.Context) error, error) {
 	rctx, cancel := context.WithTimeout(ctx, agentTimeout)
 	defer cancel()
@@ -95,14 +93,14 @@ func (c Consul) register(ctx context.Context, peer net.Addr, ready func() (bool,
 	consul.WithReadiness(ready)(reg)
 
 	svc := &discovery.ServiceInstance{
-		Id:        discovery.GenerateInstanceID(serviceName),
-		Name:      serviceName,
+		Id:        discovery.GenerateInstanceID(buildinfo.ServiceName),
+		Name:      buildinfo.ServiceName,
 		Version:   buildinfo.Version,
 		Endpoints: []string{"grpc://" + peer.String()},
 	}
 
 	if err := reg.Register(rctx, svc); err != nil {
-		return nil, fmt.Errorf("register %s in the local Consul agent: %w", serviceName, err)
+		return nil, fmt.Errorf("register %s in the local Consul agent: %w", buildinfo.ServiceName, err)
 	}
 
 	return func(ctx context.Context) error {
@@ -111,7 +109,7 @@ func (c Consul) register(ctx context.Context, peer net.Addr, ready func() (bool,
 
 		_, err := await(dctx, func() (struct{}, error) { return struct{}{}, reg.Deregister(dctx, svc) })
 		if err != nil {
-			return fmt.Errorf("deregister %s from the local Consul agent: %w", serviceName, err)
+			return fmt.Errorf("deregister %s from the local Consul agent: %w", buildinfo.ServiceName, err)
 		}
 
 		return nil
