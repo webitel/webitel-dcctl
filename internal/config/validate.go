@@ -37,8 +37,8 @@ func (c *Serve) Validate() error {
 	v.consul(c.Consul)
 	v.patroni(c.Patroni)
 
-	v.positive("coordination.session_ttl", c.Coordination.SessionTTL)
-	v.positive("coordination.lock_delay", c.Coordination.LockDelay)
+	v.sessionTTL(c.Coordination.SessionTTL)
+	v.lockDelay(c.Coordination.LockDelay)
 	v.positive("coordination.lease_period", c.Coordination.LeasePeriod)
 	v.positive("coordination.lease_acquire_after", c.Coordination.LeaseAcquireAfter)
 
@@ -197,6 +197,26 @@ func (v *violations) bcrypt(key, hash string) {
 
 	if cost, err := bcrypt.Cost([]byte(hash)); err != nil || cost > maxBcryptCost {
 		v.add(key, "bcrypt cost must be within %d..%d", bcrypt.MinCost, maxBcryptCost)
+	}
+}
+
+// Consul answers 500 to a session outside these bounds, which would look like an
+// unreachable server.
+const (
+	minSessionTTL = 10 * time.Second
+	maxSessionTTL = 24 * time.Hour
+	maxLockDelay  = 60 * time.Second
+)
+
+func (v *violations) sessionTTL(d time.Duration) {
+	if d < minSessionTTL || d > maxSessionTTL {
+		v.add("coordination.session_ttl", "must be within %s..%s, the Consul limits", minSessionTTL, maxSessionTTL)
+	}
+}
+
+func (v *violations) lockDelay(d time.Duration) {
+	if d <= 0 || d > maxLockDelay {
+		v.add("coordination.lock_delay", "must be greater than 0 and at most %s, the Consul limit", maxLockDelay)
 	}
 }
 

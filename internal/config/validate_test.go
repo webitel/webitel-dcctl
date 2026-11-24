@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -135,8 +136,11 @@ func TestServeValidate_invalid(t *testing.T) {
 		{"patroni_timeouts_repoint", func(c *Serve) { c.Patroni.Timeouts.Repoint = 0 }, "patroni.timeouts.repoint: must be positive"},
 		{"patroni_timeouts_rewind", func(c *Serve) { c.Patroni.Timeouts.Rewind = -1 }, "patroni.timeouts.rewind: must be positive"},
 
-		{"coordination_session_ttl", func(c *Serve) { c.Coordination.SessionTTL = 0 }, "coordination.session_ttl: must be positive"},
-		{"coordination_lock_delay", func(c *Serve) { c.Coordination.LockDelay = 0 }, "coordination.lock_delay: must be positive"},
+		{"coordination_session_ttl_zero", func(c *Serve) { c.Coordination.SessionTTL = 0 }, "coordination.session_ttl: must be within 10s..24h0m0s"},
+		{"coordination_session_ttl_below_consul_min", func(c *Serve) { c.Coordination.SessionTTL = 9 * time.Second }, "coordination.session_ttl: must be within 10s..24h0m0s"},
+		{"coordination_session_ttl_above_consul_max", func(c *Serve) { c.Coordination.SessionTTL = 25 * time.Hour }, "coordination.session_ttl: must be within 10s..24h0m0s"},
+		{"coordination_lock_delay_zero", func(c *Serve) { c.Coordination.LockDelay = 0 }, "coordination.lock_delay: must be greater than 0 and at most 1m0s"},
+		{"coordination_lock_delay_above_consul_max", func(c *Serve) { c.Coordination.LockDelay = 61 * time.Second }, "coordination.lock_delay: must be greater than 0 and at most 1m0s"},
 		{"coordination_lease_period", func(c *Serve) { c.Coordination.LeasePeriod = 0 }, "coordination.lease_period: must be positive"},
 		{"coordination_lease_acquire_after", func(c *Serve) { c.Coordination.LeaseAcquireAfter = 0 }, "coordination.lease_acquire_after: must be positive"},
 
