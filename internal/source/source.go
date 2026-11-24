@@ -9,8 +9,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"syscall"
 )
 
@@ -120,8 +122,16 @@ func reasonFor(err error) Reason {
 }
 
 func isInvalid(err error) bool {
-	if errors.Is(err, ErrInvalidResponse) {
+	if errors.Is(err, ErrInvalidResponse) || errors.Is(err, io.ErrUnexpectedEOF) {
 		return true
+	}
+
+	// An EOF inside a *url.Error is the connection closing before any response, which is
+	// not an invalid response; a bare EOF is a body that ended where JSON was expected.
+	if errors.Is(err, io.EOF) {
+		_, transport := errors.AsType[*url.Error](err)
+
+		return !transport
 	}
 
 	if _, ok := errors.AsType[*json.SyntaxError](err); ok {
@@ -134,6 +144,17 @@ func isInvalid(err error) bool {
 }
 
 func isTLS(err error) bool {
+	// A plain HTTP answer to an HTTPS request means the endpoint does not speak TLS.
+	if errors.Is(err, http.ErrSchemeMismatch) {
+		return true
+	}
+
+	// An alert sent by the server, such as a missing client certificate, reaches the client
+	// as a "remote error" after the handshake, in a type the tls package does not export.
+	if oe, ok := errors.AsType[*net.OpError](err); ok && oe.Op == "remote error" {
+		return true
+	}
+
 	if _, ok := errors.AsType[*tls.CertificateVerificationError](err); ok {
 		return true
 	}
