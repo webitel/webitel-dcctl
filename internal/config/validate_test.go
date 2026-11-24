@@ -80,6 +80,11 @@ func TestServeValidate_invalid(t *testing.T) {
 		{"listen_health_node_ip", func(c *Serve) { c.Listen.Health = "10.1.0.81:10025" }, `listen.health: "10.1.0.81:10025" is not a loopback address`},
 		{"listen_peer_empty", func(c *Serve) { c.Listen.Peer = "" }, "listen.peer: must not be empty"},
 		{"listen_peer_no_port", func(c *Serve) { c.Listen.Peer = "10.1.0.81" }, `listen.peer: "10.1.0.81" is not an IP:port address`},
+		{"listen_peer_all_interfaces", func(c *Serve) { c.Listen.Peer = "0.0.0.0:10023" }, `listen.peer: "0.0.0.0:10023" is not a node address`},
+		{"listen_peer_ipv6_all_interfaces", func(c *Serve) { c.Listen.Peer = "[::]:10023" }, `listen.peer: "[::]:10023" is not a node address`},
+		{"listen_peer_loopback", func(c *Serve) { c.Listen.Peer = "127.0.0.1:10023" }, `listen.peer: "127.0.0.1:10023" is not a node address`},
+		{"listen_peer_link_local", func(c *Serve) { c.Listen.Peer = "169.254.10.1:10023" }, `listen.peer: "169.254.10.1:10023" is not a node address`},
+		{"listen_peer_ipv6_link_local", func(c *Serve) { c.Listen.Peer = "[fe80::1]:10023" }, `listen.peer: "[fe80::1]:10023" is not a node address`},
 
 		{"tls_ca_empty", func(c *Serve) { c.TLS.CA = "" }, "tls.ca: must not be empty"},
 		{"tls_cert_empty", func(c *Serve) { c.TLS.Cert = "" }, "tls.cert: must not be empty"},

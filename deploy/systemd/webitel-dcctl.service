@@ -25,8 +25,8 @@ RestartSec=5
 KillMode=mixed
 KillSignal=SIGTERM
 TimeoutStartSec=60s
-TimeoutStopSec=30
-WatchdogSec=30s
+TimeoutStopSec=45
+WatchdogSec=60s
 LimitNOFILE=64000
 LimitNPROC=4096
 
