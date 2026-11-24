@@ -1,0 +1,250 @@
+syntax = "proto3";
+
+package webitel.dcctl.v1;
+
+import "google/api/field_behavior.proto";
+import "google/api/field_info.proto";
+import "google/api/resource.proto";
+import "google/protobuf/timestamp.proto";
+import "webitel/dcctl/v1/action.proto";
+import "webitel/dcctl/v1/check.proto";
+import "webitel/dcctl/v1/common.proto";
+
+option go_package = "github.com/webitel/webitel-dcctl/gen/go/dcctl/v1;dcctlv1";
+
+// An action started through the API. The same message is stored as protojson
+// in the Consul KV key `dcctl/op`; field names are part of that KV format,
+// and the Ansible role `topology` reads `state` from it. Actions dcctl takes
+// by itself (fencing, generation alignment) are not operations; they are
+// journal entries of type SYSTEM.
+message Operation {
+  option (google.api.resource) = {
+    type: "dcctl.webitel.com/Operation"
+    pattern: "operations/{operation}"
+    singular: "operation"
+    plural: "operations"
+  };
+
+  // Action type.
+  enum Type {
+    // Not set.
+    TYPE_UNSPECIFIED = 0;
+    // Planned switchover to the target datacenter.
+    SWITCH = 1;
+    // Failover to the target datacenter.
+    FAILOVER = 2;
+    // Demote the old primary of the target datacenter.
+    DEMOTE = 3;
+    // Point the target datacenter at the active one.
+    REPOINT = 4;
+    // Clear needs_recovery of the target datacenter.
+    MARK_RECOVERED = 5;
+    // Resolve a generation conflict in favor of the target datacenter.
+    RESOLVE_CONFLICT = 6;
+    // Create the initial dcctl state.
+    INITIALIZE = 7;
+    // Initialize an empty arbiter.
+    INITIALIZE_ARBITER = 8;
+    // Bring the apps of the active datacenter to the desired state.
+    SYNC_APPS = 9;
+  }
+
+  // Operation state.
+  enum State {
+    // Not set.
+    STATE_UNSPECIFIED = 0;
+    // Steps are running.
+    RUNNING = 1;
+    // All steps succeeded.
+    SUCCEEDED = 2;
+    // A step failed and the operation was rolled back or stopped.
+    FAILED = 3;
+    // The leading instance lost the operation; resume or abandon it.
+    INTERRUPTED = 4;
+    // The operator abandoned an interrupted operation.
+    ABANDONED = 5;
+  }
+
+  // How the new generation is written.
+  enum Mode {
+    // Not set.
+    MODE_UNSPECIFIED = 0;
+    // On a majority of voters.
+    QUORUM = 1;
+    // Without a majority, with the isolation confirmation.
+    FORCED = 2;
+  }
+
+  // One step of the operation plan.
+  message Step {
+    // Step type.
+    enum Type {
+      // Not set.
+      TYPE_UNSPECIFIED = 0;
+      // Check the apps of the source and target datacenters.
+      APPS_PREFLIGHT = 1;
+      // Stop the apps of one stage; the stage is in `stage`.
+      APPS_STOP = 2;
+      // Start the apps of one stage; the stage is in `stage`.
+      APPS_START = 3;
+      // Write the new generation to the voters.
+      GENERATION = 4;
+      // Check the conditions of a completed switch.
+      VERIFY = 5;
+      // Demote the Patroni primary.
+      PATRONI_DEMOTE = 6;
+      // Wait for the target to catch up.
+      PATRONI_CATCHUP = 7;
+      // Make sure no Patroni primary is left.
+      PATRONI_NO_PRIMARY = 8;
+      // Promote the target Patroni cluster.
+      PATRONI_PROMOTE = 9;
+      // Point a standby cluster at the new primary.
+      PATRONI_REPOINT = 10;
+      // Wait for a standby cluster to follow the new primary.
+      PATRONI_FOLLOW = 11;
+      // Patroni switchover inside one cluster.
+      PATRONI_SWITCHOVER = 12;
+    }
+
+    // Step state.
+    enum State {
+      // Not set.
+      STATE_UNSPECIFIED = 0;
+      // Not started yet.
+      PENDING = 1;
+      // Running now.
+      RUNNING = 2;
+      // Done. Non-empty `warnings` means done with warnings.
+      SUCCEEDED = 3;
+      // Failed.
+      FAILED = 4;
+      // Not needed in this situation.
+      SKIPPED = 5;
+    }
+
+    // Position in the plan, starting from 0.
+    int32 index = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+    // Step type.
+    Type type = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+    // Nomad stage for APPS_STOP and APPS_START.
+    int32 stage = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+    // Step state.
+    State state = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+    // When the step started.
+    google.protobuf.Timestamp start_time = 5 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+    // When the step finished.
+    google.protobuf.Timestamp end_time = 6 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+    // Human-readable progress or result.
+    string detail = 7 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+    // Warnings of a step that succeeded.
+    repeated string warnings = 8 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+    // After this step the operation cannot be rolled back.
+    // (-- api-linter: core::0140::prepositions=disabled
+    //     aip.dev/not-precedent: established domain term, also the name of
+    //     the check `op.point_of_no_return`. --)
+    bool point_of_no_return = 9 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+    // Datacenter the step acts on, for example the standby a
+    // PATRONI_REPOINT points at the new primary, or the datacenter whose
+    // apps APPS_STOP stops.
+    string datacenter = 10 [
+      (google.api.field_behavior) = OUTPUT_ONLY,
+      (google.api.resource_reference).type = "dcctl.webitel.com/Datacenter"
+    ];
+  }
+
+  // Resource name: `operations/{operation}`. Empty in a validate_only
+  // response.
+  string name = 1 [(google.api.field_behavior) = IDENTIFIER];
+
+  // Action type.
+  Type type = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Operation state.
+  State state = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Datacenter the action targets: the winner for RESOLVE_CONFLICT, the
+  // active datacenter for INITIALIZE and SYNC_APPS, empty for
+  // INITIALIZE_ARBITER.
+  string target = 4 [
+    (google.api.field_behavior) = OUTPUT_ONLY,
+    (google.api.resource_reference).type = "dcctl.webitel.com/Datacenter"
+  ];
+
+  // Accepted confirmations. Their facts are in the CONFIRM checks.
+  Confirmation confirmation = 5 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Who started the operation.
+  Initiator initiator = 6 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Instance that runs the operation.
+  Instance leader = 7 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // How the new generation is written.
+  Mode mode = 8 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Generation before the operation.
+  int64 previous_generation = 9 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Generation the operation writes.
+  int64 new_generation = 10 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Preflight checks at start. In a validate_only response, the result of
+  // the checks.
+  repeated Check checks = 11 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Plan and progress.
+  repeated Step steps = 12 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Warnings of the operation, for example apps left without a redirect.
+  repeated string warnings = 13 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Why the operation failed or was interrupted.
+  OperationError error = 14 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Idempotency key of the request that created the operation.
+  string request_id = 15 [
+    (google.api.field_behavior) = OUTPUT_ONLY,
+    (google.api.field_info).format = UUID4
+  ];
+
+  // When the operation was created.
+  google.protobuf.Timestamp create_time = 16 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // When the operation last changed.
+  google.protobuf.Timestamp update_time = 17 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // When the operation finished.
+  google.protobuf.Timestamp end_time = 18 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Request that created the operation.
+  oneof request {
+    // SWITCH request.
+    SwitchDatacenterRequest switch_datacenter = 30 [(google.api.field_behavior) = OUTPUT_ONLY];
+    // FAILOVER request.
+    FailoverDatacenterRequest failover_datacenter = 31 [(google.api.field_behavior) = OUTPUT_ONLY];
+    // DEMOTE request.
+    DemoteDatacenterRequest demote_datacenter = 32 [(google.api.field_behavior) = OUTPUT_ONLY];
+    // REPOINT request.
+    RepointDatacenterRequest repoint_datacenter = 33 [(google.api.field_behavior) = OUTPUT_ONLY];
+    // MARK_RECOVERED request.
+    MarkDatacenterRecoveredRequest mark_datacenter_recovered = 34 [(google.api.field_behavior) = OUTPUT_ONLY];
+    // RESOLVE_CONFLICT request.
+    ResolveConflictRequest resolve_conflict = 35 [(google.api.field_behavior) = OUTPUT_ONLY];
+    // INITIALIZE request.
+    InitializeDatacentersRequest initialize_datacenters = 36 [(google.api.field_behavior) = OUTPUT_ONLY];
+    // INITIALIZE_ARBITER request.
+    InitializeArbiterRequest initialize_arbiter = 37 [(google.api.field_behavior) = OUTPUT_ONLY];
+    // SYNC_APPS request.
+    SyncAppsRequest sync_apps = 38 [(google.api.field_behavior) = OUTPUT_ONLY];
+  }
+}

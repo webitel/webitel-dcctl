@@ -1,0 +1,456 @@
+syntax = "proto3";
+
+package webitel.dcctl.v1;
+
+import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
+import "google/protobuf/timestamp.proto";
+import "webitel/dcctl/v1/check.proto";
+import "webitel/dcctl/v1/common.proto";
+
+option go_package = "github.com/webitel/webitel-dcctl/gen/go/dcctl/v1;dcctlv1";
+
+// A datacenter as seen by the instance that answers. ListDatacenters and
+// Status fill the summary fields; the observer, members, nodes, jobs and
+// info checks are filled by GetDatacenter only.
+message Datacenter {
+  option (google.api.resource) = {
+    type: "dcctl.webitel.com/Datacenter"
+    pattern: "datacenters/{datacenter}"
+    singular: "datacenter"
+    plural: "datacenters"
+  };
+
+  // Role of the datacenter in coordination. The first matching value in
+  // this order wins.
+  enum State {
+    // Not set.
+    STATE_UNSPECIFIED = 0;
+    // No source of the datacenter is reachable.
+    UNREACHABLE = 1;
+    // No voter has the dcctl state.
+    UNINITIALIZED = 2;
+    // The active datacenter of the effective state.
+    ACTIVE = 3;
+    // An inactive datacenter runs a managed job that is not stopped.
+    SPLIT_BRAIN = 4;
+    // warm_standby: the Patroni leader of an inactive datacenter is primary.
+    DB_SPLIT = 5;
+    // The voter of the datacenter has an older generation.
+    STALE = 6;
+    // Waits for recovery after a failover.
+    NEEDS_RECOVERY = 7;
+    // Healthy standby.
+    STANDBY = 8;
+  }
+
+  // Whether the datacenter works in its role.
+  enum Health {
+    // Not set.
+    HEALTH_UNSPECIFIED = 0;
+    // Works in its role.
+    OK = 1;
+    // Works with problems listed in health_reasons.
+    DEGRADED = 2;
+    // Does not work in its role.
+    DOWN = 3;
+    // Unreachable, or a source is missing to tell.
+    UNKNOWN = 4;
+  }
+
+  // Consul of the datacenter.
+  message Consul {
+    // Consul server from the config.
+    message Server {
+      // Server address.
+      string address = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+      // The server answers.
+      bool reachable = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+      // Consul datacenter reported by the server. Differs from the
+      // datacenter name on a misconfiguration.
+      string consul_datacenter = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+    }
+
+    // Servers of the datacenter.
+    repeated Server servers = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+  }
+
+  // Patroni cluster of the datacenter (warm_standby) or the part of the
+  // cluster in it (stretch).
+  message Patroni {
+    // Role of a Patroni member.
+    enum Role {
+      // Not set or not reported.
+      ROLE_UNSPECIFIED = 0;
+      // Primary.
+      PRIMARY = 1;
+      // Leader of a standby cluster.
+      STANDBY_LEADER = 2;
+      // Replica.
+      REPLICA = 3;
+      // Synchronous standby.
+      SYNC_STANDBY = 4;
+      // Quorum standby.
+      QUORUM_STANDBY = 5;
+    }
+
+    // Why a member cannot be used.
+    enum UnusableReason {
+      // The member is usable.
+      UNUSABLE_REASON_UNSPECIFIED = 0;
+      // Patroni is older than 4.1.0.
+      VERSION = 1;
+      // The REST API has no valid TLS certificate.
+      TLS = 2;
+      // The REST API does not answer.
+      UNREACHABLE = 3;
+    }
+
+    // WAL positions of a member, in bytes.
+    message Xlog {
+      // Current WAL position of a primary.
+      int64 location = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+      // Last received WAL position of a replica.
+      int64 received_location = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+      // Last replayed WAL position of a replica.
+      int64 replayed_location = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+      // Commit time of the last replayed transaction.
+      google.protobuf.Timestamp replay_time = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
+    }
+
+    // Patroni member.
+    message Member {
+      // Member name.
+      string member = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+      // PostgreSQL host.
+      string host = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+      // Patroni REST API URI.
+      string api_uri = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+      // The REST API answers.
+      bool reachable = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+      // Why the REST API does not answer.
+      Source.Error error = 5 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+      // Member role.
+      Role role = 6 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+      // Patroni member state as reported, for example `running`,
+      // `streaming`.
+      string patroni_state = 7 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+      // Timeline.
+      int64 timeline = 8 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+      // Replication state as reported, for example `streaming`.
+      string replication_state = 9 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+      // WAL positions.
+      Xlog xlog = 10 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+      // Lag behind the cluster leader.
+      int64 lag_bytes = 11 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+      // Patroni version.
+      string version = 12 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+      // Patroni failover_priority tag.
+      int32 failover_priority = 13 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+      // Patroni nofailover tag.
+      bool no_failover = 14 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+      // The member can be used by dcctl.
+      bool usable = 15 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+      // Why the member cannot be used.
+      UnusableReason unusable_reason = 16 [(google.api.field_behavior) = OUTPUT_ONLY];
+    }
+
+    // Leader member of the datacenter.
+    string leader = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+    // Role of the leader.
+    Role role = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+    // Timeline of the leader.
+    int64 timeline = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+    // Patroni pause is set.
+    bool paused = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+    // `standby_cluster.host` from the leader config.
+    string standby_cluster_host = 5 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+    // Datacenter whose nodes standby_cluster_host points at.
+    string upstream_datacenter = 6 [
+      (google.api.field_behavior) = OUTPUT_ONLY,
+      (google.api.resource_reference).type = "dcctl.webitel.com/Datacenter"
+    ];
+
+    // Lag of the datacenter behind the active primary. Approximate between
+    // clusters.
+    int64 lag_bytes = 7 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+    // Point where the timeline diverged from the active leader, as an LSN
+    // like `0/5000060`. Set only when the datacenter diverged.
+    string divergence_lsn = 8 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+    // WAL written after the divergence point.
+    int64 divergence_bytes = 9 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+    // Members. GetDatacenter only.
+    repeated Member members = 10 [(google.api.field_behavior) = OUTPUT_ONLY];
+  }
+
+  // Nomad of the datacenter.
+  message Nomad {
+    // Nomad node that does not run managed jobs normally.
+    message Node {
+      // Why the node is not ready.
+      enum Reason {
+        // Not set.
+        REASON_UNSPECIFIED = 0;
+        // The node is draining.
+        DRAINING = 1;
+        // The node is down.
+        DOWN = 2;
+        // The node is ineligible for scheduling.
+        INELIGIBLE = 3;
+      }
+
+      // Node name.
+      string node = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+      // Why the node is not ready.
+      Reason reason = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+    }
+
+    // Number of managed jobs in each state.
+    message JobCounts {
+      // Jobs in STOPPED.
+      int32 stopped_count = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+      // Jobs in STOPPING.
+      int32 stopping_count = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+      // Jobs in HEALTHY.
+      int32 healthy_count = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+      // Jobs in UNHEALTHY.
+      int32 unhealthy_count = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
+    }
+
+    // Managed job: a Nomad job with `meta.dcctl_stage`.
+    message Job {
+      // Job state.
+      enum State {
+        // Not set.
+        STATE_UNSPECIFIED = 0;
+        // Stopped.
+        STOPPED = 1;
+        // Stop requested, allocations are still pending, running or
+        // unknown.
+        STOPPING = 2;
+        // Running and healthy.
+        HEALTHY = 3;
+        // Not stopped and not healthy, including while starting.
+        UNHEALTHY = 4;
+      }
+
+      // Nomad job type.
+      enum Type {
+        // Not set.
+        TYPE_UNSPECIFIED = 0;
+        // service.
+        SERVICE = 1;
+        // system.
+        SYSTEM = 2;
+        // batch.
+        BATCH = 3;
+        // sysbatch.
+        SYSBATCH = 4;
+      }
+
+      // Job name.
+      string job = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+      // Stage from `meta.dcctl_stage`.
+      int32 stage = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+      // Job type.
+      Type type = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+      // Nomad Stop flag.
+      bool stop = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+      // Job state.
+      State state = 5 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+      // Number of allocations by Nomad ClientStatus, for example
+      // `running`, `pending`, `failed`.
+      map<string, int32> allocation_counts = 6 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+      // Nomad JobModifyIndex.
+      int64 modify_index = 7 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+      // System job: nodes with a healthy allocation.
+      int32 healthy_node_count = 8 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+      // System job: nodes expected to run it.
+      int32 expected_node_count = 9 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+      // System job: nodes without a healthy allocation and why.
+      repeated Node missing_nodes = 10 [(google.api.field_behavior) = OUTPUT_ONLY];
+    }
+
+    // Jobs of one stage.
+    message Stage {
+      // Stage number.
+      int32 stage = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+      // Number of jobs of the stage in each state.
+      JobCounts job_counts = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+      // Jobs of the stage.
+      repeated Job jobs = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+    }
+
+    // Job without `meta.dcctl_stage`; dcctl does not manage it.
+    message UnmanagedJob {
+      // Job name.
+      string job = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+      // Nomad job status as reported.
+      string nomad_status = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+    }
+
+    // Address of the Nomad leader.
+    string leader = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+    // Nodes in `ready`.
+    int32 ready_node_count = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+    // Nodes in `ineligible`.
+    int32 ineligible_node_count = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+    // Nodes in `draining`.
+    int32 draining_node_count = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+    // Nodes in `down`.
+    int32 down_node_count = 5 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+    // Nodes that are not ready. GetDatacenter only.
+    repeated Node not_ready_nodes = 6 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+    // Number of managed jobs in each state.
+    JobCounts job_counts = 7 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+    // Managed jobs by stage. GetDatacenter only.
+    repeated Stage stages = 8 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+    // Unmanaged jobs. GetDatacenter only.
+    repeated UnmanagedJob unmanaged_jobs = 9 [(google.api.field_behavior) = OUTPUT_ONLY];
+  }
+
+  // Resource name: `datacenters/{datacenter}`, where `{datacenter}` is the
+  // Consul datacenter name.
+  string name = 1 [(google.api.field_behavior) = IDENTIFIER];
+
+  // Role in coordination.
+  State state = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Whether the datacenter works in its role.
+  Health health = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Why health is DEGRADED or DOWN.
+  repeated string health_reasons = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // The datacenter is in needs_recovery of the effective state. Set even
+  // when state shows a higher-priority value.
+  bool needs_recovery = 5 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Reachability of each source.
+  repeated Source sources = 6 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Consul. GetDatacenter only.
+  Consul consul = 7 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Patroni.
+  Patroni patroni = 8 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Nomad.
+  Nomad nomad = 9 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Informational checks `info.*`. They do not affect state, health,
+  // alarms or preflight. GetDatacenter only.
+  repeated Check info_checks = 10 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Instance whose view this is. GetDatacenter only.
+  Instance observer = 11 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // When the observer's last collection cycle finished. GetDatacenter only.
+  google.protobuf.Timestamp observe_time = 12 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// A source of the datacenter state. An unreachable source keeps its last
+// known data with observe_time.
+message Source {
+  // System the source belongs to.
+  enum System {
+    // Not set.
+    SYSTEM_UNSPECIFIED = 0;
+    // Consul.
+    CONSUL = 1;
+    // Nomad.
+    NOMAD = 2;
+    // Patroni.
+    PATRONI = 3;
+  }
+
+  // Why the source is unreachable.
+  enum Error {
+    // Reachable.
+    ERROR_UNSPECIFIED = 0;
+    // Request timed out.
+    TIMEOUT = 1;
+    // Connection refused.
+    REFUSED = 2;
+    // Name resolution failed.
+    DNS = 3;
+    // TLS handshake or certificate check failed.
+    TLS = 4;
+    // Authentication failed.
+    AUTH = 5;
+    // Unexpected HTTP status.
+    HTTP = 6;
+    // Response could not be parsed.
+    INVALID = 7;
+  }
+
+  // System.
+  System system = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Address the source was read from.
+  string endpoint = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // The last request succeeded.
+  bool reachable = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Why the last request failed.
+  Error error = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // When the source became unreachable.
+  google.protobuf.Timestamp unreachable_start_time = 5 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // When the data was last read successfully.
+  google.protobuf.Timestamp observe_time = 6 [(google.api.field_behavior) = OUTPUT_ONLY];
+}

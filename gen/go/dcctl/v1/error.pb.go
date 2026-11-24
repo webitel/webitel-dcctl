@@ -40,7 +40,9 @@ type Error struct {
 	// `state`.
 	Metadata map[string]string `protobuf:"bytes,5,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	// BadRequest field violations and PreconditionFailure violations.
-	Violations    []*Violation `protobuf:"bytes,6,rep,name=violations,proto3" json:"violations,omitempty"`
+	Violations []*Violation `protobuf:"bytes,6,rep,name=violations,proto3" json:"violations,omitempty"`
+	// Full preflight result of PREFLIGHT_FAILED and CONFIRMATION_REQUIRED.
+	Preflight     *Preflight `protobuf:"bytes,7,opt,name=preflight,proto3" json:"preflight,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -117,6 +119,13 @@ func (x *Error) GetViolations() []*Violation {
 	return nil
 }
 
+func (x *Error) GetPreflight() *Preflight {
+	if x != nil {
+		return x.Preflight
+	}
+	return nil
+}
+
 // One violation of BadRequest or PreconditionFailure.
 type Violation struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -182,11 +191,77 @@ func (x *Violation) GetDescription() string {
 	return ""
 }
 
+// Error detail `webitel.dcctl.v1.Preflight` of PREFLIGHT_FAILED and
+// CONFIRMATION_REQUIRED: all checks of the action with their facts, the plan
+// and the write mode.
+type Preflight struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// All checks of the action.
+	Checks []*Check `protobuf:"bytes,1,rep,name=checks,proto3" json:"checks,omitempty"`
+	// Plan; every step is PENDING.
+	Steps []*Operation_Step `protobuf:"bytes,2,rep,name=steps,proto3" json:"steps,omitempty"`
+	// How the new generation would be written.
+	Mode          Operation_Mode `protobuf:"varint,3,opt,name=mode,proto3,enum=webitel.dcctl.v1.Operation_Mode" json:"mode,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Preflight) Reset() {
+	*x = Preflight{}
+	mi := &file_webitel_dcctl_v1_error_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Preflight) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Preflight) ProtoMessage() {}
+
+func (x *Preflight) ProtoReflect() protoreflect.Message {
+	mi := &file_webitel_dcctl_v1_error_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Preflight.ProtoReflect.Descriptor instead.
+func (*Preflight) Descriptor() ([]byte, []int) {
+	return file_webitel_dcctl_v1_error_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *Preflight) GetChecks() []*Check {
+	if x != nil {
+		return x.Checks
+	}
+	return nil
+}
+
+func (x *Preflight) GetSteps() []*Operation_Step {
+	if x != nil {
+		return x.Steps
+	}
+	return nil
+}
+
+func (x *Preflight) GetMode() Operation_Mode {
+	if x != nil {
+		return x.Mode
+	}
+	return Operation_MODE_UNSPECIFIED
+}
+
 var File_webitel_dcctl_v1_error_proto protoreflect.FileDescriptor
 
 const file_webitel_dcctl_v1_error_proto_rawDesc = "" +
 	"\n" +
-	"\x1cwebitel/dcctl/v1/error.proto\x12\x10webitel.dcctl.v1\x1a\x1fgoogle/api/field_behavior.proto\"\xbc\x02\n" +
+	"\x1cwebitel/dcctl/v1/error.proto\x12\x10webitel.dcctl.v1\x1a\x1fgoogle/api/field_behavior.proto\x1a\x1cwebitel/dcctl/v1/check.proto\x1a webitel/dcctl/v1/operation.proto\"\xfd\x02\n" +
 	"\x05Error\x12\x14\n" +
 	"\x02id\x18\x01 \x01(\tB\x04\xe2A\x01\x03R\x02id\x12\x18\n" +
 	"\x04code\x18\x02 \x01(\x05B\x04\xe2A\x01\x03R\x04code\x12\x1c\n" +
@@ -195,14 +270,19 @@ const file_webitel_dcctl_v1_error_proto_rawDesc = "" +
 	"\bmetadata\x18\x05 \x03(\v2%.webitel.dcctl.v1.Error.MetadataEntryB\x04\xe2A\x01\x03R\bmetadata\x12A\n" +
 	"\n" +
 	"violations\x18\x06 \x03(\v2\x1b.webitel.dcctl.v1.ViolationB\x04\xe2A\x01\x03R\n" +
-	"violations\x1a;\n" +
+	"violations\x12?\n" +
+	"\tpreflight\x18\a \x01(\v2\x1b.webitel.dcctl.v1.PreflightB\x04\xe2A\x01\x03R\tpreflight\x1a;\n" +
 	"\rMetadataEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"m\n" +
 	"\tViolation\x12\x18\n" +
 	"\x04type\x18\x01 \x01(\tB\x04\xe2A\x01\x03R\x04type\x12\x1e\n" +
 	"\asubject\x18\x02 \x01(\tB\x04\xe2A\x01\x03R\asubject\x12&\n" +
-	"\vdescription\x18\x03 \x01(\tB\x04\xe2A\x01\x03R\vdescriptionB:Z8github.com/webitel/webitel-dcctl/gen/go/dcctl/v1;dcctlv1b\x06proto3"
+	"\vdescription\x18\x03 \x01(\tB\x04\xe2A\x01\x03R\vdescription\"\xbc\x01\n" +
+	"\tPreflight\x125\n" +
+	"\x06checks\x18\x01 \x03(\v2\x17.webitel.dcctl.v1.CheckB\x04\xe2A\x01\x03R\x06checks\x12<\n" +
+	"\x05steps\x18\x02 \x03(\v2 .webitel.dcctl.v1.Operation.StepB\x04\xe2A\x01\x03R\x05steps\x12:\n" +
+	"\x04mode\x18\x03 \x01(\x0e2 .webitel.dcctl.v1.Operation.ModeB\x04\xe2A\x01\x03R\x04modeB:Z8github.com/webitel/webitel-dcctl/gen/go/dcctl/v1;dcctlv1b\x06proto3"
 
 var (
 	file_webitel_dcctl_v1_error_proto_rawDescOnce sync.Once
@@ -216,20 +296,28 @@ func file_webitel_dcctl_v1_error_proto_rawDescGZIP() []byte {
 	return file_webitel_dcctl_v1_error_proto_rawDescData
 }
 
-var file_webitel_dcctl_v1_error_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_webitel_dcctl_v1_error_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_webitel_dcctl_v1_error_proto_goTypes = []any{
-	(*Error)(nil),     // 0: webitel.dcctl.v1.Error
-	(*Violation)(nil), // 1: webitel.dcctl.v1.Violation
-	nil,               // 2: webitel.dcctl.v1.Error.MetadataEntry
+	(*Error)(nil),          // 0: webitel.dcctl.v1.Error
+	(*Violation)(nil),      // 1: webitel.dcctl.v1.Violation
+	(*Preflight)(nil),      // 2: webitel.dcctl.v1.Preflight
+	nil,                    // 3: webitel.dcctl.v1.Error.MetadataEntry
+	(*Check)(nil),          // 4: webitel.dcctl.v1.Check
+	(*Operation_Step)(nil), // 5: webitel.dcctl.v1.Operation.Step
+	(Operation_Mode)(0),    // 6: webitel.dcctl.v1.Operation.Mode
 }
 var file_webitel_dcctl_v1_error_proto_depIdxs = []int32{
-	2, // 0: webitel.dcctl.v1.Error.metadata:type_name -> webitel.dcctl.v1.Error.MetadataEntry
+	3, // 0: webitel.dcctl.v1.Error.metadata:type_name -> webitel.dcctl.v1.Error.MetadataEntry
 	1, // 1: webitel.dcctl.v1.Error.violations:type_name -> webitel.dcctl.v1.Violation
-	2, // [2:2] is the sub-list for method output_type
-	2, // [2:2] is the sub-list for method input_type
-	2, // [2:2] is the sub-list for extension type_name
-	2, // [2:2] is the sub-list for extension extendee
-	0, // [0:2] is the sub-list for field type_name
+	2, // 2: webitel.dcctl.v1.Error.preflight:type_name -> webitel.dcctl.v1.Preflight
+	4, // 3: webitel.dcctl.v1.Preflight.checks:type_name -> webitel.dcctl.v1.Check
+	5, // 4: webitel.dcctl.v1.Preflight.steps:type_name -> webitel.dcctl.v1.Operation.Step
+	6, // 5: webitel.dcctl.v1.Preflight.mode:type_name -> webitel.dcctl.v1.Operation.Mode
+	6, // [6:6] is the sub-list for method output_type
+	6, // [6:6] is the sub-list for method input_type
+	6, // [6:6] is the sub-list for extension type_name
+	6, // [6:6] is the sub-list for extension extendee
+	0, // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_webitel_dcctl_v1_error_proto_init() }
@@ -237,13 +325,15 @@ func file_webitel_dcctl_v1_error_proto_init() {
 	if File_webitel_dcctl_v1_error_proto != nil {
 		return
 	}
+	file_webitel_dcctl_v1_check_proto_init()
+	file_webitel_dcctl_v1_operation_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_webitel_dcctl_v1_error_proto_rawDesc), len(file_webitel_dcctl_v1_error_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   3,
+			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

@@ -3,6 +3,8 @@ syntax = "proto3";
 package webitel.dcctl.v1;
 
 import "google/api/field_behavior.proto";
+import "webitel/dcctl/v1/check.proto";
+import "webitel/dcctl/v1/operation.proto";
 
 option go_package = "github.com/webitel/webitel-dcctl/gen/go/dcctl/v1;dcctlv1";
 
@@ -29,6 +31,9 @@ message Error {
 
   // BadRequest field violations and PreconditionFailure violations.
   repeated Violation violations = 6 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Full preflight result of PREFLIGHT_FAILED and CONFIRMATION_REQUIRED.
+  Preflight preflight = 7 [(google.api.field_behavior) = OUTPUT_ONLY];
 }
 
 // One violation of BadRequest or PreconditionFailure.
@@ -42,4 +47,18 @@ message Violation {
 
   // Human-readable explanation.
   string description = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// Error detail `webitel.dcctl.v1.Preflight` of PREFLIGHT_FAILED and
+// CONFIRMATION_REQUIRED: all checks of the action with their facts, the plan
+// and the write mode.
+message Preflight {
+  // All checks of the action.
+  repeated Check checks = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Plan; every step is PENDING.
+  repeated Operation.Step steps = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // How the new generation would be written.
+  Operation.Mode mode = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
 }

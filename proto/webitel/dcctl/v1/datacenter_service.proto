@@ -1,0 +1,146 @@
+syntax = "proto3";
+
+package webitel.dcctl.v1;
+
+import "buf/validate/validate.proto";
+import "google/api/annotations.proto";
+import "google/api/client.proto";
+import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
+import "protoc-gen-openapiv2/options/annotations.proto";
+import "webitel/dcctl/v1/datacenter.proto";
+
+option go_package = "github.com/webitel/webitel-dcctl/gen/go/dcctl/v1;dcctlv1";
+
+// Datacenters.
+service DatacenterService {
+  // Lists all datacenters in one page.
+  rpc ListDatacenters(ListDatacentersRequest) returns (ListDatacentersResponse) {
+    option (google.api.http) = {get: "/v1/datacenters"};
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      responses: {
+        key: "200"
+        value: {
+          description: "All datacenters."
+          examples: {
+            key: "application/json"
+            value:
+              '{"datacenters":[{"name":"datacenters/dc_a","state":"ACTIVE","health":"OK",'
+              '"sources":[{"system":"CONSUL","endpoint":"10.1.0.89:8500","reachable":true,'
+              '"observe_time":"2026-11-23T10:14:55Z"},{"system":"NOMAD","endpoint":"https://10.1.0.91:4646",'
+              '"reachable":true,"observe_time":"2026-11-23T10:14:55Z"},{"system":"PATRONI",'
+              '"endpoint":"https://10.1.0.95:8008","reachable":true,"observe_time":"2026-11-23T10:14:55Z"}],'
+              '"patroni":{"leader":"pg-a1","role":"PRIMARY","timeline":"5"},"nomad":{"leader":"10.1.0.91:4647",'
+              '"ready_node_count":3,"job_counts":{"healthy_count":12}}},{"name":"datacenters/dc_b",'
+              '"state":"STANDBY","health":"OK","sources":[{"system":"CONSUL","endpoint":"10.2.0.89:8500",'
+              '"reachable":true,"observe_time":"2026-11-23T10:14:55Z"},{"system":"NOMAD",'
+              '"endpoint":"https://10.2.0.91:4646","reachable":true,"observe_time":"2026-11-23T10:14:55Z"},'
+              '{"system":"PATRONI","endpoint":"https://10.2.0.95:8008","reachable":true,'
+              '"observe_time":"2026-11-23T10:14:55Z"}],"patroni":{"leader":"pg-b1","role":"STANDBY_LEADER",'
+              '"timeline":"5","standby_cluster_host":"10.1.0.95","upstream_datacenter":"datacenters/dc_a",'
+              '"lag_bytes":"0"},"nomad":{"leader":"10.2.0.91:4647","ready_node_count":3,'
+              '"job_counts":{"stopped_count":12}}}]}'
+          }
+        }
+      }
+    };
+  }
+
+  // Returns the datacenter details as seen by the instance that answers.
+  rpc GetDatacenter(GetDatacenterRequest) returns (Datacenter) {
+    option (google.api.http) = {get: "/v1/{name=datacenters/*}"};
+    option (google.api.method_signature) = "name";
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      responses: {
+        key: "200"
+        value: {
+          description: "Datacenter details."
+          examples: {
+            key: "application/json"
+            value:
+              '{"name":"datacenters/dc_b","state":"STANDBY","health":"OK","sources":[{"system":"CONSUL",'
+              '"endpoint":"10.2.0.89:8500","reachable":true,"observe_time":"2026-11-23T10:14:55Z"},'
+              '{"system":"NOMAD","endpoint":"https://10.2.0.91:4646","reachable":true,'
+              '"observe_time":"2026-11-23T10:14:55Z"},{"system":"PATRONI","endpoint":"https://10.2.0.95:8008",'
+              '"reachable":true,"observe_time":"2026-11-23T10:14:55Z"}],"patroni":{"leader":"pg-b1",'
+              '"role":"STANDBY_LEADER","timeline":"5","standby_cluster_host":"10.1.0.95",'
+              '"upstream_datacenter":"datacenters/dc_a","lag_bytes":"0","members":[{"member":"pg-b1",'
+              '"host":"10.2.0.95","api_uri":"https://10.2.0.95:8008","reachable":true,'
+              '"role":"STANDBY_LEADER","patroni_state":"streaming","timeline":"5","replication_state":"streaming",'
+              '"xlog":{"received_location":"83886176","replayed_location":"83886176",'
+              '"replay_time":"2026-11-23T10:14:54Z"},"lag_bytes":"0","version":"4.1.0",'
+              '"usable":true},{"member":"pg-b2","host":"10.2.0.96","api_uri":"https://10.2.0.96:8008",'
+              '"reachable":true,"role":"REPLICA","patroni_state":"streaming","timeline":"5",'
+              '"replication_state":"streaming","xlog":{"received_location":"83886176",'
+              '"replayed_location":"83886176","replay_time":"2026-11-23T10:14:54Z"},"lag_bytes":"0",'
+              '"version":"4.1.0","usable":true}]},"nomad":{"leader":"10.2.0.91:4647",'
+              '"ready_node_count":3,"job_counts":{"stopped_count":2},"stages":[{"stage":1,'
+              '"job_counts":{"stopped_count":1},"jobs":[{"job":"freeswitch","stage":1,'
+              '"type":"SYSTEM","stop":true,"state":"STOPPED","allocation_counts":{"complete":3},'
+              '"modify_index":"4182","expected_node_count":3}]},{"stage":3,"job_counts":{"stopped_count":1},'
+              '"jobs":[{"job":"webitel-core-api","stage":3,"type":"SERVICE","stop":true,'
+              '"state":"STOPPED","allocation_counts":{"complete":2},"modify_index":"4190"}]}],'
+              '"unmanaged_jobs":[{"job":"node-exporter","nomad_status":"running"}]},"observer":{"node":"dcctl-a1",'
+              '"datacenter":"datacenters/dc_a","address":"10.1.0.81:10023"},"observe_time":"2026-11-23T10:14:55Z",'
+              '"consul":{"servers":[{"address":"10.2.0.89:8500","reachable":true,"consul_datacenter":"dc_b"}]},'
+              '"info_checks":[{"id":"info.rabbitmq","result":"PASS","datacenter":"datacenters/dc_b",'
+              '"detail":"rabbitmq: 3 of 3 passing","facts":{"service":"rabbitmq","passing":3,'
+              '"total":3}}]}'
+          }
+        }
+      }
+      responses: {
+        key: "404"
+        value: {
+          description: "The datacenter is not in the config: `dcctl.datacenter.not_found`."
+          schema: {
+            json_schema: {ref: ".webitel.dcctl.v1.Error"}
+          }
+          examples: {
+            key: "application/json"
+            value:
+              '{"id":"dcctl.datacenter.not_found","code":404,"status":"Not Found","detail":"datacenter dc_c not found",'
+              '"metadata":{"datacenter":"datacenters/dc_c"}}'
+          }
+        }
+      }
+    };
+  }
+}
+
+// Request message for DatacenterService.ListDatacenters.
+message ListDatacentersRequest {
+  // Accepted for AIP-158; the server returns all datacenters.
+  int32 page_size = 1 [
+    (google.api.field_behavior) = OPTIONAL,
+    (buf.validate.field).int32 = {
+      gte: 0
+      lte: 500
+    }
+  ];
+
+  // Accepted for AIP-158; the server returns all datacenters.
+  string page_token = 2 [
+    (google.api.field_behavior) = OPTIONAL,
+    (buf.validate.field).string.max_len = 1024
+  ];
+}
+
+// Response message for DatacenterService.ListDatacenters.
+message ListDatacentersResponse {
+  // Datacenters, summary fields only.
+  repeated Datacenter datacenters = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Always empty.
+  string next_page_token = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// Request message for DatacenterService.GetDatacenter.
+message GetDatacenterRequest {
+  // Datacenter: `datacenters/{datacenter}`.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "dcctl.webitel.com/Datacenter",
+    (buf.validate.field).string.pattern = "^datacenters/[A-Za-z0-9_-]{1,63}$"
+  ];
+}

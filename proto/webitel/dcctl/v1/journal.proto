@@ -1,0 +1,119 @@
+syntax = "proto3";
+
+package webitel.dcctl.v1;
+
+import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+import "webitel/dcctl/v1/common.proto";
+import "webitel/dcctl/v1/operation.proto";
+import "webitel/dcctl/v1/status.proto";
+
+option go_package = "github.com/webitel/webitel-dcctl/gen/go/dcctl/v1;dcctlv1";
+
+// Journal record. Stored as protojson in the Consul KV key
+// `dcctl/journal/<time>-<id>` of every reachable datacenter, where `<time>`
+// is the creation time in UTC as 23 digits (yyyymmddhhmmss and
+// nanoseconds). Field names are part of that KV format: renaming a field
+// breaks entries written by older instances. Holds no secrets.
+message JournalEntry {
+  option (google.api.resource) = {
+    type: "dcctl.webitel.com/JournalEntry"
+    pattern: "journalEntries/{journal_entry}"
+    singular: "journalEntry"
+    plural: "journalEntries"
+  };
+
+  // What the entry records.
+  enum Type {
+    // Not set.
+    TYPE_UNSPECIFIED = 0;
+    // Operation start or end.
+    OPERATION = 1;
+    // Operation step.
+    STEP = 2;
+    // Action dcctl takes by itself, see SystemAction.
+    SYSTEM = 3;
+    // Alarm raised or cleared.
+    ALARM = 4;
+  }
+
+  // Outcome of the recorded action.
+  enum Result {
+    // Not set.
+    RESULT_UNSPECIFIED = 0;
+    // Succeeded, or an alarm cleared.
+    OK = 1;
+    // Succeeded with warnings, or a WARNING alarm raised.
+    WARNING = 2;
+    // Failed, or a CRITICAL alarm raised.
+    ERROR = 3;
+  }
+
+  // Action dcctl takes by itself, without an operation.
+  enum SystemAction {
+    // Not set.
+    SYSTEM_ACTION_UNSPECIFIED = 0;
+    // Fencing: stop the managed apps of this datacenter because the
+    // effective state names another datacenter as active. A Patroni primary
+    // here is left to the DB_SPLIT alarm.
+    FENCE_APPS = 1;
+    // Copy the effective state to a voter with an older generation.
+    ALIGN_GENERATION = 2;
+  }
+
+  // Resource name: `journalEntries/<time>-<id>`, the same `<time>-<id>` as
+  // the KV key.
+  string name = 1 [(google.api.field_behavior) = IDENTIFIER];
+
+  // When the entry was written.
+  google.protobuf.Timestamp create_time = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // What the entry records.
+  Type type = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Who caused the entry. For alarms, the instance that observed it.
+  Initiator initiator = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Datacenter the entry is about.
+  string datacenter = 5 [
+    (google.api.field_behavior) = OUTPUT_ONLY,
+    (google.api.resource_reference).type = "dcctl.webitel.com/Datacenter"
+  ];
+
+  // Operation the entry belongs to.
+  string operation = 6 [
+    (google.api.field_behavior) = OUTPUT_ONLY,
+    (google.api.resource_reference).type = "dcctl.webitel.com/Operation"
+  ];
+
+  // Action parameters: request body, generation before and after, mode.
+  // Numbers inside are JSON numbers, unlike int64 fields of the API, which
+  // are JSON strings.
+  google.protobuf.Struct params = 7 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Confirmations accepted at operation start.
+  Confirmation confirmation = 8 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Outcome. For alarms: raised by severity, or cleared.
+  Result result = 9 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Error when the result is ERROR.
+  OperationError error = 10 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Human-readable explanation.
+  string detail = 11 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // What was done; the member matches `type`.
+  oneof action {
+    // OPERATION: the operation type.
+    Operation.Type operation_type = 12 [(google.api.field_behavior) = OUTPUT_ONLY];
+    // STEP: the step type.
+    Operation.Step.Type step_type = 13 [(google.api.field_behavior) = OUTPUT_ONLY];
+    // SYSTEM: the system action.
+    SystemAction system_action = 14 [(google.api.field_behavior) = OUTPUT_ONLY];
+    // ALARM: the alarm type.
+    Status.Alarm.Type alarm_type = 15 [(google.api.field_behavior) = OUTPUT_ONLY];
+  }
+}
