@@ -19,6 +19,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/test/bufconn"
 
 	"github.com/webitel/webitel-go-kit/infra/health"
@@ -37,6 +38,9 @@ const (
 	// healthStopMargin bounds the health transports past the drain hold.
 	healthStopMargin = 5 * time.Second
 	bufconnSize      = 1 << 20
+	// peerPingMinTime is the shortest keepalive interval Peer accepts from
+	// clients; gRPC closes a connection pinged more often with too_many_pings.
+	peerPingMinTime = 5 * time.Second
 )
 
 // Config holds the listeners and settings of a Runtime.
@@ -112,10 +116,15 @@ func New(cfg Config, log *logging.Logger) (*Runtime, error) {
 	cfg.PeerKey = cmp.Or(cfg.PeerKey, "listen.peer")
 	cfg.PeerCheck = cmp.Or(cfg.PeerCheck, "peer")
 
+	peerOpts := append([]grpc.ServerOption{
+		grpc.Creds(credentials.NewTLS(tlsCfg)),
+		grpc.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{MinTime: peerPingMinTime, PermitWithoutStream: true}),
+	}, cfg.PeerOptions...)
+
 	r := &Runtime{
 		cfg:      cfg,
 		log:      log,
-		peerGRPC: grpc.NewServer(append([]grpc.ServerOption{grpc.Creds(credentials.NewTLS(tlsCfg))}, cfg.PeerOptions...)...),
+		peerGRPC: grpc.NewServer(peerOpts...),
 		started:  make(chan struct{}),
 	}
 
