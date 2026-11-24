@@ -1,0 +1,52 @@
+syntax = "proto3";
+
+package webitel.dcctl.v1;
+
+import "protoc-gen-openapiv2/options/annotations.proto";
+
+option go_package = "github.com/webitel/webitel-dcctl/gen/go/dcctl/v1;dcctlv1";
+option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_swagger) = {
+  info: {
+    title: "webitel-dcctl API"
+    description: "Datacenter switching for Webitel. Errors are `Error` objects; tell them apart by `id`, not by the HTTP status."
+    version: "v1"
+  }
+  base_path: "/api"
+  consumes: "application/json"
+  produces: "application/json"
+  security_definitions: {
+    security: {
+      key: "BasicAuth"
+      value: {type: TYPE_BASIC}
+    }
+  }
+  security: {
+    security_requirement: {key: "BasicAuth"}
+  }
+  responses: {
+    key: "400"
+    value: {
+      description: "Invalid request: `dcctl.request.invalid`."
+      schema: {
+        json_schema: {ref: ".webitel.dcctl.v1.Error"}
+      }
+      examples: {
+        key: "application/json"
+        value: '{"id":"dcctl.request.invalid","code":400,"status":"Bad Request","detail":"invalid request","violations":[{"type":"field","subject":"page_size","description":"value must be greater than or equal to 0 and less than or equal to 500"}]}'
+      }
+    }
+  }
+  responses: {
+    key: "401"
+    value: {
+      description: "Missing or wrong basic auth: `dcctl.auth.required`. Sent without `WWW-Authenticate`."
+      schema: {
+        json_schema: {ref: ".webitel.dcctl.v1.Error"}
+      }
+      examples: {
+        key: "application/json"
+        value: '{"id":"dcctl.auth.required","code":401,"status":"Unauthorized","detail":"authentication required"}'
+      }
+    }
+  }
+};

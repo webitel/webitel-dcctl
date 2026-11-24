@@ -1,0 +1,9 @@
+# Disabled for the whole API: there are no Java clients, Go packages come
+# from go_package. Deliberate AIP deviations are disabled inline with
+# (-- api-linter: ... --) comments next to the element, with the reason.
+- included_paths:
+    - "webitel/dcctl/v1/*.proto"
+  disabled_rules:
+    - core::0191::java-multiple-files
+    - core::0191::java-outer-classname
+    - core::0191::java-package

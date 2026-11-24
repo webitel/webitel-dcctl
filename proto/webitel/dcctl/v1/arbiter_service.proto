@@ -1,0 +1,117 @@
+syntax = "proto3";
+
+package webitel.dcctl.v1;
+
+import "buf/validate/validate.proto";
+import "google/api/client.proto";
+import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/webitel/webitel-dcctl/gen/go/dcctl/v1;dcctlv1";
+
+// Storage of the arbiter voter, served by `webitel-dcctl arbiter` over gRPC
+// with mTLS only.
+//
+// An arbiter without `records/state` is uninitialized. Until a dcctl
+// instance creates `records/state` with allow_missing, every other call
+// fails with FAILED_PRECONDITION, reason ARBITER_UNINITIALIZED.
+// (-- api-linter: core::0121::resource-must-support-list=disabled
+//     aip.dev/not-precedent: the arbiter has exactly two records, `state`
+//     and `lease`. --)
+service ArbiterService {
+  // Returns a record.
+  //
+  // Fails with FAILED_PRECONDITION, reason ARBITER_UNINITIALIZED, on an
+  // uninitialized arbiter, and with NOT_FOUND, reason RECORD_NOT_FOUND,
+  // when an initialized arbiter has no such record.
+  // (-- api-linter: core::0127::http-annotation=disabled
+  //     aip.dev/not-precedent: the arbiter API is gRPC only. --)
+  rpc GetRecord(GetRecordRequest) returns (Record) {
+    option (google.api.method_signature) = "name";
+  }
+
+  // Writes a record if its etag matches the stored one (compare-and-swap).
+  //
+  // Fails with:
+  // - ABORTED, reason ETAG_MISMATCH, with the current record in the
+  //   details, when the record exists and its etag differs, including a
+  //   create with allow_missing over an existing record;
+  // - NOT_FOUND, reason RECORD_NOT_FOUND, when the record is absent and the
+  //   request is not a create with allow_missing;
+  // - FAILED_PRECONDITION, reason ARBITER_UNINITIALIZED, on an
+  //   uninitialized arbiter, unless the request creates `records/state`.
+  // (-- api-linter: core::0127::http-annotation=disabled
+  //     aip.dev/not-precedent: the arbiter API is gRPC only. --)
+  // (-- api-linter: core::0134::method-signature=disabled
+  //     aip.dev/not-precedent: no update_mask, see UpdateRecordRequest. --)
+  rpc UpdateRecord(UpdateRecordRequest) returns (Record) {}
+}
+
+// A record of the arbiter: `records/state` or `records/lease`.
+//
+// The value is the same JSON as the Consul KV key `dcctl/state` or
+// `dcctl/lease` of a datacenter voter, byte for byte. The arbiter does not
+// parse it, so the arbiter copy cannot drift from the KV format.
+message Record {
+  option (google.api.resource) = {
+    type: "dcctl.webitel.com/Record"
+    pattern: "records/{record}"
+    singular: "record"
+    plural: "records"
+  };
+
+  // Resource name: `records/state` or `records/lease`.
+  string name = 1 [
+    (google.api.field_behavior) = IDENTIFIER,
+    (buf.validate.field).string.pattern = "^records/(state|lease)$"
+  ];
+
+  // JSON of `dcctl/state` or `dcctl/lease`.
+  bytes value = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (buf.validate.field).bytes.min_len = 1
+  ];
+
+  // Monotonic index of the record as a decimal string. In UpdateRecord, the
+  // index the caller read; empty with allow_missing to create the record.
+  string etag = 3 [
+    (google.api.field_behavior) = OPTIONAL,
+    (buf.validate.field).string.pattern = "^[0-9]{0,20}$"
+  ];
+
+  // When the record was last written.
+  google.protobuf.Timestamp update_time = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// Request message for ArbiterService.GetRecord.
+message GetRecordRequest {
+  // Record: `records/state` or `records/lease`.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "dcctl.webitel.com/Record",
+    (buf.validate.field).string.pattern = "^records/(state|lease)$"
+  ];
+}
+
+// Request message for ArbiterService.UpdateRecord.
+// (-- api-linter: core::0134::request-mask-required=disabled
+//     aip.dev/not-precedent: the value is opaque JSON replaced as a whole by
+//     compare-and-swap. --)
+message UpdateRecordRequest {
+  option (buf.validate.message).cel = {
+    id: "update_record.etag"
+    message: "etag is required unless allow_missing is set"
+    expression: "this.allow_missing || this.record.etag != ''"
+  };
+
+  // Record to write, with the etag the caller read.
+  Record record = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (buf.validate.field).required = true
+  ];
+
+  // Create the record when it does not exist. An empty etag is allowed only
+  // with allow_missing.
+  bool allow_missing = 2 [(google.api.field_behavior) = OPTIONAL];
+}

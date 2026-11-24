@@ -1,0 +1,69 @@
+name: Proto
+
+on:
+  pull_request:
+    paths:
+      - "proto/**"
+      - "gen/**"
+      - "api/**"
+      - "buf.*"
+      - "Makefile"
+      - ".api-linter.yaml"
+      - ".github/workflows/proto.yml"
+  push:
+    branches: [ main ]
+    paths:
+      - "proto/**"
+      - "gen/**"
+      - "api/**"
+      - "buf.*"
+      - "Makefile"
+      - ".api-linter.yaml"
+      - ".github/workflows/proto.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  proto:
+    name: Lint, generate, breaking
+    runs-on: [ arc-backend-runner-set ]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The breaking check compares with the base branch.
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Set up buf
+        uses: bufbuild/buf-action@37ac33d8960807670a6e9719080e885197b09cc6 # v1.7.0
+        with:
+          version: "1.75.0"
+          token: ${{ secrets.BUF_TOKEN }}
+          setup_only: true
+
+      - name: Lint proto
+        env:
+          BUF_TOKEN: ${{ secrets.BUF_TOKEN }}
+        run: make proto-lint BUF=buf
+
+      - name: Check generated code
+        env:
+          BUF_TOKEN: ${{ secrets.BUF_TOKEN }}
+        run: make proto-check BUF=buf
+
+      - name: Check breaking changes
+        if: github.event_name == 'pull_request'
+        env:
+          BUF_TOKEN: ${{ secrets.BUF_TOKEN }}
+          BASE_REF: origin/${{ github.base_ref }}
+        run: make proto-breaking BUF=buf BREAKING_AGAINST="$BASE_REF"

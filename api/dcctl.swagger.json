@@ -1,0 +1,33 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "webitel-dcctl API",
+    "description": "Datacenter switching for Webitel. Errors are `Error` objects; tell them apart by `id`, not by the HTTP status.",
+    "version": "v1"
+  },
+  "tags": [
+    {
+      "name": "ArbiterService",
+      "description": "Storage of the arbiter voter, served by `webitel-dcctl arbiter` over gRPC\nwith mTLS only.\n\nAn arbiter without `records/state` is uninitialized. Until a dcctl\ninstance creates `records/state` with allow_missing, every other call\nfails with FAILED_PRECONDITION, reason ARBITER_UNINITIALIZED."
+    }
+  ],
+  "basePath": "/api",
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "paths": {},
+  "definitions": {},
+  "securityDefinitions": {
+    "BasicAuth": {
+      "type": "basic"
+    }
+  },
+  "security": [
+    {
+      "BasicAuth": []
+    }
+  ]
+}
