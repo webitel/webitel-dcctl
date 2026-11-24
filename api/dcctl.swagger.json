@@ -12,7 +12,7 @@
     },
     {
       "name": "DatacenterService",
-      "description": "Datacenters."
+      "description": "Datacenters and the actions on them. Every action creates an operation and\nreturns it; with validate_only it returns the checks and the plan without\ncreating anything, or the error the real request would get. An action on a\ndatacenter that is not in the config fails with NOT_FOUND, reason\nDATACENTER_NOT_FOUND, before any check runs."
     },
     {
       "name": "JournalService",
@@ -35,6 +35,82 @@
     "application/json"
   ],
   "paths": {
+    "/v1/arbiter:initialize": {
+      "post": {
+        "summary": "Copies the dcctl state to an empty arbiter.",
+        "operationId": "InitializeArbiter",
+        "responses": {
+          "200": {
+            "description": "The operation: started, or the existing one for the same request_id. With validate_only, the checks and the plan of the operation that would start, with an empty name.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Operation"
+            }
+          },
+          "400": {
+            "description": "Rejected: `dcctl.request.invalid`, `dcctl.preflight.failed`, `dcctl.operation.running`.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Error"
+            },
+            "examples": {
+              "application/json": {
+                "id": "dcctl.operation.running",
+                "code": 400,
+                "status": "Bad Request",
+                "detail": "another operation is running",
+                "metadata": {
+                  "operation": "operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong basic auth: `dcctl.auth.required`. Sent without `WWW-Authenticate`.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Error"
+            },
+            "examples": {
+              "application/json": {
+                "id": "dcctl.auth.required",
+                "code": 401,
+                "status": "Unauthorized",
+                "detail": "authentication required"
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: `dcctl.request_id.mismatch`.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Error"
+            },
+            "examples": {
+              "application/json": {
+                "id": "dcctl.request_id.mismatch",
+                "code": 409,
+                "status": "Conflict",
+                "detail": "request_id was used with another body",
+                "metadata": {
+                  "operation": "operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "Request message for DatacenterService.InitializeArbiter.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.InitializeArbiterRequest"
+            }
+          }
+        ],
+        "tags": [
+          "DatacenterService"
+        ]
+      }
+    },
     "/v1/datacenters": {
       "get": {
         "summary": "Lists all datacenters in one page.",
@@ -412,6 +488,1181 @@
             "in": "path",
             "required": true,
             "type": "string"
+          }
+        ],
+        "tags": [
+          "DatacenterService"
+        ]
+      }
+    },
+    "/v1/datacenters/{datacenter}:demote": {
+      "post": {
+        "summary": "Demotes the old primary of this datacenter and points it at the active\none. Clears the db_split alarm.",
+        "operationId": "DemoteDatacenter",
+        "responses": {
+          "200": {
+            "description": "The operation: started, or the existing one for the same request_id. With validate_only, the checks and the plan of the operation that would start, with an empty name.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Operation"
+            }
+          },
+          "400": {
+            "description": "Rejected: `dcctl.request.invalid`, `dcctl.preflight.failed`, `dcctl.confirmation.required`, `dcctl.operation.running`.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Error"
+            },
+            "examples": {
+              "application/json": {
+                "id": "dcctl.operation.running",
+                "code": 400,
+                "status": "Bad Request",
+                "detail": "another operation is running",
+                "metadata": {
+                  "operation": "operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong basic auth: `dcctl.auth.required`. Sent without `WWW-Authenticate`.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Error"
+            },
+            "examples": {
+              "application/json": {
+                "id": "dcctl.auth.required",
+                "code": 401,
+                "status": "Unauthorized",
+                "detail": "authentication required"
+              }
+            }
+          },
+          "404": {
+            "description": "The datacenter is not in the config: `dcctl.datacenter.not_found`.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Error"
+            },
+            "examples": {
+              "application/json": {
+                "id": "dcctl.datacenter.not_found",
+                "code": 404,
+                "status": "Not Found",
+                "detail": "datacenter dc_c is not in the config",
+                "metadata": {
+                  "datacenter": "datacenters/dc_c"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: `dcctl.lock.busy`, `dcctl.request_id.mismatch`.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Error"
+            },
+            "examples": {
+              "application/json": {
+                "id": "dcctl.lock.busy",
+                "code": 409,
+                "status": "Conflict",
+                "detail": "dcctl/lock is held by another instance",
+                "metadata": {
+                  "holder": "dcctl-a1"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The leading instance is unreachable: `dcctl.leader.unavailable`.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Error"
+            },
+            "examples": {
+              "application/json": {
+                "id": "dcctl.leader.unavailable",
+                "code": 503,
+                "status": "Service Unavailable",
+                "detail": "leading instance is unreachable",
+                "metadata": {
+                  "instance": "dcctl-b1"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "datacenter",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.DatacenterService.DemoteDatacenterBody"
+            }
+          }
+        ],
+        "tags": [
+          "DatacenterService"
+        ]
+      }
+    },
+    "/v1/datacenters/{datacenter}:failover": {
+      "post": {
+        "summary": "Failover to this datacenter when the active one is lost.",
+        "operationId": "FailoverDatacenter",
+        "responses": {
+          "200": {
+            "description": "The operation: started, or the existing one for the same request_id. With validate_only, the checks and the plan of the operation that would start, with an empty name.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Operation"
+            }
+          },
+          "400": {
+            "description": "Rejected: `dcctl.request.invalid`, `dcctl.preflight.failed`, `dcctl.confirmation.required`, `dcctl.operation.running`.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Error"
+            },
+            "examples": {
+              "application/json": {
+                "id": "dcctl.confirmation.required",
+                "code": 400,
+                "status": "Bad Request",
+                "detail": "confirmation required: isolation",
+                "violations": [
+                  {
+                    "type": "confirmation",
+                    "subject": "isolation",
+                    "description": "confirm that dc_a is isolated"
+                  }
+                ],
+                "preflight": {
+                  "mode": "FORCED",
+                  "checks": [
+                    {
+                      "id": "coord.isolation",
+                      "result": "FAIL",
+                      "effect": "CONFIRM",
+                      "confirmation": "isolation",
+                      "detail": "dc_a is unreachable since 2026-11-23T10:02:00Z",
+                      "facts": {
+                        "mode": "FORCED",
+                        "last_seen_role": "primary",
+                        "last_seen_time": "2026-11-23T10:01:58Z"
+                      }
+                    }
+                  ],
+                  "steps": [
+                    {
+                      "index": 0,
+                      "type": "GENERATION",
+                      "state": "PENDING",
+                      "point_of_no_return": true
+                    },
+                    {
+                      "index": 1,
+                      "type": "PATRONI_PROMOTE",
+                      "datacenter": "datacenters/dc_b",
+                      "state": "PENDING"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong basic auth: `dcctl.auth.required`. Sent without `WWW-Authenticate`.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Error"
+            },
+            "examples": {
+              "application/json": {
+                "id": "dcctl.auth.required",
+                "code": 401,
+                "status": "Unauthorized",
+                "detail": "authentication required"
+              }
+            }
+          },
+          "404": {
+            "description": "The datacenter is not in the config: `dcctl.datacenter.not_found`.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Error"
+            },
+            "examples": {
+              "application/json": {
+                "id": "dcctl.datacenter.not_found",
+                "code": 404,
+                "status": "Not Found",
+                "detail": "datacenter dc_c is not in the config",
+                "metadata": {
+                  "datacenter": "datacenters/dc_c"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: `dcctl.lock.busy`, `dcctl.request_id.mismatch`.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Error"
+            },
+            "examples": {
+              "application/json": {
+                "id": "dcctl.request_id.mismatch",
+                "code": 409,
+                "status": "Conflict",
+                "detail": "request_id was used with another body",
+                "metadata": {
+                  "operation": "operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The leading instance is unreachable: `dcctl.leader.unavailable`.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Error"
+            },
+            "examples": {
+              "application/json": {
+                "id": "dcctl.leader.unavailable",
+                "code": 503,
+                "status": "Service Unavailable",
+                "detail": "leading instance is unreachable",
+                "metadata": {
+                  "instance": "dcctl-b1"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "datacenter",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.DatacenterService.FailoverDatacenterBody"
+            }
+          }
+        ],
+        "tags": [
+          "DatacenterService"
+        ]
+      }
+    },
+    "/v1/datacenters/{datacenter}:markRecovered": {
+      "post": {
+        "summary": "Removes this datacenter from needs_recovery.",
+        "operationId": "MarkDatacenterRecovered",
+        "responses": {
+          "200": {
+            "description": "The operation: started, or the existing one for the same request_id. With validate_only, the checks and the plan of the operation that would start, with an empty name.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Operation"
+            }
+          },
+          "400": {
+            "description": "Rejected: `dcctl.request.invalid`, `dcctl.preflight.failed`, `dcctl.operation.running`.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Error"
+            },
+            "examples": {
+              "application/json": {
+                "id": "dcctl.preflight.failed",
+                "code": 400,
+                "status": "Bad Request",
+                "detail": "preflight failed: patroni.target_lag",
+                "violations": [
+                  {
+                    "type": "check",
+                    "subject": "patroni.target_lag",
+                    "description": "lag 52428800 B exceeds 1048576 B"
+                  }
+                ],
+                "preflight": {
+                  "mode": "QUORUM",
+                  "checks": [
+                    {
+                      "id": "coord.lock_free",
+                      "result": "PASS",
+                      "effect": "BLOCK",
+                      "detail": "dcctl/lock is free in every reachable datacenter"
+                    },
+                    {
+                      "id": "patroni.target_lag",
+                      "result": "FAIL",
+                      "effect": "BLOCK",
+                      "datacenter": "datacenters/dc_b",
+                      "detail": "lag 52428800 B exceeds 1048576 B",
+                      "facts": {
+                        "lag_bytes": 52428800,
+                        "limit_bytes": 1048576
+                      }
+                    }
+                  ],
+                  "steps": [
+                    {
+                      "index": 0,
+                      "type": "APPS_PREFLIGHT",
+                      "state": "PENDING"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong basic auth: `dcctl.auth.required`. Sent without `WWW-Authenticate`.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Error"
+            },
+            "examples": {
+              "application/json": {
+                "id": "dcctl.auth.required",
+                "code": 401,
+                "status": "Unauthorized",
+                "detail": "authentication required"
+              }
+            }
+          },
+          "404": {
+            "description": "The datacenter is not in the config: `dcctl.datacenter.not_found`.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Error"
+            },
+            "examples": {
+              "application/json": {
+                "id": "dcctl.datacenter.not_found",
+                "code": 404,
+                "status": "Not Found",
+                "detail": "datacenter dc_c is not in the config",
+                "metadata": {
+                  "datacenter": "datacenters/dc_c"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: `dcctl.lock.busy`, `dcctl.request_id.mismatch`.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Error"
+            },
+            "examples": {
+              "application/json": {
+                "id": "dcctl.lock.busy",
+                "code": 409,
+                "status": "Conflict",
+                "detail": "dcctl/lock is held by another instance",
+                "metadata": {
+                  "holder": "dcctl-a1"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The leading instance is unreachable: `dcctl.leader.unavailable`.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Error"
+            },
+            "examples": {
+              "application/json": {
+                "id": "dcctl.leader.unavailable",
+                "code": 503,
+                "status": "Service Unavailable",
+                "detail": "leading instance is unreachable",
+                "metadata": {
+                  "instance": "dcctl-b1"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "datacenter",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.DatacenterService.MarkDatacenterRecoveredBody"
+            }
+          }
+        ],
+        "tags": [
+          "DatacenterService"
+        ]
+      }
+    },
+    "/v1/datacenters/{datacenter}:repoint": {
+      "post": {
+        "summary": "Points this standby datacenter at the active one.",
+        "operationId": "RepointDatacenter",
+        "responses": {
+          "200": {
+            "description": "The operation: started, or the existing one for the same request_id. With validate_only, the checks and the plan of the operation that would start, with an empty name.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Operation"
+            },
+            "examples": {
+              "application/json": {
+                "type": "REPOINT",
+                "target": "datacenters/dc_b",
+                "mode": "QUORUM",
+                "checks": [
+                  {
+                    "id": "coord.lock_free",
+                    "result": "PASS",
+                    "effect": "BLOCK",
+                    "detail": "dcctl/lock is free in every reachable datacenter"
+                  },
+                  {
+                    "id": "patroni.divergence",
+                    "result": "PASS",
+                    "effect": "CONFIRM",
+                    "confirmation": "max_discard_bytes",
+                    "datacenter": "datacenters/dc_b",
+                    "detail": "dc_b did not diverge"
+                  }
+                ],
+                "steps": [
+                  {
+                    "index": 0,
+                    "type": "PATRONI_REPOINT",
+                    "datacenter": "datacenters/dc_b",
+                    "state": "PENDING"
+                  },
+                  {
+                    "index": 1,
+                    "type": "PATRONI_FOLLOW",
+                    "datacenter": "datacenters/dc_b",
+                    "state": "PENDING"
+                  }
+                ]
+              }
+            }
+          },
+          "400": {
+            "description": "Rejected: `dcctl.request.invalid`, `dcctl.preflight.failed`, `dcctl.confirmation.required`, `dcctl.operation.running`.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Error"
+            },
+            "examples": {
+              "application/json": {
+                "id": "dcctl.confirmation.required",
+                "code": 400,
+                "status": "Bad Request",
+                "detail": "confirmation required: max_discard_bytes",
+                "violations": [
+                  {
+                    "type": "confirmation",
+                    "subject": "max_discard_bytes",
+                    "description": "dc_b diverged by 1048576 B, limit 0 B"
+                  }
+                ],
+                "preflight": {
+                  "mode": "QUORUM",
+                  "checks": [
+                    {
+                      "id": "patroni.divergence",
+                      "result": "FAIL",
+                      "effect": "CONFIRM",
+                      "confirmation": "max_discard_bytes",
+                      "datacenter": "datacenters/dc_b",
+                      "detail": "dc_b diverged by 1048576 B",
+                      "facts": {
+                        "divergence_lsn": "0/5000060",
+                        "divergence_bytes": 1048576,
+                        "timeline": 4
+                      }
+                    }
+                  ],
+                  "steps": [
+                    {
+                      "index": 0,
+                      "type": "PATRONI_REPOINT",
+                      "datacenter": "datacenters/dc_b",
+                      "state": "PENDING"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong basic auth: `dcctl.auth.required`. Sent without `WWW-Authenticate`.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Error"
+            },
+            "examples": {
+              "application/json": {
+                "id": "dcctl.auth.required",
+                "code": 401,
+                "status": "Unauthorized",
+                "detail": "authentication required"
+              }
+            }
+          },
+          "404": {
+            "description": "The datacenter is not in the config: `dcctl.datacenter.not_found`.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Error"
+            },
+            "examples": {
+              "application/json": {
+                "id": "dcctl.datacenter.not_found",
+                "code": 404,
+                "status": "Not Found",
+                "detail": "datacenter dc_c is not in the config",
+                "metadata": {
+                  "datacenter": "datacenters/dc_c"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: `dcctl.lock.busy`, `dcctl.request_id.mismatch`.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Error"
+            },
+            "examples": {
+              "application/json": {
+                "id": "dcctl.lock.busy",
+                "code": 409,
+                "status": "Conflict",
+                "detail": "dcctl/lock is held by another instance",
+                "metadata": {
+                  "holder": "dcctl-a1"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The leading instance is unreachable: `dcctl.leader.unavailable`.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Error"
+            },
+            "examples": {
+              "application/json": {
+                "id": "dcctl.leader.unavailable",
+                "code": 503,
+                "status": "Service Unavailable",
+                "detail": "leading instance is unreachable",
+                "metadata": {
+                  "instance": "dcctl-b1"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "datacenter",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.DatacenterService.RepointDatacenterBody"
+            }
+          }
+        ],
+        "tags": [
+          "DatacenterService"
+        ]
+      }
+    },
+    "/v1/datacenters/{datacenter}:switch": {
+      "post": {
+        "summary": "Planned switch of the active datacenter to this one.",
+        "operationId": "SwitchDatacenter",
+        "responses": {
+          "200": {
+            "description": "The operation: started, or the existing one for the same request_id. With validate_only, the checks and the plan of the operation that would start, with an empty name.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Operation"
+            },
+            "examples": {
+              "application/json": {
+                "name": "operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10",
+                "type": "SWITCH",
+                "state": "RUNNING",
+                "target": "datacenters/dc_b",
+                "initiator": {
+                  "user": "support",
+                  "address": "10.1.0.15",
+                  "instance": {
+                    "node": "dcctl-a1",
+                    "datacenter": "datacenters/dc_a",
+                    "address": "10.1.0.81:10023"
+                  }
+                },
+                "leader": {
+                  "node": "dcctl-b1",
+                  "datacenter": "datacenters/dc_b",
+                  "address": "10.2.0.81:10023"
+                },
+                "mode": "QUORUM",
+                "previous_generation": "7",
+                "new_generation": "8",
+                "checks": [
+                  {
+                    "id": "coord.lock_free",
+                    "result": "PASS",
+                    "effect": "BLOCK",
+                    "detail": "dcctl/lock is free in every reachable datacenter"
+                  },
+                  {
+                    "id": "patroni.target_lag",
+                    "result": "PASS",
+                    "effect": "BLOCK",
+                    "datacenter": "datacenters/dc_b",
+                    "detail": "lag 0 B, limit 1048576 B",
+                    "facts": {
+                      "lag_bytes": 0,
+                      "limit_bytes": 1048576
+                    }
+                  }
+                ],
+                "steps": [
+                  {
+                    "index": 0,
+                    "type": "APPS_PREFLIGHT",
+                    "state": "SUCCEEDED",
+                    "start_time": "2026-11-23T10:15:02Z",
+                    "end_time": "2026-11-23T10:15:04Z"
+                  },
+                  {
+                    "index": 1,
+                    "type": "APPS_STOP",
+                    "stage": 3,
+                    "datacenter": "datacenters/dc_a",
+                    "state": "RUNNING",
+                    "start_time": "2026-11-23T10:15:04Z",
+                    "detail": "stopping 1 of 3 jobs"
+                  },
+                  {
+                    "index": 2,
+                    "type": "PATRONI_DEMOTE",
+                    "datacenter": "datacenters/dc_a",
+                    "state": "PENDING"
+                  },
+                  {
+                    "index": 3,
+                    "type": "GENERATION",
+                    "state": "PENDING",
+                    "point_of_no_return": true
+                  }
+                ],
+                "request_id": "6f1c2b9e-8d4a-4f3b-9c2e-1a7d5e3f9b40",
+                "create_time": "2026-11-23T10:15:01Z",
+                "update_time": "2026-11-23T10:15:04Z",
+                "switch_datacenter": {
+                  "name": "datacenters/dc_b",
+                  "request_id": "6f1c2b9e-8d4a-4f3b-9c2e-1a7d5e3f9b40"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Rejected: `dcctl.request.invalid`, `dcctl.preflight.failed`, `dcctl.confirmation.required`, `dcctl.operation.running`.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Error"
+            },
+            "examples": {
+              "application/json": {
+                "id": "dcctl.preflight.failed",
+                "code": 400,
+                "status": "Bad Request",
+                "detail": "preflight failed: patroni.target_lag",
+                "violations": [
+                  {
+                    "type": "check",
+                    "subject": "patroni.target_lag",
+                    "description": "lag 52428800 B exceeds 1048576 B"
+                  }
+                ],
+                "preflight": {
+                  "mode": "QUORUM",
+                  "checks": [
+                    {
+                      "id": "coord.lock_free",
+                      "result": "PASS",
+                      "effect": "BLOCK",
+                      "detail": "dcctl/lock is free in every reachable datacenter"
+                    },
+                    {
+                      "id": "patroni.target_lag",
+                      "result": "FAIL",
+                      "effect": "BLOCK",
+                      "datacenter": "datacenters/dc_b",
+                      "detail": "lag 52428800 B exceeds 1048576 B",
+                      "facts": {
+                        "lag_bytes": 52428800,
+                        "limit_bytes": 1048576
+                      }
+                    }
+                  ],
+                  "steps": [
+                    {
+                      "index": 0,
+                      "type": "APPS_PREFLIGHT",
+                      "state": "PENDING"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong basic auth: `dcctl.auth.required`. Sent without `WWW-Authenticate`.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Error"
+            },
+            "examples": {
+              "application/json": {
+                "id": "dcctl.auth.required",
+                "code": 401,
+                "status": "Unauthorized",
+                "detail": "authentication required"
+              }
+            }
+          },
+          "404": {
+            "description": "The datacenter is not in the config: `dcctl.datacenter.not_found`.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Error"
+            },
+            "examples": {
+              "application/json": {
+                "id": "dcctl.datacenter.not_found",
+                "code": 404,
+                "status": "Not Found",
+                "detail": "datacenter dc_c is not in the config",
+                "metadata": {
+                  "datacenter": "datacenters/dc_c"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: `dcctl.lock.busy`, `dcctl.request_id.mismatch`.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Error"
+            },
+            "examples": {
+              "application/json": {
+                "id": "dcctl.lock.busy",
+                "code": 409,
+                "status": "Conflict",
+                "detail": "dcctl/lock is held by another instance",
+                "metadata": {
+                  "holder": "dcctl-a1"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The leading instance is unreachable: `dcctl.leader.unavailable`.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Error"
+            },
+            "examples": {
+              "application/json": {
+                "id": "dcctl.leader.unavailable",
+                "code": 503,
+                "status": "Service Unavailable",
+                "detail": "leading instance is unreachable",
+                "metadata": {
+                  "instance": "dcctl-b1"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "datacenter",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.DatacenterService.SwitchDatacenterBody"
+            }
+          }
+        ],
+        "tags": [
+          "DatacenterService"
+        ]
+      }
+    },
+    "/v1/datacenters:initialize": {
+      "post": {
+        "summary": "Creates the initial dcctl state in every datacenter.",
+        "operationId": "InitializeDatacenters",
+        "responses": {
+          "200": {
+            "description": "The operation: started, or the existing one for the same request_id. With validate_only, the checks and the plan of the operation that would start, with an empty name.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Operation"
+            }
+          },
+          "400": {
+            "description": "Rejected: `dcctl.request.invalid`, `dcctl.preflight.failed`.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Error"
+            },
+            "examples": {
+              "application/json": {
+                "id": "dcctl.preflight.failed",
+                "code": 400,
+                "status": "Bad Request",
+                "detail": "preflight failed: init.state_absent",
+                "violations": [
+                  {
+                    "type": "check",
+                    "subject": "init.state_absent",
+                    "description": "dcctl/state exists in dc_a"
+                  }
+                ],
+                "preflight": {
+                  "checks": [
+                    {
+                      "id": "init.state_absent",
+                      "result": "FAIL",
+                      "effect": "BLOCK",
+                      "detail": "dcctl/state exists in dc_a",
+                      "facts": {
+                        "datacenters": [
+                          "dc_a"
+                        ]
+                      }
+                    }
+                  ],
+                  "steps": []
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong basic auth: `dcctl.auth.required`. Sent without `WWW-Authenticate`.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Error"
+            },
+            "examples": {
+              "application/json": {
+                "id": "dcctl.auth.required",
+                "code": 401,
+                "status": "Unauthorized",
+                "detail": "authentication required"
+              }
+            }
+          },
+          "404": {
+            "description": "The datacenter is not in the config: `dcctl.datacenter.not_found`.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Error"
+            },
+            "examples": {
+              "application/json": {
+                "id": "dcctl.datacenter.not_found",
+                "code": 404,
+                "status": "Not Found",
+                "detail": "datacenter dc_c is not in the config",
+                "metadata": {
+                  "datacenter": "datacenters/dc_c"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: `dcctl.request_id.mismatch`.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Error"
+            },
+            "examples": {
+              "application/json": {
+                "id": "dcctl.request_id.mismatch",
+                "code": 409,
+                "status": "Conflict",
+                "detail": "request_id was used with another body",
+                "metadata": {
+                  "operation": "operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "Request message for DatacenterService.InitializeDatacenters.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.InitializeDatacentersRequest"
+            }
+          }
+        ],
+        "tags": [
+          "DatacenterService"
+        ]
+      }
+    },
+    "/v1/datacenters:resolveConflict": {
+      "post": {
+        "summary": "Resolves a generation conflict in favor of the winner.",
+        "operationId": "ResolveConflict",
+        "responses": {
+          "200": {
+            "description": "The operation: started, or the existing one for the same request_id. With validate_only, the checks and the plan of the operation that would start, with an empty name.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Operation"
+            }
+          },
+          "400": {
+            "description": "Rejected: `dcctl.request.invalid`, `dcctl.preflight.failed`, `dcctl.confirmation.required`, `dcctl.operation.running`.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Error"
+            },
+            "examples": {
+              "application/json": {
+                "id": "dcctl.confirmation.required",
+                "code": 400,
+                "status": "Bad Request",
+                "detail": "confirmation required: isolation",
+                "violations": [
+                  {
+                    "type": "confirmation",
+                    "subject": "isolation",
+                    "description": "confirm that dc_a is isolated"
+                  }
+                ],
+                "preflight": {
+                  "mode": "FORCED",
+                  "checks": [
+                    {
+                      "id": "coord.isolation",
+                      "result": "FAIL",
+                      "effect": "CONFIRM",
+                      "confirmation": "isolation",
+                      "detail": "dc_a is unreachable since 2026-11-23T10:02:00Z",
+                      "facts": {
+                        "mode": "FORCED",
+                        "last_seen_role": "primary",
+                        "last_seen_time": "2026-11-23T10:01:58Z"
+                      }
+                    }
+                  ],
+                  "steps": [
+                    {
+                      "index": 0,
+                      "type": "GENERATION",
+                      "state": "PENDING",
+                      "point_of_no_return": true
+                    },
+                    {
+                      "index": 1,
+                      "type": "PATRONI_PROMOTE",
+                      "datacenter": "datacenters/dc_b",
+                      "state": "PENDING"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong basic auth: `dcctl.auth.required`. Sent without `WWW-Authenticate`.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Error"
+            },
+            "examples": {
+              "application/json": {
+                "id": "dcctl.auth.required",
+                "code": 401,
+                "status": "Unauthorized",
+                "detail": "authentication required"
+              }
+            }
+          },
+          "404": {
+            "description": "The datacenter is not in the config: `dcctl.datacenter.not_found`.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Error"
+            },
+            "examples": {
+              "application/json": {
+                "id": "dcctl.datacenter.not_found",
+                "code": 404,
+                "status": "Not Found",
+                "detail": "datacenter dc_c is not in the config",
+                "metadata": {
+                  "datacenter": "datacenters/dc_c"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: `dcctl.lock.busy`, `dcctl.request_id.mismatch`.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Error"
+            },
+            "examples": {
+              "application/json": {
+                "id": "dcctl.lock.busy",
+                "code": 409,
+                "status": "Conflict",
+                "detail": "dcctl/lock is held by another instance",
+                "metadata": {
+                  "holder": "dcctl-a1"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The leading instance is unreachable: `dcctl.leader.unavailable`.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Error"
+            },
+            "examples": {
+              "application/json": {
+                "id": "dcctl.leader.unavailable",
+                "code": 503,
+                "status": "Service Unavailable",
+                "detail": "leading instance is unreachable",
+                "metadata": {
+                  "instance": "dcctl-b1"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "Request message for DatacenterService.ResolveConflict.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.ResolveConflictRequest"
+            }
+          }
+        ],
+        "tags": [
+          "DatacenterService"
+        ]
+      }
+    },
+    "/v1/datacenters:syncApps": {
+      "post": {
+        "summary": "Brings the managed apps of the active datacenter to the desired state.",
+        "operationId": "SyncApps",
+        "responses": {
+          "200": {
+            "description": "The operation: started, or the existing one for the same request_id. With validate_only, the checks and the plan of the operation that would start, with an empty name.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Operation"
+            }
+          },
+          "400": {
+            "description": "Rejected: `dcctl.request.invalid`, `dcctl.preflight.failed`, `dcctl.operation.running`.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Error"
+            },
+            "examples": {
+              "application/json": {
+                "id": "dcctl.operation.running",
+                "code": 400,
+                "status": "Bad Request",
+                "detail": "another operation is running",
+                "metadata": {
+                  "operation": "operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong basic auth: `dcctl.auth.required`. Sent without `WWW-Authenticate`.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Error"
+            },
+            "examples": {
+              "application/json": {
+                "id": "dcctl.auth.required",
+                "code": 401,
+                "status": "Unauthorized",
+                "detail": "authentication required"
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: `dcctl.lock.busy`, `dcctl.request_id.mismatch`.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Error"
+            },
+            "examples": {
+              "application/json": {
+                "id": "dcctl.lock.busy",
+                "code": 409,
+                "status": "Conflict",
+                "detail": "dcctl/lock is held by another instance",
+                "metadata": {
+                  "holder": "dcctl-a1"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The leading instance is unreachable: `dcctl.leader.unavailable`.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Error"
+            },
+            "examples": {
+              "application/json": {
+                "id": "dcctl.leader.unavailable",
+                "code": 503,
+                "status": "Service Unavailable",
+                "detail": "leading instance is unreachable",
+                "metadata": {
+                  "instance": "dcctl-b1"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "Request message for DatacenterService.SyncApps.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.SyncAppsRequest"
+            }
           }
         ],
         "tags": [
@@ -2254,6 +3505,101 @@
       ],
       "default": "STATE_UNSPECIFIED",
       "description": "Role of the datacenter in coordination. The first matching value in\nthis order wins.\n\n - STATE_UNSPECIFIED: Not set.\n - UNREACHABLE: No source of the datacenter is reachable.\n - UNINITIALIZED: No voter has the dcctl state.\n - ACTIVE: The active datacenter of the effective state.\n - SPLIT_BRAIN: An inactive datacenter runs a managed job that is not stopped.\n - DB_SPLIT: warm_standby: the Patroni leader of an inactive datacenter is primary.\n - STALE: The voter of the datacenter has an older generation.\n - NEEDS_RECOVERY: Waits for recovery after a failover.\n - STANDBY: Healthy standby."
+    },
+    "webitel.dcctl.v1.DatacenterService.DemoteDatacenterBody": {
+      "type": "object",
+      "properties": {
+        "confirmation": {
+          "$ref": "#/definitions/webitel.dcctl.v1.Confirmation",
+          "description": "Confirmations: `max_discard_bytes` when the datacenter diverged."
+        },
+        "validate_only": {
+          "type": "boolean",
+          "description": "Run the preflight only and return the plan."
+        },
+        "request_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Idempotency key, UUID v4. A repeat with the same body returns the\nexisting operation; with another body it fails with REQUEST_ID_MISMATCH."
+        }
+      },
+      "description": "Request message for DatacenterService.DemoteDatacenter."
+    },
+    "webitel.dcctl.v1.DatacenterService.FailoverDatacenterBody": {
+      "type": "object",
+      "properties": {
+        "confirmation": {
+          "$ref": "#/definitions/webitel.dcctl.v1.Confirmation",
+          "description": "Confirmations: `isolation`; `not_max_lsn` in warm_standby;\n`max_discard_bytes` in stretch without a Patroni leader."
+        },
+        "validate_only": {
+          "type": "boolean",
+          "description": "Run the preflight only and return the plan."
+        },
+        "request_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Idempotency key, UUID v4. A repeat with the same body returns the\nexisting operation; with another body it fails with REQUEST_ID_MISMATCH."
+        }
+      },
+      "description": "Request message for DatacenterService.FailoverDatacenter."
+    },
+    "webitel.dcctl.v1.DatacenterService.MarkDatacenterRecoveredBody": {
+      "type": "object",
+      "properties": {
+        "confirmation": {
+          "$ref": "#/definitions/webitel.dcctl.v1.Confirmation",
+          "description": "Confirmations. Mark recovered needs none."
+        },
+        "validate_only": {
+          "type": "boolean",
+          "description": "Run the preflight only and return the plan."
+        },
+        "request_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Idempotency key, UUID v4. A repeat with the same body returns the\nexisting operation; with another body it fails with REQUEST_ID_MISMATCH."
+        }
+      },
+      "description": "Request message for DatacenterService.MarkDatacenterRecovered."
+    },
+    "webitel.dcctl.v1.DatacenterService.RepointDatacenterBody": {
+      "type": "object",
+      "properties": {
+        "confirmation": {
+          "$ref": "#/definitions/webitel.dcctl.v1.Confirmation",
+          "description": "Confirmations: `max_discard_bytes` when the datacenter diverged."
+        },
+        "validate_only": {
+          "type": "boolean",
+          "description": "Run the preflight only and return the plan."
+        },
+        "request_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Idempotency key, UUID v4. A repeat with the same body returns the\nexisting operation; with another body it fails with REQUEST_ID_MISMATCH."
+        }
+      },
+      "description": "Request message for DatacenterService.RepointDatacenter."
+    },
+    "webitel.dcctl.v1.DatacenterService.SwitchDatacenterBody": {
+      "type": "object",
+      "properties": {
+        "confirmation": {
+          "$ref": "#/definitions/webitel.dcctl.v1.Confirmation",
+          "description": "Confirmations. Switch needs none."
+        },
+        "validate_only": {
+          "type": "boolean",
+          "description": "Run the preflight only and return the plan."
+        },
+        "request_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Idempotency key, UUID v4. A repeat with the same body returns the\nexisting operation; with another body it fails with REQUEST_ID_MISMATCH."
+        }
+      },
+      "description": "Request message for DatacenterService.SwitchDatacenter."
     },
     "webitel.dcctl.v1.DemoteDatacenterRequest": {
       "type": "object",

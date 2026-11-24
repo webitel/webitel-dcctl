@@ -8,11 +8,17 @@ import "google/api/client.proto";
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
 import "protoc-gen-openapiv2/options/annotations.proto";
+import "webitel/dcctl/v1/action.proto";
 import "webitel/dcctl/v1/datacenter.proto";
+import "webitel/dcctl/v1/operation.proto";
 
 option go_package = "github.com/webitel/webitel-dcctl/gen/go/dcctl/v1;dcctlv1";
 
-// Datacenters.
+// Datacenters and the actions on them. Every action creates an operation and
+// returns it; with validate_only it returns the checks and the plan without
+// creating anything, or the error the real request would get. An action on a
+// datacenter that is not in the config fails with NOT_FOUND, reason
+// DATACENTER_NOT_FOUND, before any check runs.
 service DatacenterService {
   // Lists all datacenters in one page.
   rpc ListDatacenters(ListDatacentersRequest) returns (ListDatacentersResponse) {
@@ -101,6 +107,707 @@ service DatacenterService {
             value:
               '{"id":"dcctl.datacenter.not_found","code":404,"status":"Not Found","detail":"datacenter dc_c not found",'
               '"metadata":{"datacenter":"datacenters/dc_c"}}'
+          }
+        }
+      }
+    };
+  }
+
+  // Planned switch of the active datacenter to this one.
+  // (-- api-linter: core::0136::response-message-name=disabled
+  //     aip.dev/not-precedent: actions return the own Operation resource
+  //     instead of google.longrunning.Operation. --)
+  rpc SwitchDatacenter(SwitchDatacenterRequest) returns (Operation) {
+    option (google.api.http) = {
+      post: "/v1/{name=datacenters/*}:switch"
+      body: "*"
+    };
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      responses: {
+        key: "200"
+        value: {
+          description: "The operation: started, or the existing one for the same request_id. With validate_only, the checks and the plan of the operation that would start, with an empty name."
+          examples: {
+            key: "application/json"
+            value:
+              '{"name":"operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10","type":"SWITCH",'
+              '"state":"RUNNING","target":"datacenters/dc_b","initiator":{"user":"support",'
+              '"address":"10.1.0.15","instance":{"node":"dcctl-a1","datacenter":"datacenters/dc_a",'
+              '"address":"10.1.0.81:10023"}},"leader":{"node":"dcctl-b1","datacenter":"datacenters/dc_b",'
+              '"address":"10.2.0.81:10023"},"mode":"QUORUM","previous_generation":"7",'
+              '"new_generation":"8","checks":[{"id":"coord.lock_free","result":"PASS",'
+              '"effect":"BLOCK","detail":"dcctl/lock is free in every reachable datacenter"},'
+              '{"id":"patroni.target_lag","result":"PASS","effect":"BLOCK","datacenter":"datacenters/dc_b",'
+              '"detail":"lag 0 B, limit 1048576 B","facts":{"lag_bytes":0,"limit_bytes":1048576}}],'
+              '"steps":[{"index":0,"type":"APPS_PREFLIGHT","state":"SUCCEEDED","start_time":"2026-11-23T10:15:02Z",'
+              '"end_time":"2026-11-23T10:15:04Z"},{"index":1,"type":"APPS_STOP","stage":3,'
+              '"datacenter":"datacenters/dc_a","state":"RUNNING","start_time":"2026-11-23T10:15:04Z",'
+              '"detail":"stopping 1 of 3 jobs"},{"index":2,"type":"PATRONI_DEMOTE","datacenter":"datacenters/dc_a",'
+              '"state":"PENDING"},{"index":3,"type":"GENERATION","state":"PENDING","point_of_no_return":true}],'
+              '"request_id":"6f1c2b9e-8d4a-4f3b-9c2e-1a7d5e3f9b40","create_time":"2026-11-23T10:15:01Z",'
+              '"update_time":"2026-11-23T10:15:04Z","switch_datacenter":{"name":"datacenters/dc_b",'
+              '"request_id":"6f1c2b9e-8d4a-4f3b-9c2e-1a7d5e3f9b40"}}'
+          }
+        }
+      }
+      responses: {
+        key: "400"
+        value: {
+          description: "Rejected: `dcctl.request.invalid`, `dcctl.preflight.failed`, `dcctl.confirmation.required`, `dcctl.operation.running`."
+          schema: {
+            json_schema: {ref: ".webitel.dcctl.v1.Error"}
+          }
+          examples: {
+            key: "application/json"
+            value:
+              '{"id":"dcctl.preflight.failed","code":400,"status":"Bad Request","detail":"preflight failed: patroni.target_lag",'
+              '"violations":[{"type":"check","subject":"patroni.target_lag","description":"lag 52428800 B exceeds 1048576 B"}],'
+              '"preflight":{"mode":"QUORUM","checks":[{"id":"coord.lock_free","result":"PASS",'
+              '"effect":"BLOCK","detail":"dcctl/lock is free in every reachable datacenter"},'
+              '{"id":"patroni.target_lag","result":"FAIL","effect":"BLOCK","datacenter":"datacenters/dc_b",'
+              '"detail":"lag 52428800 B exceeds 1048576 B","facts":{"lag_bytes":52428800,'
+              '"limit_bytes":1048576}}],"steps":[{"index":0,"type":"APPS_PREFLIGHT","state":"PENDING"}]}}'
+          }
+        }
+      }
+      responses: {
+        key: "404"
+        value: {
+          description: "The datacenter is not in the config: `dcctl.datacenter.not_found`."
+          schema: {
+            json_schema: {ref: ".webitel.dcctl.v1.Error"}
+          }
+          examples: {
+            key: "application/json"
+            value:
+              '{"id":"dcctl.datacenter.not_found","code":404,"status":"Not Found","detail":"datacenter dc_c is not in the config",'
+              '"metadata":{"datacenter":"datacenters/dc_c"}}'
+          }
+        }
+      }
+      responses: {
+        key: "409"
+        value: {
+          description: "Conflict: `dcctl.lock.busy`, `dcctl.request_id.mismatch`."
+          schema: {
+            json_schema: {ref: ".webitel.dcctl.v1.Error"}
+          }
+          examples: {
+            key: "application/json"
+            value:
+              '{"id":"dcctl.lock.busy","code":409,"status":"Conflict","detail":"dcctl/lock is held by another instance",'
+              '"metadata":{"holder":"dcctl-a1"}}'
+          }
+        }
+      }
+      responses: {
+        key: "503"
+        value: {
+          description: "The leading instance is unreachable: `dcctl.leader.unavailable`."
+          schema: {
+            json_schema: {ref: ".webitel.dcctl.v1.Error"}
+          }
+          examples: {
+            key: "application/json"
+            value:
+              '{"id":"dcctl.leader.unavailable","code":503,"status":"Service Unavailable",'
+              '"detail":"leading instance is unreachable","metadata":{"instance":"dcctl-b1"}}'
+          }
+        }
+      }
+    };
+  }
+
+  // Failover to this datacenter when the active one is lost.
+  // (-- api-linter: core::0136::response-message-name=disabled
+  //     aip.dev/not-precedent: actions return the own Operation resource
+  //     instead of google.longrunning.Operation. --)
+  rpc FailoverDatacenter(FailoverDatacenterRequest) returns (Operation) {
+    option (google.api.http) = {
+      post: "/v1/{name=datacenters/*}:failover"
+      body: "*"
+    };
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      responses: {
+        key: "200"
+        value: {description: "The operation: started, or the existing one for the same request_id. With validate_only, the checks and the plan of the operation that would start, with an empty name."}
+      }
+      responses: {
+        key: "400"
+        value: {
+          description: "Rejected: `dcctl.request.invalid`, `dcctl.preflight.failed`, `dcctl.confirmation.required`, `dcctl.operation.running`."
+          schema: {
+            json_schema: {ref: ".webitel.dcctl.v1.Error"}
+          }
+          examples: {
+            key: "application/json"
+            value:
+              '{"id":"dcctl.confirmation.required","code":400,"status":"Bad Request",'
+              '"detail":"confirmation required: isolation","violations":[{"type":"confirmation",'
+              '"subject":"isolation","description":"confirm that dc_a is isolated"}],'
+              '"preflight":{"mode":"FORCED","checks":[{"id":"coord.isolation","result":"FAIL",'
+              '"effect":"CONFIRM","confirmation":"isolation","detail":"dc_a is unreachable since 2026-11-23T10:02:00Z",'
+              '"facts":{"mode":"FORCED","last_seen_role":"primary","last_seen_time":"2026-11-23T10:01:58Z"}}],'
+              '"steps":[{"index":0,"type":"GENERATION","state":"PENDING","point_of_no_return":true},'
+              '{"index":1,"type":"PATRONI_PROMOTE","datacenter":"datacenters/dc_b","state":"PENDING"}]}}'
+          }
+        }
+      }
+      responses: {
+        key: "404"
+        value: {
+          description: "The datacenter is not in the config: `dcctl.datacenter.not_found`."
+          schema: {
+            json_schema: {ref: ".webitel.dcctl.v1.Error"}
+          }
+          examples: {
+            key: "application/json"
+            value:
+              '{"id":"dcctl.datacenter.not_found","code":404,"status":"Not Found","detail":"datacenter dc_c is not in the config",'
+              '"metadata":{"datacenter":"datacenters/dc_c"}}'
+          }
+        }
+      }
+      responses: {
+        key: "409"
+        value: {
+          description: "Conflict: `dcctl.lock.busy`, `dcctl.request_id.mismatch`."
+          schema: {
+            json_schema: {ref: ".webitel.dcctl.v1.Error"}
+          }
+          examples: {
+            key: "application/json"
+            value:
+              '{"id":"dcctl.request_id.mismatch","code":409,"status":"Conflict","detail":"request_id was used with another body",'
+              '"metadata":{"operation":"operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10"}}'
+          }
+        }
+      }
+      responses: {
+        key: "503"
+        value: {
+          description: "The leading instance is unreachable: `dcctl.leader.unavailable`."
+          schema: {
+            json_schema: {ref: ".webitel.dcctl.v1.Error"}
+          }
+          examples: {
+            key: "application/json"
+            value:
+              '{"id":"dcctl.leader.unavailable","code":503,"status":"Service Unavailable",'
+              '"detail":"leading instance is unreachable","metadata":{"instance":"dcctl-b1"}}'
+          }
+        }
+      }
+    };
+  }
+
+  // Demotes the old primary of this datacenter and points it at the active
+  // one. Clears the db_split alarm.
+  // (-- api-linter: core::0136::response-message-name=disabled
+  //     aip.dev/not-precedent: actions return the own Operation resource
+  //     instead of google.longrunning.Operation. --)
+  rpc DemoteDatacenter(DemoteDatacenterRequest) returns (Operation) {
+    option (google.api.http) = {
+      post: "/v1/{name=datacenters/*}:demote"
+      body: "*"
+    };
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      responses: {
+        key: "200"
+        value: {description: "The operation: started, or the existing one for the same request_id. With validate_only, the checks and the plan of the operation that would start, with an empty name."}
+      }
+      responses: {
+        key: "400"
+        value: {
+          description: "Rejected: `dcctl.request.invalid`, `dcctl.preflight.failed`, `dcctl.confirmation.required`, `dcctl.operation.running`."
+          schema: {
+            json_schema: {ref: ".webitel.dcctl.v1.Error"}
+          }
+          examples: {
+            key: "application/json"
+            value:
+              '{"id":"dcctl.operation.running","code":400,"status":"Bad Request","detail":"another operation is running",'
+              '"metadata":{"operation":"operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10"}}'
+          }
+        }
+      }
+      responses: {
+        key: "404"
+        value: {
+          description: "The datacenter is not in the config: `dcctl.datacenter.not_found`."
+          schema: {
+            json_schema: {ref: ".webitel.dcctl.v1.Error"}
+          }
+          examples: {
+            key: "application/json"
+            value:
+              '{"id":"dcctl.datacenter.not_found","code":404,"status":"Not Found","detail":"datacenter dc_c is not in the config",'
+              '"metadata":{"datacenter":"datacenters/dc_c"}}'
+          }
+        }
+      }
+      responses: {
+        key: "409"
+        value: {
+          description: "Conflict: `dcctl.lock.busy`, `dcctl.request_id.mismatch`."
+          schema: {
+            json_schema: {ref: ".webitel.dcctl.v1.Error"}
+          }
+          examples: {
+            key: "application/json"
+            value:
+              '{"id":"dcctl.lock.busy","code":409,"status":"Conflict","detail":"dcctl/lock is held by another instance",'
+              '"metadata":{"holder":"dcctl-a1"}}'
+          }
+        }
+      }
+      responses: {
+        key: "503"
+        value: {
+          description: "The leading instance is unreachable: `dcctl.leader.unavailable`."
+          schema: {
+            json_schema: {ref: ".webitel.dcctl.v1.Error"}
+          }
+          examples: {
+            key: "application/json"
+            value:
+              '{"id":"dcctl.leader.unavailable","code":503,"status":"Service Unavailable",'
+              '"detail":"leading instance is unreachable","metadata":{"instance":"dcctl-b1"}}'
+          }
+        }
+      }
+    };
+  }
+
+  // Points this standby datacenter at the active one.
+  // (-- api-linter: core::0136::response-message-name=disabled
+  //     aip.dev/not-precedent: actions return the own Operation resource
+  //     instead of google.longrunning.Operation. --)
+  rpc RepointDatacenter(RepointDatacenterRequest) returns (Operation) {
+    option (google.api.http) = {
+      post: "/v1/{name=datacenters/*}:repoint"
+      body: "*"
+    };
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      responses: {
+        key: "200"
+        value: {
+          description: "The operation: started, or the existing one for the same request_id. With validate_only, the checks and the plan of the operation that would start, with an empty name."
+          examples: {
+            key: "application/json"
+            value:
+              '{"type":"REPOINT","target":"datacenters/dc_b","mode":"QUORUM","checks":[{"id":"coord.lock_free",'
+              '"result":"PASS","effect":"BLOCK","detail":"dcctl/lock is free in every reachable datacenter"},'
+              '{"id":"patroni.divergence","result":"PASS","effect":"CONFIRM","confirmation":"max_discard_bytes",'
+              '"datacenter":"datacenters/dc_b","detail":"dc_b did not diverge"}],"steps":[{"index":0,'
+              '"type":"PATRONI_REPOINT","datacenter":"datacenters/dc_b","state":"PENDING"},'
+              '{"index":1,"type":"PATRONI_FOLLOW","datacenter":"datacenters/dc_b","state":"PENDING"}]}'
+          }
+        }
+      }
+      responses: {
+        key: "400"
+        value: {
+          description: "Rejected: `dcctl.request.invalid`, `dcctl.preflight.failed`, `dcctl.confirmation.required`, `dcctl.operation.running`."
+          schema: {
+            json_schema: {ref: ".webitel.dcctl.v1.Error"}
+          }
+          examples: {
+            key: "application/json"
+            value:
+              '{"id":"dcctl.confirmation.required","code":400,"status":"Bad Request",'
+              '"detail":"confirmation required: max_discard_bytes","violations":[{"type":"confirmation",'
+              '"subject":"max_discard_bytes","description":"dc_b diverged by 1048576 B,'
+              ' limit 0 B"}],"preflight":{"mode":"QUORUM","checks":[{"id":"patroni.divergence",'
+              '"result":"FAIL","effect":"CONFIRM","confirmation":"max_discard_bytes",'
+              '"datacenter":"datacenters/dc_b","detail":"dc_b diverged by 1048576 B",'
+              '"facts":{"divergence_lsn":"0/5000060","divergence_bytes":1048576,"timeline":4}}],'
+              '"steps":[{"index":0,"type":"PATRONI_REPOINT","datacenter":"datacenters/dc_b",'
+              '"state":"PENDING"}]}}'
+          }
+        }
+      }
+      responses: {
+        key: "404"
+        value: {
+          description: "The datacenter is not in the config: `dcctl.datacenter.not_found`."
+          schema: {
+            json_schema: {ref: ".webitel.dcctl.v1.Error"}
+          }
+          examples: {
+            key: "application/json"
+            value:
+              '{"id":"dcctl.datacenter.not_found","code":404,"status":"Not Found","detail":"datacenter dc_c is not in the config",'
+              '"metadata":{"datacenter":"datacenters/dc_c"}}'
+          }
+        }
+      }
+      responses: {
+        key: "409"
+        value: {
+          description: "Conflict: `dcctl.lock.busy`, `dcctl.request_id.mismatch`."
+          schema: {
+            json_schema: {ref: ".webitel.dcctl.v1.Error"}
+          }
+          examples: {
+            key: "application/json"
+            value:
+              '{"id":"dcctl.lock.busy","code":409,"status":"Conflict","detail":"dcctl/lock is held by another instance",'
+              '"metadata":{"holder":"dcctl-a1"}}'
+          }
+        }
+      }
+      responses: {
+        key: "503"
+        value: {
+          description: "The leading instance is unreachable: `dcctl.leader.unavailable`."
+          schema: {
+            json_schema: {ref: ".webitel.dcctl.v1.Error"}
+          }
+          examples: {
+            key: "application/json"
+            value:
+              '{"id":"dcctl.leader.unavailable","code":503,"status":"Service Unavailable",'
+              '"detail":"leading instance is unreachable","metadata":{"instance":"dcctl-b1"}}'
+          }
+        }
+      }
+    };
+  }
+
+  // Removes this datacenter from needs_recovery.
+  // (-- api-linter: core::0136::response-message-name=disabled
+  //     aip.dev/not-precedent: actions return the own Operation resource
+  //     instead of google.longrunning.Operation. --)
+  rpc MarkDatacenterRecovered(MarkDatacenterRecoveredRequest) returns (Operation) {
+    option (google.api.http) = {
+      post: "/v1/{name=datacenters/*}:markRecovered"
+      body: "*"
+    };
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      responses: {
+        key: "200"
+        value: {description: "The operation: started, or the existing one for the same request_id. With validate_only, the checks and the plan of the operation that would start, with an empty name."}
+      }
+      responses: {
+        key: "400"
+        value: {
+          description: "Rejected: `dcctl.request.invalid`, `dcctl.preflight.failed`, `dcctl.operation.running`."
+          schema: {
+            json_schema: {ref: ".webitel.dcctl.v1.Error"}
+          }
+          examples: {
+            key: "application/json"
+            value:
+              '{"id":"dcctl.preflight.failed","code":400,"status":"Bad Request","detail":"preflight failed: patroni.target_lag",'
+              '"violations":[{"type":"check","subject":"patroni.target_lag","description":"lag 52428800 B exceeds 1048576 B"}],'
+              '"preflight":{"mode":"QUORUM","checks":[{"id":"coord.lock_free","result":"PASS",'
+              '"effect":"BLOCK","detail":"dcctl/lock is free in every reachable datacenter"},'
+              '{"id":"patroni.target_lag","result":"FAIL","effect":"BLOCK","datacenter":"datacenters/dc_b",'
+              '"detail":"lag 52428800 B exceeds 1048576 B","facts":{"lag_bytes":52428800,'
+              '"limit_bytes":1048576}}],"steps":[{"index":0,"type":"APPS_PREFLIGHT","state":"PENDING"}]}}'
+          }
+        }
+      }
+      responses: {
+        key: "404"
+        value: {
+          description: "The datacenter is not in the config: `dcctl.datacenter.not_found`."
+          schema: {
+            json_schema: {ref: ".webitel.dcctl.v1.Error"}
+          }
+          examples: {
+            key: "application/json"
+            value:
+              '{"id":"dcctl.datacenter.not_found","code":404,"status":"Not Found","detail":"datacenter dc_c is not in the config",'
+              '"metadata":{"datacenter":"datacenters/dc_c"}}'
+          }
+        }
+      }
+      responses: {
+        key: "409"
+        value: {
+          description: "Conflict: `dcctl.lock.busy`, `dcctl.request_id.mismatch`."
+          schema: {
+            json_schema: {ref: ".webitel.dcctl.v1.Error"}
+          }
+          examples: {
+            key: "application/json"
+            value:
+              '{"id":"dcctl.lock.busy","code":409,"status":"Conflict","detail":"dcctl/lock is held by another instance",'
+              '"metadata":{"holder":"dcctl-a1"}}'
+          }
+        }
+      }
+      responses: {
+        key: "503"
+        value: {
+          description: "The leading instance is unreachable: `dcctl.leader.unavailable`."
+          schema: {
+            json_schema: {ref: ".webitel.dcctl.v1.Error"}
+          }
+          examples: {
+            key: "application/json"
+            value:
+              '{"id":"dcctl.leader.unavailable","code":503,"status":"Service Unavailable",'
+              '"detail":"leading instance is unreachable","metadata":{"instance":"dcctl-b1"}}'
+          }
+        }
+      }
+    };
+  }
+
+  // Resolves a generation conflict in favor of the winner.
+  // (-- api-linter: core::0136::response-message-name=disabled
+  //     aip.dev/not-precedent: actions return the own Operation resource
+  //     instead of google.longrunning.Operation. --)
+  rpc ResolveConflict(ResolveConflictRequest) returns (Operation) {
+    option (google.api.http) = {
+      post: "/v1/datacenters:resolveConflict"
+      body: "*"
+    };
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      responses: {
+        key: "200"
+        value: {description: "The operation: started, or the existing one for the same request_id. With validate_only, the checks and the plan of the operation that would start, with an empty name."}
+      }
+      responses: {
+        key: "400"
+        value: {
+          description: "Rejected: `dcctl.request.invalid`, `dcctl.preflight.failed`, `dcctl.confirmation.required`, `dcctl.operation.running`."
+          schema: {
+            json_schema: {ref: ".webitel.dcctl.v1.Error"}
+          }
+          examples: {
+            key: "application/json"
+            value:
+              '{"id":"dcctl.confirmation.required","code":400,"status":"Bad Request",'
+              '"detail":"confirmation required: isolation","violations":[{"type":"confirmation",'
+              '"subject":"isolation","description":"confirm that dc_a is isolated"}],'
+              '"preflight":{"mode":"FORCED","checks":[{"id":"coord.isolation","result":"FAIL",'
+              '"effect":"CONFIRM","confirmation":"isolation","detail":"dc_a is unreachable since 2026-11-23T10:02:00Z",'
+              '"facts":{"mode":"FORCED","last_seen_role":"primary","last_seen_time":"2026-11-23T10:01:58Z"}}],'
+              '"steps":[{"index":0,"type":"GENERATION","state":"PENDING","point_of_no_return":true},'
+              '{"index":1,"type":"PATRONI_PROMOTE","datacenter":"datacenters/dc_b","state":"PENDING"}]}}'
+          }
+        }
+      }
+      responses: {
+        key: "404"
+        value: {
+          description: "The datacenter is not in the config: `dcctl.datacenter.not_found`."
+          schema: {
+            json_schema: {ref: ".webitel.dcctl.v1.Error"}
+          }
+          examples: {
+            key: "application/json"
+            value:
+              '{"id":"dcctl.datacenter.not_found","code":404,"status":"Not Found","detail":"datacenter dc_c is not in the config",'
+              '"metadata":{"datacenter":"datacenters/dc_c"}}'
+          }
+        }
+      }
+      responses: {
+        key: "409"
+        value: {
+          description: "Conflict: `dcctl.lock.busy`, `dcctl.request_id.mismatch`."
+          schema: {
+            json_schema: {ref: ".webitel.dcctl.v1.Error"}
+          }
+          examples: {
+            key: "application/json"
+            value:
+              '{"id":"dcctl.lock.busy","code":409,"status":"Conflict","detail":"dcctl/lock is held by another instance",'
+              '"metadata":{"holder":"dcctl-a1"}}'
+          }
+        }
+      }
+      responses: {
+        key: "503"
+        value: {
+          description: "The leading instance is unreachable: `dcctl.leader.unavailable`."
+          schema: {
+            json_schema: {ref: ".webitel.dcctl.v1.Error"}
+          }
+          examples: {
+            key: "application/json"
+            value:
+              '{"id":"dcctl.leader.unavailable","code":503,"status":"Service Unavailable",'
+              '"detail":"leading instance is unreachable","metadata":{"instance":"dcctl-b1"}}'
+          }
+        }
+      }
+    };
+  }
+
+  // Creates the initial dcctl state in every datacenter.
+  // (-- api-linter: core::0136::response-message-name=disabled
+  //     aip.dev/not-precedent: actions return the own Operation resource
+  //     instead of google.longrunning.Operation. --)
+  rpc InitializeDatacenters(InitializeDatacentersRequest) returns (Operation) {
+    option (google.api.http) = {
+      post: "/v1/datacenters:initialize"
+      body: "*"
+    };
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      responses: {
+        key: "200"
+        value: {description: "The operation: started, or the existing one for the same request_id. With validate_only, the checks and the plan of the operation that would start, with an empty name."}
+      }
+      responses: {
+        key: "400"
+        value: {
+          description: "Rejected: `dcctl.request.invalid`, `dcctl.preflight.failed`."
+          schema: {
+            json_schema: {ref: ".webitel.dcctl.v1.Error"}
+          }
+          examples: {
+            key: "application/json"
+            value:
+              '{"id":"dcctl.preflight.failed","code":400,"status":"Bad Request","detail":"preflight failed: init.state_absent",'
+              '"violations":[{"type":"check","subject":"init.state_absent","description":"dcctl/state exists in dc_a"}],'
+              '"preflight":{"checks":[{"id":"init.state_absent","result":"FAIL","effect":"BLOCK",'
+              '"detail":"dcctl/state exists in dc_a","facts":{"datacenters":["dc_a"]}}],'
+              '"steps":[]}}'
+          }
+        }
+      }
+      responses: {
+        key: "404"
+        value: {
+          description: "The datacenter is not in the config: `dcctl.datacenter.not_found`."
+          schema: {
+            json_schema: {ref: ".webitel.dcctl.v1.Error"}
+          }
+          examples: {
+            key: "application/json"
+            value:
+              '{"id":"dcctl.datacenter.not_found","code":404,"status":"Not Found","detail":"datacenter dc_c is not in the config",'
+              '"metadata":{"datacenter":"datacenters/dc_c"}}'
+          }
+        }
+      }
+      responses: {
+        key: "409"
+        value: {
+          description: "Conflict: `dcctl.request_id.mismatch`."
+          schema: {
+            json_schema: {ref: ".webitel.dcctl.v1.Error"}
+          }
+          examples: {
+            key: "application/json"
+            value:
+              '{"id":"dcctl.request_id.mismatch","code":409,"status":"Conflict","detail":"request_id was used with another body",'
+              '"metadata":{"operation":"operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10"}}'
+          }
+        }
+      }
+    };
+  }
+
+  // Brings the managed apps of the active datacenter to the desired state.
+  // (-- api-linter: core::0136::response-message-name=disabled
+  //     aip.dev/not-precedent: actions return the own Operation resource
+  //     instead of google.longrunning.Operation. --)
+  rpc SyncApps(SyncAppsRequest) returns (Operation) {
+    option (google.api.http) = {
+      post: "/v1/datacenters:syncApps"
+      body: "*"
+    };
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      responses: {
+        key: "200"
+        value: {description: "The operation: started, or the existing one for the same request_id. With validate_only, the checks and the plan of the operation that would start, with an empty name."}
+      }
+      responses: {
+        key: "400"
+        value: {
+          description: "Rejected: `dcctl.request.invalid`, `dcctl.preflight.failed`, `dcctl.operation.running`."
+          schema: {
+            json_schema: {ref: ".webitel.dcctl.v1.Error"}
+          }
+          examples: {
+            key: "application/json"
+            value:
+              '{"id":"dcctl.operation.running","code":400,"status":"Bad Request","detail":"another operation is running",'
+              '"metadata":{"operation":"operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10"}}'
+          }
+        }
+      }
+      responses: {
+        key: "409"
+        value: {
+          description: "Conflict: `dcctl.lock.busy`, `dcctl.request_id.mismatch`."
+          schema: {
+            json_schema: {ref: ".webitel.dcctl.v1.Error"}
+          }
+          examples: {
+            key: "application/json"
+            value:
+              '{"id":"dcctl.lock.busy","code":409,"status":"Conflict","detail":"dcctl/lock is held by another instance",'
+              '"metadata":{"holder":"dcctl-a1"}}'
+          }
+        }
+      }
+      responses: {
+        key: "503"
+        value: {
+          description: "The leading instance is unreachable: `dcctl.leader.unavailable`."
+          schema: {
+            json_schema: {ref: ".webitel.dcctl.v1.Error"}
+          }
+          examples: {
+            key: "application/json"
+            value:
+              '{"id":"dcctl.leader.unavailable","code":503,"status":"Service Unavailable",'
+              '"detail":"leading instance is unreachable","metadata":{"instance":"dcctl-b1"}}'
+          }
+        }
+      }
+    };
+  }
+
+  // Copies the dcctl state to an empty arbiter.
+  // (-- api-linter: core::0136::response-message-name=disabled
+  //     aip.dev/not-precedent: actions return the own Operation resource
+  //     instead of google.longrunning.Operation. --)
+  rpc InitializeArbiter(InitializeArbiterRequest) returns (Operation) {
+    option (google.api.http) = {
+      post: "/v1/arbiter:initialize"
+      body: "*"
+    };
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      responses: {
+        key: "200"
+        value: {description: "The operation: started, or the existing one for the same request_id. With validate_only, the checks and the plan of the operation that would start, with an empty name."}
+      }
+      responses: {
+        key: "400"
+        value: {
+          description: "Rejected: `dcctl.request.invalid`, `dcctl.preflight.failed`, `dcctl.operation.running`."
+          schema: {
+            json_schema: {ref: ".webitel.dcctl.v1.Error"}
+          }
+          examples: {
+            key: "application/json"
+            value:
+              '{"id":"dcctl.operation.running","code":400,"status":"Bad Request","detail":"another operation is running",'
+              '"metadata":{"operation":"operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10"}}'
+          }
+        }
+      }
+      responses: {
+        key: "409"
+        value: {
+          description: "Conflict: `dcctl.request_id.mismatch`."
+          schema: {
+            json_schema: {ref: ".webitel.dcctl.v1.Error"}
+          }
+          examples: {
+            key: "application/json"
+            value:
+              '{"id":"dcctl.request_id.mismatch","code":409,"status":"Conflict","detail":"request_id was used with another body",'
+              '"metadata":{"operation":"operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10"}}'
           }
         }
       }

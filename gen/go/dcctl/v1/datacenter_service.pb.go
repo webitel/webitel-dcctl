@@ -184,7 +184,7 @@ var File_webitel_dcctl_v1_datacenter_service_proto protoreflect.FileDescriptor
 
 const file_webitel_dcctl_v1_datacenter_service_proto_rawDesc = "" +
 	"\n" +
-	")webitel/dcctl/v1/datacenter_service.proto\x12\x10webitel.dcctl.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x17google/api/client.proto\x1a\x1fgoogle/api/field_behavior.proto\x1a\x19google/api/resource.proto\x1a.protoc-gen-openapiv2/options/annotations.proto\x1a!webitel/dcctl/v1/datacenter.proto\"r\n" +
+	")webitel/dcctl/v1/datacenter_service.proto\x12\x10webitel.dcctl.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x17google/api/client.proto\x1a\x1fgoogle/api/field_behavior.proto\x1a\x19google/api/resource.proto\x1a.protoc-gen-openapiv2/options/annotations.proto\x1a\x1dwebitel/dcctl/v1/action.proto\x1a!webitel/dcctl/v1/datacenter.proto\x1a webitel/dcctl/v1/operation.proto\"r\n" +
 	"\x16ListDatacentersRequest\x12+\n" +
 	"\tpage_size\x18\x01 \x01(\x05B\x0e\xe2A\x01\x01\xbaH\a\x1a\x05\x18\xf4\x03(\x00R\bpageSize\x12+\n" +
 	"\n" +
@@ -194,7 +194,7 @@ const file_webitel_dcctl_v1_datacenter_service_proto_rawDesc = "" +
 	"\x0fnext_page_token\x18\x02 \x01(\tB\x04\xe2A\x01\x03R\rnextPageToken\"y\n" +
 	"\x14GetDatacenterRequest\x12a\n" +
 	"\x04name\x18\x01 \x01(\tBM\xe2A\x01\x02\xfaA\x1e\n" +
-	"\x1cdcctl.webitel.com/Datacenter\xbaH%r#2!^datacenters/[A-Za-z0-9_-]{1,63}$R\x04name2\x97 \n" +
+	"\x1cdcctl.webitel.com/Datacenter\xbaH%r#2!^datacenters/[A-Za-z0-9_-]{1,63}$R\x04name2ť\x01\n" +
 	"\x11DatacenterService\x12\xf6\n" +
 	"\n" +
 	"\x0fListDatacenters\x12(.webitel.dcctl.v1.ListDatacentersRequest\x1a).webitel.dcctl.v1.ListDatacentersResponse\"\x8d\n" +
@@ -209,7 +209,167 @@ const file_webitel_dcctl_v1_datacenter_service_proto_rawDesc = "" +
 	"\x03404\x12\x8e\x02\n" +
 	"BThe datacenter is not in the config: `dcctl.datacenter.not_found`.\x12\x1b\n" +
 	"\x19\x1a\x17.webitel.dcctl.v1.Error\"\xaa\x01\n" +
-	"\x10application/json\x12\x95\x01{\"id\":\"dcctl.datacenter.not_found\",\"code\":404,\"status\":\"Not Found\",\"detail\":\"datacenter dc_c not found\",\"metadata\":{\"datacenter\":\"datacenters/dc_c\"}}\xdaA\x04name\x82\xd3\xe4\x93\x02\x1a\x12\x18/v1/{name=datacenters/*}B:Z8github.com/webitel/webitel-dcctl/gen/go/dcctl/v1;dcctlv1b\x06proto3"
+	"\x10application/json\x12\x95\x01{\"id\":\"dcctl.datacenter.not_found\",\"code\":404,\"status\":\"Not Found\",\"detail\":\"datacenter dc_c not found\",\"metadata\":{\"datacenter\":\"datacenters/dc_c\"}}\xdaA\x04name\x82\xd3\xe4\x93\x02\x1a\x12\x18/v1/{name=datacenters/*}\x12\xcd\x1a\n" +
+	"\x10SwitchDatacenter\x12).webitel.dcctl.v1.SwitchDatacenterRequest\x1a\x1b.webitel.dcctl.v1.Operation\"\xf0\x19\x92A\xc2\x19J\xc5\f\n" +
+	"\x03200\x12\xbd\f\n" +
+	"\xa7\x01The operation: started, or the existing one for the same request_id. With validate_only, the checks and the plan of the operation that would start, with an empty name.\"\x90\v\n" +
+	"\x10application/json\x12\xfb\n" +
+	"{\"name\":\"operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10\",\"type\":\"SWITCH\",\"state\":\"RUNNING\",\"target\":\"datacenters/dc_b\",\"initiator\":{\"user\":\"support\",\"address\":\"10.1.0.15\",\"instance\":{\"node\":\"dcctl-a1\",\"datacenter\":\"datacenters/dc_a\",\"address\":\"10.1.0.81:10023\"}},\"leader\":{\"node\":\"dcctl-b1\",\"datacenter\":\"datacenters/dc_b\",\"address\":\"10.2.0.81:10023\"},\"mode\":\"QUORUM\",\"previous_generation\":\"7\",\"new_generation\":\"8\",\"checks\":[{\"id\":\"coord.lock_free\",\"result\":\"PASS\",\"effect\":\"BLOCK\",\"detail\":\"dcctl/lock is free in every reachable datacenter\"},{\"id\":\"patroni.target_lag\",\"result\":\"PASS\",\"effect\":\"BLOCK\",\"datacenter\":\"datacenters/dc_b\",\"detail\":\"lag 0 B, limit 1048576 B\",\"facts\":{\"lag_bytes\":0,\"limit_bytes\":1048576}}],\"steps\":[{\"index\":0,\"type\":\"APPS_PREFLIGHT\",\"state\":\"SUCCEEDED\",\"start_time\":\"2026-11-23T10:15:02Z\",\"end_time\":\"2026-11-23T10:15:04Z\"},{\"index\":1,\"type\":\"APPS_STOP\",\"stage\":3,\"datacenter\":\"datacenters/dc_a\",\"state\":\"RUNNING\",\"start_time\":\"2026-11-23T10:15:04Z\",\"detail\":\"stopping 1 of 3 jobs\"},{\"index\":2,\"type\":\"PATRONI_DEMOTE\",\"datacenter\":\"datacenters/dc_a\",\"state\":\"PENDING\"},{\"index\":3,\"type\":\"GENERATION\",\"state\":\"PENDING\",\"point_of_no_return\":true}],\"request_id\":\"6f1c2b9e-8d4a-4f3b-9c2e-1a7d5e3f9b40\",\"create_time\":\"2026-11-23T10:15:01Z\",\"update_time\":\"2026-11-23T10:15:04Z\",\"switch_datacenter\":{\"name\":\"datacenters/dc_b\",\"request_id\":\"6f1c2b9e-8d4a-4f3b-9c2e-1a7d5e3f9b40\"}}J\xb3\x06\n" +
+	"\x03400\x12\xab\x06\n" +
+	"vRejected: `dcctl.request.invalid`, `dcctl.preflight.failed`, `dcctl.confirmation.required`, `dcctl.operation.running`.\x12\x1b\n" +
+	"\x19\x1a\x17.webitel.dcctl.v1.Error\"\x93\x05\n" +
+	"\x10application/json\x12\xfe\x04{\"id\":\"dcctl.preflight.failed\",\"code\":400,\"status\":\"Bad Request\",\"detail\":\"preflight failed: patroni.target_lag\",\"violations\":[{\"type\":\"check\",\"subject\":\"patroni.target_lag\",\"description\":\"lag 52428800 B exceeds 1048576 B\"}],\"preflight\":{\"mode\":\"QUORUM\",\"checks\":[{\"id\":\"coord.lock_free\",\"result\":\"PASS\",\"effect\":\"BLOCK\",\"detail\":\"dcctl/lock is free in every reachable datacenter\"},{\"id\":\"patroni.target_lag\",\"result\":\"FAIL\",\"effect\":\"BLOCK\",\"datacenter\":\"datacenters/dc_b\",\"detail\":\"lag 52428800 B exceeds 1048576 B\",\"facts\":{\"lag_bytes\":52428800,\"limit_bytes\":1048576}}],\"steps\":[{\"index\":0,\"type\":\"APPS_PREFLIGHT\",\"state\":\"PENDING\"}]}}J\xa1\x02\n" +
+	"\x03404\x12\x99\x02\n" +
+	"BThe datacenter is not in the config: `dcctl.datacenter.not_found`.\x12\x1b\n" +
+	"\x19\x1a\x17.webitel.dcctl.v1.Error\"\xb5\x01\n" +
+	"\x10application/json\x12\xa0\x01{\"id\":\"dcctl.datacenter.not_found\",\"code\":404,\"status\":\"Not Found\",\"detail\":\"datacenter dc_c is not in the config\",\"metadata\":{\"datacenter\":\"datacenters/dc_c\"}}J\x82\x02\n" +
+	"\x03409\x12\xfa\x01\n" +
+	"9Conflict: `dcctl.lock.busy`, `dcctl.request_id.mismatch`.\x12\x1b\n" +
+	"\x19\x1a\x17.webitel.dcctl.v1.Error\"\x9f\x01\n" +
+	"\x10application/json\x12\x8a\x01{\"id\":\"dcctl.lock.busy\",\"code\":409,\"status\":\"Conflict\",\"detail\":\"dcctl/lock is held by another instance\",\"metadata\":{\"holder\":\"dcctl-a1\"}}J\x98\x02\n" +
+	"\x03503\x12\x90\x02\n" +
+	"@The leading instance is unreachable: `dcctl.leader.unavailable`.\x12\x1b\n" +
+	"\x19\x1a\x17.webitel.dcctl.v1.Error\"\xae\x01\n" +
+	"\x10application/json\x12\x99\x01{\"id\":\"dcctl.leader.unavailable\",\"code\":503,\"status\":\"Service Unavailable\",\"detail\":\"leading instance is unreachable\",\"metadata\":{\"instance\":\"dcctl-b1\"}}\x82\xd3\xe4\x93\x02$:\x01*\"\x1f/v1/{name=datacenters/*}:switch\x12\x96\x10\n" +
+	"\x12FailoverDatacenter\x12+.webitel.dcctl.v1.FailoverDatacenterRequest\x1a\x1b.webitel.dcctl.v1.Operation\"\xb5\x0f\x92A\x85\x0fJ\xb2\x01\n" +
+	"\x03200\x12\xaa\x01\n" +
+	"\xa7\x01The operation: started, or the existing one for the same request_id. With validate_only, the checks and the plan of the operation that would start, with an empty name.J\xd6\x06\n" +
+	"\x03400\x12\xce\x06\n" +
+	"vRejected: `dcctl.request.invalid`, `dcctl.preflight.failed`, `dcctl.confirmation.required`, `dcctl.operation.running`.\x12\x1b\n" +
+	"\x19\x1a\x17.webitel.dcctl.v1.Error\"\xb6\x05\n" +
+	"\x10application/json\x12\xa1\x05{\"id\":\"dcctl.confirmation.required\",\"code\":400,\"status\":\"Bad Request\",\"detail\":\"confirmation required: isolation\",\"violations\":[{\"type\":\"confirmation\",\"subject\":\"isolation\",\"description\":\"confirm that dc_a is isolated\"}],\"preflight\":{\"mode\":\"FORCED\",\"checks\":[{\"id\":\"coord.isolation\",\"result\":\"FAIL\",\"effect\":\"CONFIRM\",\"confirmation\":\"isolation\",\"detail\":\"dc_a is unreachable since 2026-11-23T10:02:00Z\",\"facts\":{\"mode\":\"FORCED\",\"last_seen_role\":\"primary\",\"last_seen_time\":\"2026-11-23T10:01:58Z\"}}],\"steps\":[{\"index\":0,\"type\":\"GENERATION\",\"state\":\"PENDING\",\"point_of_no_return\":true},{\"index\":1,\"type\":\"PATRONI_PROMOTE\",\"datacenter\":\"datacenters/dc_b\",\"state\":\"PENDING\"}]}}J\xa1\x02\n" +
+	"\x03404\x12\x99\x02\n" +
+	"BThe datacenter is not in the config: `dcctl.datacenter.not_found`.\x12\x1b\n" +
+	"\x19\x1a\x17.webitel.dcctl.v1.Error\"\xb5\x01\n" +
+	"\x10application/json\x12\xa0\x01{\"id\":\"dcctl.datacenter.not_found\",\"code\":404,\"status\":\"Not Found\",\"detail\":\"datacenter dc_c is not in the config\",\"metadata\":{\"datacenter\":\"datacenters/dc_c\"}}J\xb5\x02\n" +
+	"\x03409\x12\xad\x02\n" +
+	"9Conflict: `dcctl.lock.busy`, `dcctl.request_id.mismatch`.\x12\x1b\n" +
+	"\x19\x1a\x17.webitel.dcctl.v1.Error\"\xd2\x01\n" +
+	"\x10application/json\x12\xbd\x01{\"id\":\"dcctl.request_id.mismatch\",\"code\":409,\"status\":\"Conflict\",\"detail\":\"request_id was used with another body\",\"metadata\":{\"operation\":\"operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10\"}}J\x98\x02\n" +
+	"\x03503\x12\x90\x02\n" +
+	"@The leading instance is unreachable: `dcctl.leader.unavailable`.\x12\x1b\n" +
+	"\x19\x1a\x17.webitel.dcctl.v1.Error\"\xae\x01\n" +
+	"\x10application/json\x12\x99\x01{\"id\":\"dcctl.leader.unavailable\",\"code\":503,\"status\":\"Service Unavailable\",\"detail\":\"leading instance is unreachable\",\"metadata\":{\"instance\":\"dcctl-b1\"}}\x82\xd3\xe4\x93\x02&:\x01*\"!/v1/{name=datacenters/*}:failover\x12\xf1\v\n" +
+	"\x10DemoteDatacenter\x12).webitel.dcctl.v1.DemoteDatacenterRequest\x1a\x1b.webitel.dcctl.v1.Operation\"\x94\v\x92A\xe6\n" +
+	"J\xb2\x01\n" +
+	"\x03200\x12\xaa\x01\n" +
+	"\xa7\x01The operation: started, or the existing one for the same request_id. With validate_only, the checks and the plan of the operation that would start, with an empty name.J\xea\x02\n" +
+	"\x03400\x12\xe2\x02\n" +
+	"vRejected: `dcctl.request.invalid`, `dcctl.preflight.failed`, `dcctl.confirmation.required`, `dcctl.operation.running`.\x12\x1b\n" +
+	"\x19\x1a\x17.webitel.dcctl.v1.Error\"\xca\x01\n" +
+	"\x10application/json\x12\xb5\x01{\"id\":\"dcctl.operation.running\",\"code\":400,\"status\":\"Bad Request\",\"detail\":\"another operation is running\",\"metadata\":{\"operation\":\"operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10\"}}J\xa1\x02\n" +
+	"\x03404\x12\x99\x02\n" +
+	"BThe datacenter is not in the config: `dcctl.datacenter.not_found`.\x12\x1b\n" +
+	"\x19\x1a\x17.webitel.dcctl.v1.Error\"\xb5\x01\n" +
+	"\x10application/json\x12\xa0\x01{\"id\":\"dcctl.datacenter.not_found\",\"code\":404,\"status\":\"Not Found\",\"detail\":\"datacenter dc_c is not in the config\",\"metadata\":{\"datacenter\":\"datacenters/dc_c\"}}J\x82\x02\n" +
+	"\x03409\x12\xfa\x01\n" +
+	"9Conflict: `dcctl.lock.busy`, `dcctl.request_id.mismatch`.\x12\x1b\n" +
+	"\x19\x1a\x17.webitel.dcctl.v1.Error\"\x9f\x01\n" +
+	"\x10application/json\x12\x8a\x01{\"id\":\"dcctl.lock.busy\",\"code\":409,\"status\":\"Conflict\",\"detail\":\"dcctl/lock is held by another instance\",\"metadata\":{\"holder\":\"dcctl-a1\"}}J\x98\x02\n" +
+	"\x03503\x12\x90\x02\n" +
+	"@The leading instance is unreachable: `dcctl.leader.unavailable`.\x12\x1b\n" +
+	"\x19\x1a\x17.webitel.dcctl.v1.Error\"\xae\x01\n" +
+	"\x10application/json\x12\x99\x01{\"id\":\"dcctl.leader.unavailable\",\"code\":503,\"status\":\"Service Unavailable\",\"detail\":\"leading instance is unreachable\",\"metadata\":{\"instance\":\"dcctl-b1\"}}\x82\xd3\xe4\x93\x02$:\x01*\"\x1f/v1/{name=datacenters/*}:demote\x12\xe5\x13\n" +
+	"\x11RepointDatacenter\x12*.webitel.dcctl.v1.RepointDatacenterRequest\x1a\x1b.webitel.dcctl.v1.Operation\"\x86\x13\x92A\xd7\x12J\xe2\x05\n" +
+	"\x03200\x12\xda\x05\n" +
+	"\xa7\x01The operation: started, or the existing one for the same request_id. With validate_only, the checks and the plan of the operation that would start, with an empty name.\"\xad\x04\n" +
+	"\x10application/json\x12\x98\x04{\"type\":\"REPOINT\",\"target\":\"datacenters/dc_b\",\"mode\":\"QUORUM\",\"checks\":[{\"id\":\"coord.lock_free\",\"result\":\"PASS\",\"effect\":\"BLOCK\",\"detail\":\"dcctl/lock is free in every reachable datacenter\"},{\"id\":\"patroni.divergence\",\"result\":\"PASS\",\"effect\":\"CONFIRM\",\"confirmation\":\"max_discard_bytes\",\"datacenter\":\"datacenters/dc_b\",\"detail\":\"dc_b did not diverge\"}],\"steps\":[{\"index\":0,\"type\":\"PATRONI_REPOINT\",\"datacenter\":\"datacenters/dc_b\",\"state\":\"PENDING\"},{\"index\":1,\"type\":\"PATRONI_FOLLOW\",\"datacenter\":\"datacenters/dc_b\",\"state\":\"PENDING\"}]}J\xab\x06\n" +
+	"\x03400\x12\xa3\x06\n" +
+	"vRejected: `dcctl.request.invalid`, `dcctl.preflight.failed`, `dcctl.confirmation.required`, `dcctl.operation.running`.\x12\x1b\n" +
+	"\x19\x1a\x17.webitel.dcctl.v1.Error\"\x8b\x05\n" +
+	"\x10application/json\x12\xf6\x04{\"id\":\"dcctl.confirmation.required\",\"code\":400,\"status\":\"Bad Request\",\"detail\":\"confirmation required: max_discard_bytes\",\"violations\":[{\"type\":\"confirmation\",\"subject\":\"max_discard_bytes\",\"description\":\"dc_b diverged by 1048576 B, limit 0 B\"}],\"preflight\":{\"mode\":\"QUORUM\",\"checks\":[{\"id\":\"patroni.divergence\",\"result\":\"FAIL\",\"effect\":\"CONFIRM\",\"confirmation\":\"max_discard_bytes\",\"datacenter\":\"datacenters/dc_b\",\"detail\":\"dc_b diverged by 1048576 B\",\"facts\":{\"divergence_lsn\":\"0/5000060\",\"divergence_bytes\":1048576,\"timeline\":4}}],\"steps\":[{\"index\":0,\"type\":\"PATRONI_REPOINT\",\"datacenter\":\"datacenters/dc_b\",\"state\":\"PENDING\"}]}}J\xa1\x02\n" +
+	"\x03404\x12\x99\x02\n" +
+	"BThe datacenter is not in the config: `dcctl.datacenter.not_found`.\x12\x1b\n" +
+	"\x19\x1a\x17.webitel.dcctl.v1.Error\"\xb5\x01\n" +
+	"\x10application/json\x12\xa0\x01{\"id\":\"dcctl.datacenter.not_found\",\"code\":404,\"status\":\"Not Found\",\"detail\":\"datacenter dc_c is not in the config\",\"metadata\":{\"datacenter\":\"datacenters/dc_c\"}}J\x82\x02\n" +
+	"\x03409\x12\xfa\x01\n" +
+	"9Conflict: `dcctl.lock.busy`, `dcctl.request_id.mismatch`.\x12\x1b\n" +
+	"\x19\x1a\x17.webitel.dcctl.v1.Error\"\x9f\x01\n" +
+	"\x10application/json\x12\x8a\x01{\"id\":\"dcctl.lock.busy\",\"code\":409,\"status\":\"Conflict\",\"detail\":\"dcctl/lock is held by another instance\",\"metadata\":{\"holder\":\"dcctl-a1\"}}J\x98\x02\n" +
+	"\x03503\x12\x90\x02\n" +
+	"@The leading instance is unreachable: `dcctl.leader.unavailable`.\x12\x1b\n" +
+	"\x19\x1a\x17.webitel.dcctl.v1.Error\"\xae\x01\n" +
+	"\x10application/json\x12\x99\x01{\"id\":\"dcctl.leader.unavailable\",\"code\":503,\"status\":\"Service Unavailable\",\"detail\":\"leading instance is unreachable\",\"metadata\":{\"instance\":\"dcctl-b1\"}}\x82\xd3\xe4\x93\x02%:\x01*\" /v1/{name=datacenters/*}:repoint\x12\xb0\x0f\n" +
+	"\x17MarkDatacenterRecovered\x120.webitel.dcctl.v1.MarkDatacenterRecoveredRequest\x1a\x1b.webitel.dcctl.v1.Operation\"\xc5\x0e\x92A\x90\x0eJ\xb2\x01\n" +
+	"\x03200\x12\xaa\x01\n" +
+	"\xa7\x01The operation: started, or the existing one for the same request_id. With validate_only, the checks and the plan of the operation that would start, with an empty name.J\x94\x06\n" +
+	"\x03400\x12\x8c\x06\n" +
+	"WRejected: `dcctl.request.invalid`, `dcctl.preflight.failed`, `dcctl.operation.running`.\x12\x1b\n" +
+	"\x19\x1a\x17.webitel.dcctl.v1.Error\"\x93\x05\n" +
+	"\x10application/json\x12\xfe\x04{\"id\":\"dcctl.preflight.failed\",\"code\":400,\"status\":\"Bad Request\",\"detail\":\"preflight failed: patroni.target_lag\",\"violations\":[{\"type\":\"check\",\"subject\":\"patroni.target_lag\",\"description\":\"lag 52428800 B exceeds 1048576 B\"}],\"preflight\":{\"mode\":\"QUORUM\",\"checks\":[{\"id\":\"coord.lock_free\",\"result\":\"PASS\",\"effect\":\"BLOCK\",\"detail\":\"dcctl/lock is free in every reachable datacenter\"},{\"id\":\"patroni.target_lag\",\"result\":\"FAIL\",\"effect\":\"BLOCK\",\"datacenter\":\"datacenters/dc_b\",\"detail\":\"lag 52428800 B exceeds 1048576 B\",\"facts\":{\"lag_bytes\":52428800,\"limit_bytes\":1048576}}],\"steps\":[{\"index\":0,\"type\":\"APPS_PREFLIGHT\",\"state\":\"PENDING\"}]}}J\xa1\x02\n" +
+	"\x03404\x12\x99\x02\n" +
+	"BThe datacenter is not in the config: `dcctl.datacenter.not_found`.\x12\x1b\n" +
+	"\x19\x1a\x17.webitel.dcctl.v1.Error\"\xb5\x01\n" +
+	"\x10application/json\x12\xa0\x01{\"id\":\"dcctl.datacenter.not_found\",\"code\":404,\"status\":\"Not Found\",\"detail\":\"datacenter dc_c is not in the config\",\"metadata\":{\"datacenter\":\"datacenters/dc_c\"}}J\x82\x02\n" +
+	"\x03409\x12\xfa\x01\n" +
+	"9Conflict: `dcctl.lock.busy`, `dcctl.request_id.mismatch`.\x12\x1b\n" +
+	"\x19\x1a\x17.webitel.dcctl.v1.Error\"\x9f\x01\n" +
+	"\x10application/json\x12\x8a\x01{\"id\":\"dcctl.lock.busy\",\"code\":409,\"status\":\"Conflict\",\"detail\":\"dcctl/lock is held by another instance\",\"metadata\":{\"holder\":\"dcctl-a1\"}}J\x98\x02\n" +
+	"\x03503\x12\x90\x02\n" +
+	"@The leading instance is unreachable: `dcctl.leader.unavailable`.\x12\x1b\n" +
+	"\x19\x1a\x17.webitel.dcctl.v1.Error\"\xae\x01\n" +
+	"\x10application/json\x12\x99\x01{\"id\":\"dcctl.leader.unavailable\",\"code\":503,\"status\":\"Service Unavailable\",\"detail\":\"leading instance is unreachable\",\"metadata\":{\"instance\":\"dcctl-b1\"}}\x82\xd3\xe4\x93\x02+:\x01*\"&/v1/{name=datacenters/*}:markRecovered\x12\xdb\x0f\n" +
+	"\x0fResolveConflict\x12(.webitel.dcctl.v1.ResolveConflictRequest\x1a\x1b.webitel.dcctl.v1.Operation\"\x80\x0f\x92A\xd2\x0eJ\xb2\x01\n" +
+	"\x03200\x12\xaa\x01\n" +
+	"\xa7\x01The operation: started, or the existing one for the same request_id. With validate_only, the checks and the plan of the operation that would start, with an empty name.J\xd6\x06\n" +
+	"\x03400\x12\xce\x06\n" +
+	"vRejected: `dcctl.request.invalid`, `dcctl.preflight.failed`, `dcctl.confirmation.required`, `dcctl.operation.running`.\x12\x1b\n" +
+	"\x19\x1a\x17.webitel.dcctl.v1.Error\"\xb6\x05\n" +
+	"\x10application/json\x12\xa1\x05{\"id\":\"dcctl.confirmation.required\",\"code\":400,\"status\":\"Bad Request\",\"detail\":\"confirmation required: isolation\",\"violations\":[{\"type\":\"confirmation\",\"subject\":\"isolation\",\"description\":\"confirm that dc_a is isolated\"}],\"preflight\":{\"mode\":\"FORCED\",\"checks\":[{\"id\":\"coord.isolation\",\"result\":\"FAIL\",\"effect\":\"CONFIRM\",\"confirmation\":\"isolation\",\"detail\":\"dc_a is unreachable since 2026-11-23T10:02:00Z\",\"facts\":{\"mode\":\"FORCED\",\"last_seen_role\":\"primary\",\"last_seen_time\":\"2026-11-23T10:01:58Z\"}}],\"steps\":[{\"index\":0,\"type\":\"GENERATION\",\"state\":\"PENDING\",\"point_of_no_return\":true},{\"index\":1,\"type\":\"PATRONI_PROMOTE\",\"datacenter\":\"datacenters/dc_b\",\"state\":\"PENDING\"}]}}J\xa1\x02\n" +
+	"\x03404\x12\x99\x02\n" +
+	"BThe datacenter is not in the config: `dcctl.datacenter.not_found`.\x12\x1b\n" +
+	"\x19\x1a\x17.webitel.dcctl.v1.Error\"\xb5\x01\n" +
+	"\x10application/json\x12\xa0\x01{\"id\":\"dcctl.datacenter.not_found\",\"code\":404,\"status\":\"Not Found\",\"detail\":\"datacenter dc_c is not in the config\",\"metadata\":{\"datacenter\":\"datacenters/dc_c\"}}J\x82\x02\n" +
+	"\x03409\x12\xfa\x01\n" +
+	"9Conflict: `dcctl.lock.busy`, `dcctl.request_id.mismatch`.\x12\x1b\n" +
+	"\x19\x1a\x17.webitel.dcctl.v1.Error\"\x9f\x01\n" +
+	"\x10application/json\x12\x8a\x01{\"id\":\"dcctl.lock.busy\",\"code\":409,\"status\":\"Conflict\",\"detail\":\"dcctl/lock is held by another instance\",\"metadata\":{\"holder\":\"dcctl-a1\"}}J\x98\x02\n" +
+	"\x03503\x12\x90\x02\n" +
+	"@The leading instance is unreachable: `dcctl.leader.unavailable`.\x12\x1b\n" +
+	"\x19\x1a\x17.webitel.dcctl.v1.Error\"\xae\x01\n" +
+	"\x10application/json\x12\x99\x01{\"id\":\"dcctl.leader.unavailable\",\"code\":503,\"status\":\"Service Unavailable\",\"detail\":\"leading instance is unreachable\",\"metadata\":{\"instance\":\"dcctl-b1\"}}\x82\xd3\xe4\x93\x02$:\x01*\"\x1f/v1/datacenters:resolveConflict\x12\x8c\v\n" +
+	"\x15InitializeDatacenters\x12..webitel.dcctl.v1.InitializeDatacentersRequest\x1a\x1b.webitel.dcctl.v1.Operation\"\xa5\n" +
+	"\x92A\xfc\tJ\xb2\x01\n" +
+	"\x03200\x12\xaa\x01\n" +
+	"\xa7\x01The operation: started, or the existing one for the same request_id. With validate_only, the checks and the plan of the operation that would start, with an empty name.J\xfb\x03\n" +
+	"\x03400\x12\xf3\x03\n" +
+	"<Rejected: `dcctl.request.invalid`, `dcctl.preflight.failed`.\x12\x1b\n" +
+	"\x19\x1a\x17.webitel.dcctl.v1.Error\"\x95\x03\n" +
+	"\x10application/json\x12\x80\x03{\"id\":\"dcctl.preflight.failed\",\"code\":400,\"status\":\"Bad Request\",\"detail\":\"preflight failed: init.state_absent\",\"violations\":[{\"type\":\"check\",\"subject\":\"init.state_absent\",\"description\":\"dcctl/state exists in dc_a\"}],\"preflight\":{\"checks\":[{\"id\":\"init.state_absent\",\"result\":\"FAIL\",\"effect\":\"BLOCK\",\"detail\":\"dcctl/state exists in dc_a\",\"facts\":{\"datacenters\":[\"dc_a\"]}}],\"steps\":[]}}J\xa1\x02\n" +
+	"\x03404\x12\x99\x02\n" +
+	"BThe datacenter is not in the config: `dcctl.datacenter.not_found`.\x12\x1b\n" +
+	"\x19\x1a\x17.webitel.dcctl.v1.Error\"\xb5\x01\n" +
+	"\x10application/json\x12\xa0\x01{\"id\":\"dcctl.datacenter.not_found\",\"code\":404,\"status\":\"Not Found\",\"detail\":\"datacenter dc_c is not in the config\",\"metadata\":{\"datacenter\":\"datacenters/dc_c\"}}J\xa2\x02\n" +
+	"\x03409\x12\x9a\x02\n" +
+	"&Conflict: `dcctl.request_id.mismatch`.\x12\x1b\n" +
+	"\x19\x1a\x17.webitel.dcctl.v1.Error\"\xd2\x01\n" +
+	"\x10application/json\x12\xbd\x01{\"id\":\"dcctl.request_id.mismatch\",\"code\":409,\"status\":\"Conflict\",\"detail\":\"request_id was used with another body\",\"metadata\":{\"operation\":\"operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10\"}}\x82\xd3\xe4\x93\x02\x1f:\x01*\"\x1a/v1/datacenters:initialize\x12\x97\t\n" +
+	"\bSyncApps\x12!.webitel.dcctl.v1.SyncAppsRequest\x1a\x1b.webitel.dcctl.v1.Operation\"\xca\b\x92A\xa3\bJ\xb2\x01\n" +
+	"\x03200\x12\xaa\x01\n" +
+	"\xa7\x01The operation: started, or the existing one for the same request_id. With validate_only, the checks and the plan of the operation that would start, with an empty name.J\xcb\x02\n" +
+	"\x03400\x12\xc3\x02\n" +
+	"WRejected: `dcctl.request.invalid`, `dcctl.preflight.failed`, `dcctl.operation.running`.\x12\x1b\n" +
+	"\x19\x1a\x17.webitel.dcctl.v1.Error\"\xca\x01\n" +
+	"\x10application/json\x12\xb5\x01{\"id\":\"dcctl.operation.running\",\"code\":400,\"status\":\"Bad Request\",\"detail\":\"another operation is running\",\"metadata\":{\"operation\":\"operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10\"}}J\x82\x02\n" +
+	"\x03409\x12\xfa\x01\n" +
+	"9Conflict: `dcctl.lock.busy`, `dcctl.request_id.mismatch`.\x12\x1b\n" +
+	"\x19\x1a\x17.webitel.dcctl.v1.Error\"\x9f\x01\n" +
+	"\x10application/json\x12\x8a\x01{\"id\":\"dcctl.lock.busy\",\"code\":409,\"status\":\"Conflict\",\"detail\":\"dcctl/lock is held by another instance\",\"metadata\":{\"holder\":\"dcctl-a1\"}}J\x98\x02\n" +
+	"\x03503\x12\x90\x02\n" +
+	"@The leading instance is unreachable: `dcctl.leader.unavailable`.\x12\x1b\n" +
+	"\x19\x1a\x17.webitel.dcctl.v1.Error\"\xae\x01\n" +
+	"\x10application/json\x12\x99\x01{\"id\":\"dcctl.leader.unavailable\",\"code\":503,\"status\":\"Service Unavailable\",\"detail\":\"leading instance is unreachable\",\"metadata\":{\"instance\":\"dcctl-b1\"}}\x82\xd3\xe4\x93\x02\x1d:\x01*\"\x18/v1/datacenters:syncApps\x12\xac\a\n" +
+	"\x11InitializeArbiter\x12*.webitel.dcctl.v1.InitializeArbiterRequest\x1a\x1b.webitel.dcctl.v1.Operation\"\xcd\x06\x92A\xa8\x06J\xb2\x01\n" +
+	"\x03200\x12\xaa\x01\n" +
+	"\xa7\x01The operation: started, or the existing one for the same request_id. With validate_only, the checks and the plan of the operation that would start, with an empty name.J\xcb\x02\n" +
+	"\x03400\x12\xc3\x02\n" +
+	"WRejected: `dcctl.request.invalid`, `dcctl.preflight.failed`, `dcctl.operation.running`.\x12\x1b\n" +
+	"\x19\x1a\x17.webitel.dcctl.v1.Error\"\xca\x01\n" +
+	"\x10application/json\x12\xb5\x01{\"id\":\"dcctl.operation.running\",\"code\":400,\"status\":\"Bad Request\",\"detail\":\"another operation is running\",\"metadata\":{\"operation\":\"operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10\"}}J\xa2\x02\n" +
+	"\x03409\x12\x9a\x02\n" +
+	"&Conflict: `dcctl.request_id.mismatch`.\x12\x1b\n" +
+	"\x19\x1a\x17.webitel.dcctl.v1.Error\"\xd2\x01\n" +
+	"\x10application/json\x12\xbd\x01{\"id\":\"dcctl.request_id.mismatch\",\"code\":409,\"status\":\"Conflict\",\"detail\":\"request_id was used with another body\",\"metadata\":{\"operation\":\"operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10\"}}\x82\xd3\xe4\x93\x02\x1b:\x01*\"\x16/v1/arbiter:initializeB:Z8github.com/webitel/webitel-dcctl/gen/go/dcctl/v1;dcctlv1b\x06proto3"
 
 var (
 	file_webitel_dcctl_v1_datacenter_service_proto_rawDescOnce sync.Once
@@ -225,22 +385,50 @@ func file_webitel_dcctl_v1_datacenter_service_proto_rawDescGZIP() []byte {
 
 var file_webitel_dcctl_v1_datacenter_service_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_webitel_dcctl_v1_datacenter_service_proto_goTypes = []any{
-	(*ListDatacentersRequest)(nil),  // 0: webitel.dcctl.v1.ListDatacentersRequest
-	(*ListDatacentersResponse)(nil), // 1: webitel.dcctl.v1.ListDatacentersResponse
-	(*GetDatacenterRequest)(nil),    // 2: webitel.dcctl.v1.GetDatacenterRequest
-	(*Datacenter)(nil),              // 3: webitel.dcctl.v1.Datacenter
+	(*ListDatacentersRequest)(nil),         // 0: webitel.dcctl.v1.ListDatacentersRequest
+	(*ListDatacentersResponse)(nil),        // 1: webitel.dcctl.v1.ListDatacentersResponse
+	(*GetDatacenterRequest)(nil),           // 2: webitel.dcctl.v1.GetDatacenterRequest
+	(*Datacenter)(nil),                     // 3: webitel.dcctl.v1.Datacenter
+	(*SwitchDatacenterRequest)(nil),        // 4: webitel.dcctl.v1.SwitchDatacenterRequest
+	(*FailoverDatacenterRequest)(nil),      // 5: webitel.dcctl.v1.FailoverDatacenterRequest
+	(*DemoteDatacenterRequest)(nil),        // 6: webitel.dcctl.v1.DemoteDatacenterRequest
+	(*RepointDatacenterRequest)(nil),       // 7: webitel.dcctl.v1.RepointDatacenterRequest
+	(*MarkDatacenterRecoveredRequest)(nil), // 8: webitel.dcctl.v1.MarkDatacenterRecoveredRequest
+	(*ResolveConflictRequest)(nil),         // 9: webitel.dcctl.v1.ResolveConflictRequest
+	(*InitializeDatacentersRequest)(nil),   // 10: webitel.dcctl.v1.InitializeDatacentersRequest
+	(*SyncAppsRequest)(nil),                // 11: webitel.dcctl.v1.SyncAppsRequest
+	(*InitializeArbiterRequest)(nil),       // 12: webitel.dcctl.v1.InitializeArbiterRequest
+	(*Operation)(nil),                      // 13: webitel.dcctl.v1.Operation
 }
 var file_webitel_dcctl_v1_datacenter_service_proto_depIdxs = []int32{
-	3, // 0: webitel.dcctl.v1.ListDatacentersResponse.datacenters:type_name -> webitel.dcctl.v1.Datacenter
-	0, // 1: webitel.dcctl.v1.DatacenterService.ListDatacenters:input_type -> webitel.dcctl.v1.ListDatacentersRequest
-	2, // 2: webitel.dcctl.v1.DatacenterService.GetDatacenter:input_type -> webitel.dcctl.v1.GetDatacenterRequest
-	1, // 3: webitel.dcctl.v1.DatacenterService.ListDatacenters:output_type -> webitel.dcctl.v1.ListDatacentersResponse
-	3, // 4: webitel.dcctl.v1.DatacenterService.GetDatacenter:output_type -> webitel.dcctl.v1.Datacenter
-	3, // [3:5] is the sub-list for method output_type
-	1, // [1:3] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	3,  // 0: webitel.dcctl.v1.ListDatacentersResponse.datacenters:type_name -> webitel.dcctl.v1.Datacenter
+	0,  // 1: webitel.dcctl.v1.DatacenterService.ListDatacenters:input_type -> webitel.dcctl.v1.ListDatacentersRequest
+	2,  // 2: webitel.dcctl.v1.DatacenterService.GetDatacenter:input_type -> webitel.dcctl.v1.GetDatacenterRequest
+	4,  // 3: webitel.dcctl.v1.DatacenterService.SwitchDatacenter:input_type -> webitel.dcctl.v1.SwitchDatacenterRequest
+	5,  // 4: webitel.dcctl.v1.DatacenterService.FailoverDatacenter:input_type -> webitel.dcctl.v1.FailoverDatacenterRequest
+	6,  // 5: webitel.dcctl.v1.DatacenterService.DemoteDatacenter:input_type -> webitel.dcctl.v1.DemoteDatacenterRequest
+	7,  // 6: webitel.dcctl.v1.DatacenterService.RepointDatacenter:input_type -> webitel.dcctl.v1.RepointDatacenterRequest
+	8,  // 7: webitel.dcctl.v1.DatacenterService.MarkDatacenterRecovered:input_type -> webitel.dcctl.v1.MarkDatacenterRecoveredRequest
+	9,  // 8: webitel.dcctl.v1.DatacenterService.ResolveConflict:input_type -> webitel.dcctl.v1.ResolveConflictRequest
+	10, // 9: webitel.dcctl.v1.DatacenterService.InitializeDatacenters:input_type -> webitel.dcctl.v1.InitializeDatacentersRequest
+	11, // 10: webitel.dcctl.v1.DatacenterService.SyncApps:input_type -> webitel.dcctl.v1.SyncAppsRequest
+	12, // 11: webitel.dcctl.v1.DatacenterService.InitializeArbiter:input_type -> webitel.dcctl.v1.InitializeArbiterRequest
+	1,  // 12: webitel.dcctl.v1.DatacenterService.ListDatacenters:output_type -> webitel.dcctl.v1.ListDatacentersResponse
+	3,  // 13: webitel.dcctl.v1.DatacenterService.GetDatacenter:output_type -> webitel.dcctl.v1.Datacenter
+	13, // 14: webitel.dcctl.v1.DatacenterService.SwitchDatacenter:output_type -> webitel.dcctl.v1.Operation
+	13, // 15: webitel.dcctl.v1.DatacenterService.FailoverDatacenter:output_type -> webitel.dcctl.v1.Operation
+	13, // 16: webitel.dcctl.v1.DatacenterService.DemoteDatacenter:output_type -> webitel.dcctl.v1.Operation
+	13, // 17: webitel.dcctl.v1.DatacenterService.RepointDatacenter:output_type -> webitel.dcctl.v1.Operation
+	13, // 18: webitel.dcctl.v1.DatacenterService.MarkDatacenterRecovered:output_type -> webitel.dcctl.v1.Operation
+	13, // 19: webitel.dcctl.v1.DatacenterService.ResolveConflict:output_type -> webitel.dcctl.v1.Operation
+	13, // 20: webitel.dcctl.v1.DatacenterService.InitializeDatacenters:output_type -> webitel.dcctl.v1.Operation
+	13, // 21: webitel.dcctl.v1.DatacenterService.SyncApps:output_type -> webitel.dcctl.v1.Operation
+	13, // 22: webitel.dcctl.v1.DatacenterService.InitializeArbiter:output_type -> webitel.dcctl.v1.Operation
+	12, // [12:23] is the sub-list for method output_type
+	1,  // [1:12] is the sub-list for method input_type
+	1,  // [1:1] is the sub-list for extension type_name
+	1,  // [1:1] is the sub-list for extension extendee
+	0,  // [0:1] is the sub-list for field type_name
 }
 
 func init() { file_webitel_dcctl_v1_datacenter_service_proto_init() }
@@ -248,7 +436,9 @@ func file_webitel_dcctl_v1_datacenter_service_proto_init() {
 	if File_webitel_dcctl_v1_datacenter_service_proto != nil {
 		return
 	}
+	file_webitel_dcctl_v1_action_proto_init()
 	file_webitel_dcctl_v1_datacenter_proto_init()
+	file_webitel_dcctl_v1_operation_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{

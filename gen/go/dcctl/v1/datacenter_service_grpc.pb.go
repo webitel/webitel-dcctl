@@ -19,20 +19,88 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	DatacenterService_ListDatacenters_FullMethodName = "/webitel.dcctl.v1.DatacenterService/ListDatacenters"
-	DatacenterService_GetDatacenter_FullMethodName   = "/webitel.dcctl.v1.DatacenterService/GetDatacenter"
+	DatacenterService_ListDatacenters_FullMethodName         = "/webitel.dcctl.v1.DatacenterService/ListDatacenters"
+	DatacenterService_GetDatacenter_FullMethodName           = "/webitel.dcctl.v1.DatacenterService/GetDatacenter"
+	DatacenterService_SwitchDatacenter_FullMethodName        = "/webitel.dcctl.v1.DatacenterService/SwitchDatacenter"
+	DatacenterService_FailoverDatacenter_FullMethodName      = "/webitel.dcctl.v1.DatacenterService/FailoverDatacenter"
+	DatacenterService_DemoteDatacenter_FullMethodName        = "/webitel.dcctl.v1.DatacenterService/DemoteDatacenter"
+	DatacenterService_RepointDatacenter_FullMethodName       = "/webitel.dcctl.v1.DatacenterService/RepointDatacenter"
+	DatacenterService_MarkDatacenterRecovered_FullMethodName = "/webitel.dcctl.v1.DatacenterService/MarkDatacenterRecovered"
+	DatacenterService_ResolveConflict_FullMethodName         = "/webitel.dcctl.v1.DatacenterService/ResolveConflict"
+	DatacenterService_InitializeDatacenters_FullMethodName   = "/webitel.dcctl.v1.DatacenterService/InitializeDatacenters"
+	DatacenterService_SyncApps_FullMethodName                = "/webitel.dcctl.v1.DatacenterService/SyncApps"
+	DatacenterService_InitializeArbiter_FullMethodName       = "/webitel.dcctl.v1.DatacenterService/InitializeArbiter"
 )
 
 // DatacenterServiceClient is the client API for DatacenterService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// Datacenters.
+// Datacenters and the actions on them. Every action creates an operation and
+// returns it; with validate_only it returns the checks and the plan without
+// creating anything, or the error the real request would get. An action on a
+// datacenter that is not in the config fails with NOT_FOUND, reason
+// DATACENTER_NOT_FOUND, before any check runs.
 type DatacenterServiceClient interface {
 	// Lists all datacenters in one page.
 	ListDatacenters(ctx context.Context, in *ListDatacentersRequest, opts ...grpc.CallOption) (*ListDatacentersResponse, error)
 	// Returns the datacenter details as seen by the instance that answers.
 	GetDatacenter(ctx context.Context, in *GetDatacenterRequest, opts ...grpc.CallOption) (*Datacenter, error)
+	// Planned switch of the active datacenter to this one.
+	// (-- api-linter: core::0136::response-message-name=disabled
+	//
+	//	aip.dev/not-precedent: actions return the own Operation resource
+	//	instead of google.longrunning.Operation. --)
+	SwitchDatacenter(ctx context.Context, in *SwitchDatacenterRequest, opts ...grpc.CallOption) (*Operation, error)
+	// Failover to this datacenter when the active one is lost.
+	// (-- api-linter: core::0136::response-message-name=disabled
+	//
+	//	aip.dev/not-precedent: actions return the own Operation resource
+	//	instead of google.longrunning.Operation. --)
+	FailoverDatacenter(ctx context.Context, in *FailoverDatacenterRequest, opts ...grpc.CallOption) (*Operation, error)
+	// Demotes the old primary of this datacenter and points it at the active
+	// one. Clears the db_split alarm.
+	// (-- api-linter: core::0136::response-message-name=disabled
+	//
+	//	aip.dev/not-precedent: actions return the own Operation resource
+	//	instead of google.longrunning.Operation. --)
+	DemoteDatacenter(ctx context.Context, in *DemoteDatacenterRequest, opts ...grpc.CallOption) (*Operation, error)
+	// Points this standby datacenter at the active one.
+	// (-- api-linter: core::0136::response-message-name=disabled
+	//
+	//	aip.dev/not-precedent: actions return the own Operation resource
+	//	instead of google.longrunning.Operation. --)
+	RepointDatacenter(ctx context.Context, in *RepointDatacenterRequest, opts ...grpc.CallOption) (*Operation, error)
+	// Removes this datacenter from needs_recovery.
+	// (-- api-linter: core::0136::response-message-name=disabled
+	//
+	//	aip.dev/not-precedent: actions return the own Operation resource
+	//	instead of google.longrunning.Operation. --)
+	MarkDatacenterRecovered(ctx context.Context, in *MarkDatacenterRecoveredRequest, opts ...grpc.CallOption) (*Operation, error)
+	// Resolves a generation conflict in favor of the winner.
+	// (-- api-linter: core::0136::response-message-name=disabled
+	//
+	//	aip.dev/not-precedent: actions return the own Operation resource
+	//	instead of google.longrunning.Operation. --)
+	ResolveConflict(ctx context.Context, in *ResolveConflictRequest, opts ...grpc.CallOption) (*Operation, error)
+	// Creates the initial dcctl state in every datacenter.
+	// (-- api-linter: core::0136::response-message-name=disabled
+	//
+	//	aip.dev/not-precedent: actions return the own Operation resource
+	//	instead of google.longrunning.Operation. --)
+	InitializeDatacenters(ctx context.Context, in *InitializeDatacentersRequest, opts ...grpc.CallOption) (*Operation, error)
+	// Brings the managed apps of the active datacenter to the desired state.
+	// (-- api-linter: core::0136::response-message-name=disabled
+	//
+	//	aip.dev/not-precedent: actions return the own Operation resource
+	//	instead of google.longrunning.Operation. --)
+	SyncApps(ctx context.Context, in *SyncAppsRequest, opts ...grpc.CallOption) (*Operation, error)
+	// Copies the dcctl state to an empty arbiter.
+	// (-- api-linter: core::0136::response-message-name=disabled
+	//
+	//	aip.dev/not-precedent: actions return the own Operation resource
+	//	instead of google.longrunning.Operation. --)
+	InitializeArbiter(ctx context.Context, in *InitializeArbiterRequest, opts ...grpc.CallOption) (*Operation, error)
 }
 
 type datacenterServiceClient struct {
@@ -63,16 +131,165 @@ func (c *datacenterServiceClient) GetDatacenter(ctx context.Context, in *GetData
 	return out, nil
 }
 
+func (c *datacenterServiceClient) SwitchDatacenter(ctx context.Context, in *SwitchDatacenterRequest, opts ...grpc.CallOption) (*Operation, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Operation)
+	err := c.cc.Invoke(ctx, DatacenterService_SwitchDatacenter_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *datacenterServiceClient) FailoverDatacenter(ctx context.Context, in *FailoverDatacenterRequest, opts ...grpc.CallOption) (*Operation, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Operation)
+	err := c.cc.Invoke(ctx, DatacenterService_FailoverDatacenter_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *datacenterServiceClient) DemoteDatacenter(ctx context.Context, in *DemoteDatacenterRequest, opts ...grpc.CallOption) (*Operation, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Operation)
+	err := c.cc.Invoke(ctx, DatacenterService_DemoteDatacenter_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *datacenterServiceClient) RepointDatacenter(ctx context.Context, in *RepointDatacenterRequest, opts ...grpc.CallOption) (*Operation, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Operation)
+	err := c.cc.Invoke(ctx, DatacenterService_RepointDatacenter_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *datacenterServiceClient) MarkDatacenterRecovered(ctx context.Context, in *MarkDatacenterRecoveredRequest, opts ...grpc.CallOption) (*Operation, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Operation)
+	err := c.cc.Invoke(ctx, DatacenterService_MarkDatacenterRecovered_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *datacenterServiceClient) ResolveConflict(ctx context.Context, in *ResolveConflictRequest, opts ...grpc.CallOption) (*Operation, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Operation)
+	err := c.cc.Invoke(ctx, DatacenterService_ResolveConflict_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *datacenterServiceClient) InitializeDatacenters(ctx context.Context, in *InitializeDatacentersRequest, opts ...grpc.CallOption) (*Operation, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Operation)
+	err := c.cc.Invoke(ctx, DatacenterService_InitializeDatacenters_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *datacenterServiceClient) SyncApps(ctx context.Context, in *SyncAppsRequest, opts ...grpc.CallOption) (*Operation, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Operation)
+	err := c.cc.Invoke(ctx, DatacenterService_SyncApps_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *datacenterServiceClient) InitializeArbiter(ctx context.Context, in *InitializeArbiterRequest, opts ...grpc.CallOption) (*Operation, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Operation)
+	err := c.cc.Invoke(ctx, DatacenterService_InitializeArbiter_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // DatacenterServiceServer is the server API for DatacenterService service.
 // All implementations must embed UnimplementedDatacenterServiceServer
 // for forward compatibility.
 //
-// Datacenters.
+// Datacenters and the actions on them. Every action creates an operation and
+// returns it; with validate_only it returns the checks and the plan without
+// creating anything, or the error the real request would get. An action on a
+// datacenter that is not in the config fails with NOT_FOUND, reason
+// DATACENTER_NOT_FOUND, before any check runs.
 type DatacenterServiceServer interface {
 	// Lists all datacenters in one page.
 	ListDatacenters(context.Context, *ListDatacentersRequest) (*ListDatacentersResponse, error)
 	// Returns the datacenter details as seen by the instance that answers.
 	GetDatacenter(context.Context, *GetDatacenterRequest) (*Datacenter, error)
+	// Planned switch of the active datacenter to this one.
+	// (-- api-linter: core::0136::response-message-name=disabled
+	//
+	//	aip.dev/not-precedent: actions return the own Operation resource
+	//	instead of google.longrunning.Operation. --)
+	SwitchDatacenter(context.Context, *SwitchDatacenterRequest) (*Operation, error)
+	// Failover to this datacenter when the active one is lost.
+	// (-- api-linter: core::0136::response-message-name=disabled
+	//
+	//	aip.dev/not-precedent: actions return the own Operation resource
+	//	instead of google.longrunning.Operation. --)
+	FailoverDatacenter(context.Context, *FailoverDatacenterRequest) (*Operation, error)
+	// Demotes the old primary of this datacenter and points it at the active
+	// one. Clears the db_split alarm.
+	// (-- api-linter: core::0136::response-message-name=disabled
+	//
+	//	aip.dev/not-precedent: actions return the own Operation resource
+	//	instead of google.longrunning.Operation. --)
+	DemoteDatacenter(context.Context, *DemoteDatacenterRequest) (*Operation, error)
+	// Points this standby datacenter at the active one.
+	// (-- api-linter: core::0136::response-message-name=disabled
+	//
+	//	aip.dev/not-precedent: actions return the own Operation resource
+	//	instead of google.longrunning.Operation. --)
+	RepointDatacenter(context.Context, *RepointDatacenterRequest) (*Operation, error)
+	// Removes this datacenter from needs_recovery.
+	// (-- api-linter: core::0136::response-message-name=disabled
+	//
+	//	aip.dev/not-precedent: actions return the own Operation resource
+	//	instead of google.longrunning.Operation. --)
+	MarkDatacenterRecovered(context.Context, *MarkDatacenterRecoveredRequest) (*Operation, error)
+	// Resolves a generation conflict in favor of the winner.
+	// (-- api-linter: core::0136::response-message-name=disabled
+	//
+	//	aip.dev/not-precedent: actions return the own Operation resource
+	//	instead of google.longrunning.Operation. --)
+	ResolveConflict(context.Context, *ResolveConflictRequest) (*Operation, error)
+	// Creates the initial dcctl state in every datacenter.
+	// (-- api-linter: core::0136::response-message-name=disabled
+	//
+	//	aip.dev/not-precedent: actions return the own Operation resource
+	//	instead of google.longrunning.Operation. --)
+	InitializeDatacenters(context.Context, *InitializeDatacentersRequest) (*Operation, error)
+	// Brings the managed apps of the active datacenter to the desired state.
+	// (-- api-linter: core::0136::response-message-name=disabled
+	//
+	//	aip.dev/not-precedent: actions return the own Operation resource
+	//	instead of google.longrunning.Operation. --)
+	SyncApps(context.Context, *SyncAppsRequest) (*Operation, error)
+	// Copies the dcctl state to an empty arbiter.
+	// (-- api-linter: core::0136::response-message-name=disabled
+	//
+	//	aip.dev/not-precedent: actions return the own Operation resource
+	//	instead of google.longrunning.Operation. --)
+	InitializeArbiter(context.Context, *InitializeArbiterRequest) (*Operation, error)
 	mustEmbedUnimplementedDatacenterServiceServer()
 }
 
@@ -88,6 +305,33 @@ func (UnimplementedDatacenterServiceServer) ListDatacenters(context.Context, *Li
 }
 func (UnimplementedDatacenterServiceServer) GetDatacenter(context.Context, *GetDatacenterRequest) (*Datacenter, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetDatacenter not implemented")
+}
+func (UnimplementedDatacenterServiceServer) SwitchDatacenter(context.Context, *SwitchDatacenterRequest) (*Operation, error) {
+	return nil, status.Error(codes.Unimplemented, "method SwitchDatacenter not implemented")
+}
+func (UnimplementedDatacenterServiceServer) FailoverDatacenter(context.Context, *FailoverDatacenterRequest) (*Operation, error) {
+	return nil, status.Error(codes.Unimplemented, "method FailoverDatacenter not implemented")
+}
+func (UnimplementedDatacenterServiceServer) DemoteDatacenter(context.Context, *DemoteDatacenterRequest) (*Operation, error) {
+	return nil, status.Error(codes.Unimplemented, "method DemoteDatacenter not implemented")
+}
+func (UnimplementedDatacenterServiceServer) RepointDatacenter(context.Context, *RepointDatacenterRequest) (*Operation, error) {
+	return nil, status.Error(codes.Unimplemented, "method RepointDatacenter not implemented")
+}
+func (UnimplementedDatacenterServiceServer) MarkDatacenterRecovered(context.Context, *MarkDatacenterRecoveredRequest) (*Operation, error) {
+	return nil, status.Error(codes.Unimplemented, "method MarkDatacenterRecovered not implemented")
+}
+func (UnimplementedDatacenterServiceServer) ResolveConflict(context.Context, *ResolveConflictRequest) (*Operation, error) {
+	return nil, status.Error(codes.Unimplemented, "method ResolveConflict not implemented")
+}
+func (UnimplementedDatacenterServiceServer) InitializeDatacenters(context.Context, *InitializeDatacentersRequest) (*Operation, error) {
+	return nil, status.Error(codes.Unimplemented, "method InitializeDatacenters not implemented")
+}
+func (UnimplementedDatacenterServiceServer) SyncApps(context.Context, *SyncAppsRequest) (*Operation, error) {
+	return nil, status.Error(codes.Unimplemented, "method SyncApps not implemented")
+}
+func (UnimplementedDatacenterServiceServer) InitializeArbiter(context.Context, *InitializeArbiterRequest) (*Operation, error) {
+	return nil, status.Error(codes.Unimplemented, "method InitializeArbiter not implemented")
 }
 func (UnimplementedDatacenterServiceServer) mustEmbedUnimplementedDatacenterServiceServer() {}
 func (UnimplementedDatacenterServiceServer) testEmbeddedByValue()                           {}
@@ -146,6 +390,168 @@ func _DatacenterService_GetDatacenter_Handler(srv interface{}, ctx context.Conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _DatacenterService_SwitchDatacenter_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SwitchDatacenterRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DatacenterServiceServer).SwitchDatacenter(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DatacenterService_SwitchDatacenter_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DatacenterServiceServer).SwitchDatacenter(ctx, req.(*SwitchDatacenterRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DatacenterService_FailoverDatacenter_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(FailoverDatacenterRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DatacenterServiceServer).FailoverDatacenter(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DatacenterService_FailoverDatacenter_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DatacenterServiceServer).FailoverDatacenter(ctx, req.(*FailoverDatacenterRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DatacenterService_DemoteDatacenter_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DemoteDatacenterRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DatacenterServiceServer).DemoteDatacenter(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DatacenterService_DemoteDatacenter_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DatacenterServiceServer).DemoteDatacenter(ctx, req.(*DemoteDatacenterRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DatacenterService_RepointDatacenter_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RepointDatacenterRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DatacenterServiceServer).RepointDatacenter(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DatacenterService_RepointDatacenter_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DatacenterServiceServer).RepointDatacenter(ctx, req.(*RepointDatacenterRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DatacenterService_MarkDatacenterRecovered_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(MarkDatacenterRecoveredRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DatacenterServiceServer).MarkDatacenterRecovered(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DatacenterService_MarkDatacenterRecovered_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DatacenterServiceServer).MarkDatacenterRecovered(ctx, req.(*MarkDatacenterRecoveredRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DatacenterService_ResolveConflict_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResolveConflictRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DatacenterServiceServer).ResolveConflict(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DatacenterService_ResolveConflict_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DatacenterServiceServer).ResolveConflict(ctx, req.(*ResolveConflictRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DatacenterService_InitializeDatacenters_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(InitializeDatacentersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DatacenterServiceServer).InitializeDatacenters(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DatacenterService_InitializeDatacenters_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DatacenterServiceServer).InitializeDatacenters(ctx, req.(*InitializeDatacentersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DatacenterService_SyncApps_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SyncAppsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DatacenterServiceServer).SyncApps(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DatacenterService_SyncApps_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DatacenterServiceServer).SyncApps(ctx, req.(*SyncAppsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DatacenterService_InitializeArbiter_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(InitializeArbiterRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DatacenterServiceServer).InitializeArbiter(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DatacenterService_InitializeArbiter_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DatacenterServiceServer).InitializeArbiter(ctx, req.(*InitializeArbiterRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // DatacenterService_ServiceDesc is the grpc.ServiceDesc for DatacenterService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -160,6 +566,42 @@ var DatacenterService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetDatacenter",
 			Handler:    _DatacenterService_GetDatacenter_Handler,
+		},
+		{
+			MethodName: "SwitchDatacenter",
+			Handler:    _DatacenterService_SwitchDatacenter_Handler,
+		},
+		{
+			MethodName: "FailoverDatacenter",
+			Handler:    _DatacenterService_FailoverDatacenter_Handler,
+		},
+		{
+			MethodName: "DemoteDatacenter",
+			Handler:    _DatacenterService_DemoteDatacenter_Handler,
+		},
+		{
+			MethodName: "RepointDatacenter",
+			Handler:    _DatacenterService_RepointDatacenter_Handler,
+		},
+		{
+			MethodName: "MarkDatacenterRecovered",
+			Handler:    _DatacenterService_MarkDatacenterRecovered_Handler,
+		},
+		{
+			MethodName: "ResolveConflict",
+			Handler:    _DatacenterService_ResolveConflict_Handler,
+		},
+		{
+			MethodName: "InitializeDatacenters",
+			Handler:    _DatacenterService_InitializeDatacenters_Handler,
+		},
+		{
+			MethodName: "SyncApps",
+			Handler:    _DatacenterService_SyncApps_Handler,
+		},
+		{
+			MethodName: "InitializeArbiter",
+			Handler:    _DatacenterService_InitializeArbiter_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

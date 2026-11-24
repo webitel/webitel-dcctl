@@ -14,6 +14,7 @@ import (
 	"google.golang.org/protobuf/types/dynamicpb"
 
 	_ "github.com/webitel/webitel-dcctl/gen/go/dcctl/v1"
+	"github.com/webitel/webitel-dcctl/internal/apierr"
 )
 
 const (
@@ -148,5 +149,32 @@ func TestSwaggerErrorsUseErrorSchema(t *testing.T) {
 				assert.Equal(t, errorSchema, resp.Schema.Ref, "%s %s %s", method, path, code)
 			}
 		}
+	}
+}
+
+func TestSwaggerExamplesCoverErrorIDs(t *testing.T) {
+	t.Parallel()
+
+	ids := map[string]bool{}
+
+	for _, ex := range loadExamples(t) {
+		if ex.message.FullName() != "webitel.dcctl.v1.Error" {
+			continue
+		}
+
+		var body struct {
+			ID string `json:"id"`
+		}
+		require.NoError(t, json.Unmarshal(ex.body, &body))
+
+		ids[body.ID] = true
+	}
+
+	for _, r := range apierr.Reasons() {
+		if r.ID() == "" {
+			continue
+		}
+
+		assert.True(t, ids[r.ID()], "no swagger example for %s", r.ID())
 	}
 }
