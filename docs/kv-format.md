@@ -59,8 +59,10 @@ and `records/lease`.
 | `needs_recovery` | array of strings | Datacenters waiting for recovery after a failover. Missing means empty. |
 | `updated_at` | string, RFC 3339 | Time of the last write. For display only. |
 
-The role uses `active_datacenter` and `generation`. `dcctl/state` is created only by
-`webitel-dcctl init`; dcctl never creates it on its own.
+The role uses `active_datacenter` and `generation`. `dcctl/state` is first written only by
+`webitel-dcctl init`. A datacenter whose Consul lost the key gets it back as a copy of the effective
+state from the other voters, once that state is on a majority of voters or forced; if no voter has
+it, dcctl does not recreate it.
 
 ## `dcctl/op`
 
