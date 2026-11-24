@@ -9,12 +9,15 @@ import (
 	"syscall"
 
 	"github.com/urfave/cli/v2"
+	"google.golang.org/grpc"
 
 	"github.com/webitel/webitel-go-kit/pkg/logging"
 
+	"github.com/webitel/webitel-dcctl/internal/auth"
 	"github.com/webitel/webitel-dcctl/internal/buildinfo"
 	"github.com/webitel/webitel-dcctl/internal/config"
 	"github.com/webitel/webitel-dcctl/internal/runtime"
+	"github.com/webitel/webitel-dcctl/internal/source/consul"
 )
 
 var errNotImplemented = errors.New("not implemented")
@@ -82,18 +85,44 @@ func serve(c *cli.Context) (err error) {
 
 	defer func() { err = errors.Join(err, shutdownTelemetry()) }()
 
+	httpOpts, peerOpts, err := serverOptions(ctx, cfg)
+	if err != nil {
+		return err
+	}
+
 	rt, err := runtime.New(runtime.Config{
-		HTTP:   cfg.Listen.HTTP,
-		Peer:   cfg.Listen.Peer,
-		Health: cfg.Listen.Health,
-		TLS:    cfg.TLS,
-		Consul: &runtime.Consul{Datacenter: cfg.Datacenter, NodeMetaKey: cfg.Consul.NodeMetaKey},
+		HTTP:        cfg.Listen.HTTP,
+		Peer:        cfg.Listen.Peer,
+		Health:      cfg.Listen.Health,
+		TLS:         cfg.TLS,
+		HTTPOptions: httpOpts,
+		PeerOptions: peerOpts,
+		APIGuard:    auth.CheckAPIRequest,
+		Consul:      &runtime.Consul{Datacenter: cfg.Datacenter, NodeMetaKey: cfg.Consul.NodeMetaKey},
 	}, logging.New(logging.WithComponent("dcctl.runtime")))
 	if err != nil {
 		return err
 	}
 
 	return rt.Run(ctx)
+}
+
+// serverOptions returns the interceptors of the listeners, with the dcctl
+// instances listed by the Consul servers of cfg.
+func serverOptions(ctx context.Context, cfg *config.Serve) (httpOpts, peerOpts []grpc.ServerOption, err error) {
+	catalog, err := consul.New(consul.Options{
+		Profile:     cfg.Profile,
+		NodeMetaKey: cfg.Consul.NodeMetaKey,
+		Servers:     cfg.Consul.Servers,
+		SessionTTL:  cfg.Coordination.SessionTTL,
+		LockDelay:   cfg.Coordination.LockDelay,
+		Timeout:     cfg.Status.RequestTimeout,
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("consul: %w", err)
+	}
+
+	return auth.ServerOptions(ctx, cfg.Auth.Users, catalog, logging.New(logging.WithComponent("dcctl.auth")))
 }
 
 func arbiter(c *cli.Context) error {
