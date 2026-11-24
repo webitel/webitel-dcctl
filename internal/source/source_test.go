@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
@@ -41,6 +43,18 @@ func TestClassify(t *testing.T) {
 		}, want: source.ReasonInvalid},
 		{name: "json_syntax", err: func(*testing.T) error { return json.Unmarshal([]byte("{"), new(any)) }, want: source.ReasonInvalid},
 		{name: "json_type", err: func(*testing.T) error { return json.Unmarshal([]byte(`"x"`), new(int)) }, want: source.ReasonInvalid},
+		{name: "scheme_mismatch", err: func(*testing.T) error { return http.ErrSchemeMismatch }, want: source.ReasonTLS},
+		{name: "tls_alert", err: func(*testing.T) error {
+			return &url.Error{Op: "Get", URL: "https://10.0.0.1:4646", Err: &net.OpError{Op: "remote error", Err: errors.New("tls: certificate required")}}
+		}, want: source.ReasonTLS},
+		{name: "unexpected_eof", err: func(*testing.T) error { return io.ErrUnexpectedEOF }, want: source.ReasonInvalid},
+		{name: "unexpected_eof_in_url_error", err: func(*testing.T) error {
+			return &url.Error{Op: "Get", URL: "https://10.0.0.1:4646", Err: io.ErrUnexpectedEOF}
+		}, want: source.ReasonInvalid},
+		{name: "empty_body_eof", err: func(*testing.T) error { return io.EOF }, want: source.ReasonInvalid},
+		{name: "eof_before_response", err: func(*testing.T) error {
+			return &url.Error{Op: "Get", URL: "https://10.0.0.1:4646", Err: io.EOF}
+		}, want: source.ReasonHTTP},
 		{name: "other", err: func(*testing.T) error { return errors.New("connection reset by peer") }, want: source.ReasonHTTP},
 	}
 
