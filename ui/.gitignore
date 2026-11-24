@@ -1,0 +1,5 @@
+node_modules
+dist
+# intermediate openapi files of npm run gen:api
+.gen
+*.tsbuildinfo

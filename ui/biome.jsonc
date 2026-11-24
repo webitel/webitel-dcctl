@@ -1,0 +1,26 @@
+{
+	"$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+	"files": {
+		"includes": ["src/**", "*.ts", "*.mjs"],
+		"ignoreUnknown": true
+	},
+	"formatter": { "indentStyle": "tab" },
+	"javascript": { "formatter": { "quoteStyle": "single" } },
+	"linter": { "enabled": true, "rules": { "preset": "recommended" } },
+	"overrides": [
+		{
+			"includes": ["src/api/gen/**"],
+			"linter": { "enabled": false }
+		},
+		{
+			// Biome sees only the script block of an SFC, so template usage looks like dead code.
+			"includes": ["**/*.vue"],
+			"linter": {
+				"rules": {
+					"style": { "useConst": "off", "useImportType": "off" },
+					"correctness": { "noUnusedVariables": "off", "noUnusedImports": "off" }
+				}
+			}
+		}
+	]
+}

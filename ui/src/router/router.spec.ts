@@ -1,0 +1,87 @@
+import { createPinia, setActivePinia } from 'pinia';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { createMemoryHistory } from 'vue-router';
+import { AUTH_STORAGE_KEY, useAuthStore } from '@/stores/auth';
+
+import {
+	createAppRouter,
+	redirectToLoginOnLogout,
+	safeRedirect,
+} from './index';
+
+const signIn = () =>
+	sessionStorage.setItem(
+		AUTH_STORAGE_KEY,
+		JSON.stringify({ name: 'support', token: 'dG9rZW4=' }),
+	);
+
+beforeEach(() => {
+	setActivePinia(createPinia());
+});
+
+describe('safeRedirect', () => {
+	it.each([
+		['/operations', '/operations'],
+		['/journal?x=1', '/journal?x=1'],
+		[undefined, '/'],
+		['', '/'],
+		['https://evil.example/', '/'],
+		['//evil.example/', '/'],
+		['javascript:alert(1)', '/'],
+		['/\\evil.example', '/'],
+		[['/a'], '/'],
+	])('%j -> %s', (input, expected) => {
+		expect(safeRedirect(input as never)).toBe(expected);
+	});
+});
+
+describe('router', () => {
+	it('sends an anonymous visitor to the login form and remembers the target', async () => {
+		const router = createAppRouter(createMemoryHistory('/dcctl/'));
+
+		await router.push('/operations');
+
+		expect(router.currentRoute.value.name).toBe('login');
+		expect(router.currentRoute.value.query.redirect).toBe('/operations');
+	});
+
+	it('lets a signed-in user through to every section', async () => {
+		signIn();
+		const router = createAppRouter(createMemoryHistory('/dcctl/'));
+
+		for (const name of ['overview', 'datacenters', 'operations', 'journal']) {
+			await router.push({ name });
+			expect(router.currentRoute.value.name).toBe(name);
+		}
+	});
+
+	it('does not show the login form to a signed-in user', async () => {
+		signIn();
+		const router = createAppRouter(createMemoryHistory('/dcctl/'));
+
+		await router.push('/login?redirect=/journal');
+
+		expect(router.currentRoute.value.name).toBe('journal');
+	});
+
+	it('serves the app under the /dcctl/ base', () => {
+		const router = createAppRouter(createMemoryHistory('/dcctl/'));
+
+		expect(router.resolve({ name: 'journal' }).href).toBe('/dcctl/journal');
+		expect(createAppRouter().options.history.base).toBe('/dcctl');
+	});
+
+	it('opens the login form when the credentials are cleared', async () => {
+		signIn();
+		const router = createAppRouter(createMemoryHistory('/dcctl/'));
+		redirectToLoginOnLogout(router);
+		await router.push('/journal');
+
+		useAuthStore().clear();
+		await new Promise((resolve) => setTimeout(resolve));
+		await router.isReady();
+
+		expect(router.currentRoute.value.name).toBe('login');
+		expect(router.currentRoute.value.query.redirect).toBe('/journal');
+	});
+});
