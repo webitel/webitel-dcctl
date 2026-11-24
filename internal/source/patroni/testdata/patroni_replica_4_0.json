@@ -1,0 +1,21 @@
+{
+  "state": "running",
+  "postmaster_start_time": "2026-11-01 10:00:05.654321+00:00",
+  "role": "replica",
+  "server_version": 170004,
+  "xlog": {
+    "received_location": 117440000,
+    "replayed_location": 117439488,
+    "replayed_timestamp": null,
+    "paused": false
+  },
+  "timeline": 4,
+  "replication_state": "streaming",
+  "dcs_last_seen": 1764000000,
+  "database_system_identifier": "7400000000000000001",
+  "patroni": {
+    "version": "4.0.6",
+    "scope": "webitel-postgres",
+    "name": "pg-3"
+  }
+}

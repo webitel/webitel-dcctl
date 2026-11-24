@@ -1,0 +1,32 @@
+{
+  "state": "running",
+  "postmaster_start_time": "2026-11-01 10:00:00.123456+00:00",
+  "role": "standby_leader",
+  "server_version": 170004,
+  "xlog": {
+    "received_location": 100663296,
+    "replayed_location": 100663296,
+    "replayed_timestamp": "2026-11-24 09:59:58.000000+00:00",
+    "paused": false
+  },
+  "timeline": 4,
+  "replication_state": "streaming",
+  "replication": [
+    {
+      "usename": "replication",
+      "application_name": "pg-5",
+      "client_addr": "10.1.0.15",
+      "state": "streaming",
+      "sync_state": "async",
+      "sync_priority": 0
+    }
+  ],
+  "dcs_last_seen": 1764000000,
+  "database_system_identifier": "7400000000000000001",
+  "pause": true,
+  "patroni": {
+    "version": "4.1.5",
+    "scope": "webitel-postgres",
+    "name": "pg-4"
+  }
+}
