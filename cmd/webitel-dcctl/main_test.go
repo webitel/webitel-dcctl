@@ -22,9 +22,13 @@ func TestVersion(t *testing.T) {
 	assert.Equal(t, buildinfo.Version+"\n", out.String())
 }
 
-func TestArbiterNotImplemented(t *testing.T) {
+// The example config names the certificates of a real arbiter, so arbiter
+// gets past the config and stops at the runtime.
+func TestArbiterStartsRuntime(t *testing.T) {
+	t.Setenv("OTEL_SDK_DISABLED", "true")
+
 	err := newApp().Run([]string{"webitel-dcctl", "arbiter", "--config", "../../examples/arbiter.yaml"})
-	assert.ErrorIs(t, err, errNotImplemented)
+	assert.ErrorContains(t, err, "tls.cert, tls.key: open /etc/ssl/app/arbiter.pem")
 }
 
 // The example config names the certificates of a real node, so serve gets
