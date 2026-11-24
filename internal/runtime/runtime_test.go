@@ -340,6 +340,61 @@ func TestHealthEndpoints(t *testing.T) {
 	assert.Equal(t, map[string]string{"http/api": "critical:ok", "http/peer": "critical:ok"}, keys)
 }
 
+// healthChecks returns group:status of every check by system/name, read
+// from /healthz.
+func healthChecks(t *testing.T, rt *Runtime) map[string]string {
+	t.Helper()
+
+	resp := httpGet(t, "http://"+rt.healthSrv.Addr()+"/healthz")
+
+	var got struct {
+		Checks []struct {
+			System string `json:"system"`
+			Name   string `json:"name"`
+			Group  string `json:"group"`
+			Status string `json:"status"`
+		} `json:"checks"`
+	}
+	require.NoError(t, json.Unmarshal(resp.body, &got))
+
+	keys := make(map[string]string, len(got.Checks))
+	for _, c := range got.Checks {
+		keys[c.System+"/"+c.Name] = c.Group + ":" + c.Status
+	}
+
+	return keys
+}
+
+func TestPeerCheckName(t *testing.T) {
+	cfg := testConfig(newTestPKI(t))
+	cfg.HTTP = ""
+	cfg.PeerCheck = "arbiter"
+
+	rt, err := New(cfg, testLogger())
+	require.NoError(t, err)
+	start(t, rt)
+
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		assert.Equal(c, map[string]string{"http/arbiter": "critical:ok"}, healthChecks(t, rt))
+	}, 5*time.Second, 20*time.Millisecond)
+}
+
+func TestRunPeerPortBusyKey(t *testing.T) {
+	busy, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = busy.Close() })
+
+	cfg := testConfig(newTestPKI(t))
+	cfg.HTTP = ""
+	cfg.Peer = busy.Addr().String()
+	cfg.PeerKey = "listen.api"
+
+	rt, err := New(cfg, testLogger())
+	require.NoError(t, err)
+
+	require.ErrorContains(t, rt.Run(t.Context()), "listen.api: ")
+}
+
 // notifySocket listens on a unixgram socket with a path short enough for the
 // 104 bytes of sun_path on darwin, where t.TempDir() is already too long.
 func notifySocket(t *testing.T) (string, *net.UnixConn) {

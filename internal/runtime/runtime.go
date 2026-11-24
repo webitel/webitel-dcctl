@@ -5,6 +5,7 @@
 package runtime
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -45,6 +46,12 @@ type Config struct {
 	HTTP string
 	// Peer serves gRPC with mutual TLS.
 	Peer string
+	// PeerKey is the config key of Peer in errors and logs; empty means
+	// "listen.peer".
+	PeerKey string
+	// PeerCheck names the critical health check of the Peer listener,
+	// http/<PeerCheck>; empty means "peer".
+	PeerCheck string
 	// Health serves /livez, /readyz and /healthz.
 	Health string
 	TLS    config.TLS
@@ -101,6 +108,9 @@ func New(cfg Config, log *logging.Logger) (*Runtime, error) {
 	if cfg.StopTimeout <= 0 {
 		cfg.StopTimeout = defaultStopTimeout
 	}
+
+	cfg.PeerKey = cmp.Or(cfg.PeerKey, "listen.peer")
+	cfg.PeerCheck = cmp.Or(cfg.PeerCheck, "peer")
 
 	r := &Runtime{
 		cfg:      cfg,
@@ -180,7 +190,7 @@ func (r *Runtime) Run(ctx context.Context) error {
 		return err
 	}
 
-	r.health.Critical(health.SystemHTTP, health.ListenerCheck(r.peerLn), health.WithName("peer"))
+	r.health.Critical(health.SystemHTTP, health.ListenerCheck(r.peerLn), health.WithName(r.cfg.PeerCheck))
 
 	if r.httpLn != nil {
 		r.health.Critical(health.SystemHTTP, health.ListenerCheck(r.httpLn), health.WithName("api"))
@@ -235,7 +245,7 @@ func (r *Runtime) listen(ctx context.Context) error {
 
 	peer, err := lc.Listen(ctx, "tcp", r.cfg.Peer)
 	if err != nil {
-		return fmt.Errorf("listen.peer: %w", err)
+		return fmt.Errorf("%s: %w", r.cfg.PeerKey, err)
 	}
 
 	r.peerLn = peer
@@ -257,7 +267,7 @@ func (r *Runtime) listen(ctx context.Context) error {
 func (r *Runtime) serve(wg *sync.WaitGroup, served chan<- error) {
 	wg.Go(func() {
 		if err := r.peerGRPC.Serve(r.peerLn); err != nil {
-			served <- fmt.Errorf("serve listen.peer: %w", err)
+			served <- fmt.Errorf("serve %s: %w", r.cfg.PeerKey, err)
 		}
 	})
 
@@ -352,7 +362,7 @@ func gracefulStop(ctx context.Context, s *grpc.Server) {
 }
 
 func (r *Runtime) addrFields() []logging.Field {
-	fields := []logging.Field{logging.Str("listen.peer", r.peerLn.Addr().String())}
+	fields := []logging.Field{logging.Str(r.cfg.PeerKey, r.peerLn.Addr().String())}
 	if r.httpLn != nil {
 		fields = append(fields, logging.Str("listen.http", r.httpLn.Addr().String()))
 	}
