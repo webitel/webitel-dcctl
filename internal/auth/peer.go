@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"crypto/x509"
 	"maps"
 	"net"
 	"net/netip"
@@ -112,26 +113,12 @@ func (p *Peers) StreamServerInterceptor() grpc.StreamServerInterceptor {
 }
 
 func (p *Peers) admit(ctx context.Context) (context.Context, error) {
-	cl, ok := peer.FromContext(ctx)
+	cl, leaf, ok := clientCert(ctx)
 	if !ok {
 		return nil, errNotPeer()
 	}
 
-	info, ok := cl.AuthInfo.(credentials.TLSInfo)
-	if !ok || len(info.State.VerifiedChains) == 0 || len(info.State.VerifiedChains[0]) == 0 {
-		return nil, errNotPeer()
-	}
-
-	leaf := info.State.VerifiedChains[0][0]
-
-	ips := make([]netip.Addr, 0, len(leaf.IPAddresses))
-	for _, ip := range leaf.IPAddresses {
-		if a, ok := netip.AddrFromSlice(ip); ok {
-			ips = append(ips, a.Unmap())
-		}
-	}
-
-	if !p.registered(ctx, ips) {
+	if !p.registered(ctx, certIPs(leaf)) {
 		p.log.WarnCtx(ctx, "peer certificate is not of a registered dcctl instance",
 			logging.KV(semconv.NetworkPeerAddress(addrString(cl.Addr)), semconv.TLSClientSubject(leaf.Subject.String())))
 
@@ -144,6 +131,34 @@ func (p *Peers) admit(ctx context.Context) (context.Context, error) {
 	}
 
 	return ctx, nil
+}
+
+// clientCert returns the peer of the call and its client certificate, as
+// verified against the CA by the TLS handshake.
+func clientCert(ctx context.Context) (*peer.Peer, *x509.Certificate, bool) {
+	cl, ok := peer.FromContext(ctx)
+	if !ok {
+		return nil, nil, false
+	}
+
+	info, ok := cl.AuthInfo.(credentials.TLSInfo)
+	if !ok || len(info.State.VerifiedChains) == 0 || len(info.State.VerifiedChains[0]) == 0 {
+		return nil, nil, false
+	}
+
+	return cl, info.State.VerifiedChains[0][0], true
+}
+
+// certIPs returns the SAN IPs of cert, IPv4-mapped IPv6 ones as IPv4.
+func certIPs(cert *x509.Certificate) []netip.Addr {
+	ips := make([]netip.Addr, 0, len(cert.IPAddresses))
+	for _, ip := range cert.IPAddresses {
+		if a, ok := netip.AddrFromSlice(ip); ok {
+			ips = append(ips, a.Unmap())
+		}
+	}
+
+	return ips
 }
 
 func errNotPeer() error {
