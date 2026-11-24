@@ -1,0 +1,45 @@
+syntax = "proto3";
+
+package webitel.dcctl.v1;
+
+import "google/api/field_behavior.proto";
+
+option go_package = "github.com/webitel/webitel-dcctl/gen/go/dcctl/v1;dcctlv1";
+
+// Error body of the HTTP gateway. gRPC clients get google.rpc.Status with
+// ErrorInfo (domain `dcctl.webitel.com`), BadRequest, PreconditionFailure
+// and Preflight details instead. Clients tell errors apart by `id`, not by
+// the HTTP status.
+message Error {
+  // Error id, for example `dcctl.preflight.failed`.
+  string id = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // HTTP status code.
+  int32 code = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Message for the developer.
+  string detail = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // HTTP status text.
+  string status = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // ErrorInfo metadata: `operation`, `holder`, `datacenter`, `instance`,
+  // `state`.
+  map<string, string> metadata = 5 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // BadRequest field violations and PreconditionFailure violations.
+  repeated Violation violations = 6 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// One violation of BadRequest or PreconditionFailure.
+message Violation {
+  // `field` for BadRequest; `check` or `confirmation` for
+  // PreconditionFailure.
+  string type = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Request field path, check id or confirmation field.
+  string subject = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Human-readable explanation.
+  string description = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+}

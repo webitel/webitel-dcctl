@@ -1,0 +1,73 @@
+syntax = "proto3";
+
+package webitel.dcctl.v1;
+
+import "buf/validate/validate.proto";
+import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
+
+option go_package = "github.com/webitel/webitel-dcctl/gen/go/dcctl/v1;dcctlv1";
+
+// A dcctl instance: one `webitel-dcctl serve` process.
+message Instance {
+  // Consul node name of the instance.
+  string node = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Datacenter of the instance.
+  string datacenter = 2 [
+    (google.api.field_behavior) = OUTPUT_ONLY,
+    (google.api.resource_reference).type = "dcctl.webitel.com/Datacenter"
+  ];
+
+  // Peer address of the instance (`listen.peer`).
+  string address = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// Who started an operation or caused a journal entry.
+message Initiator {
+  // Basic auth user name. Empty for system actions.
+  string user = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Client address as seen by the instance that accepted the request.
+  string address = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Instance that accepted the request, or that observed the event.
+  Instance instance = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // dcctl acted by itself: fencing, generation alignment, alarms.
+  bool system = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// Operator confirmations of risky effects. A confirmation that does not apply
+// to the current situation is ignored and not stored in the operation.
+message Confirmation {
+  // The old primary is isolated (failover, resume into FORCED mode, resolve).
+  bool isolation = 1 [(google.api.field_behavior) = OPTIONAL];
+
+  // The failover target does not have the largest received LSN.
+  bool not_max_lsn = 2 [(google.api.field_behavior) = OPTIONAL];
+
+  // Upper bound of diverged or lagging WAL the operator agrees to discard.
+  // The action is rejected with CONFIRMATION_REQUIRED when the actual amount
+  // is larger.
+  int64 max_discard_bytes = 3 [
+    (google.api.field_behavior) = OPTIONAL,
+    (buf.validate.field).int64.gte = 0
+  ];
+}
+
+// Error of an operation, step or system action, with the same meaning as an
+// API error.
+message OperationError {
+  // ErrorInfo reason, for example `PREFLIGHT_FAILED`.
+  string reason = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // HTTP error id, for example `dcctl.preflight.failed`.
+  string id = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Message for the developer.
+  string detail = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Plain facts: `operation`, `holder`, `datacenter`.
+  map<string, string> metadata = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
