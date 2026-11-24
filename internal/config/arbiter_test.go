@@ -71,6 +71,9 @@ func TestArbiterValidate_invalid(t *testing.T) {
 	}{
 		{"listen_api_empty", func(c *Arbiter) { c.Listen.API = "" }, "listen.api: must not be empty"},
 		{"listen_api_no_port", func(c *Arbiter) { c.Listen.API = "10.9.0.10" }, `listen.api: "10.9.0.10" is not an IP:port address`},
+		{"listen_api_loopback", func(c *Arbiter) { c.Listen.API = "127.0.0.1:10024" }, `listen.api: "127.0.0.1:10024" is not a node address`},
+		{"listen_api_unspecified", func(c *Arbiter) { c.Listen.API = "0.0.0.0:10024" }, `listen.api: "0.0.0.0:10024" is not a node address`},
+		{"listen_api_link_local", func(c *Arbiter) { c.Listen.API = "[fe80::1]:10024" }, `listen.api: "[fe80::1]:10024" is not a node address`},
 		{"listen_health_empty", func(c *Arbiter) { c.Listen.Health = "" }, "listen.health: must not be empty"},
 		{"listen_health_node_ip", func(c *Arbiter) { c.Listen.Health = "10.9.0.10:10025" }, `listen.health: "10.9.0.10:10025" is not a loopback address`},
 		{"data_dir_empty", func(c *Arbiter) { c.DataDir = "" }, "data_dir: must not be empty"},

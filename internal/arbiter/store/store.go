@@ -44,6 +44,8 @@ var bucket = []byte("records")
 var (
 	// ErrLocked means another process holds the store file.
 	ErrLocked = errors.New("arbiter store is locked by another process")
+	// ErrClosed means the store was closed.
+	ErrClosed = bolterrors.ErrDatabaseNotOpen
 	// ErrUninitialized means the store has no [RecordState] yet.
 	ErrUninitialized = errors.New("arbiter store is not initialized")
 	// ErrNotFound means an initialized store has no such record.

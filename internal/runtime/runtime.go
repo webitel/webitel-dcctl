@@ -5,6 +5,7 @@
 package runtime
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -18,6 +19,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/test/bufconn"
 
 	"github.com/webitel/webitel-go-kit/infra/health"
@@ -36,6 +38,9 @@ const (
 	// healthStopMargin bounds the health transports past the drain hold.
 	healthStopMargin = 5 * time.Second
 	bufconnSize      = 1 << 20
+	// peerPingMinTime is the shortest keepalive interval Peer accepts from
+	// clients; gRPC closes a connection pinged more often with too_many_pings.
+	peerPingMinTime = 5 * time.Second
 )
 
 // Config holds the listeners and settings of a Runtime.
@@ -45,6 +50,12 @@ type Config struct {
 	HTTP string
 	// Peer serves gRPC with mutual TLS.
 	Peer string
+	// PeerKey is the config key of Peer in errors and logs; empty means
+	// "listen.peer".
+	PeerKey string
+	// PeerCheck names the critical health check of the Peer listener,
+	// http/<PeerCheck>; empty means "peer".
+	PeerCheck string
 	// Health serves /livez, /readyz and /healthz.
 	Health string
 	TLS    config.TLS
@@ -102,10 +113,18 @@ func New(cfg Config, log *logging.Logger) (*Runtime, error) {
 		cfg.StopTimeout = defaultStopTimeout
 	}
 
+	cfg.PeerKey = cmp.Or(cfg.PeerKey, "listen.peer")
+	cfg.PeerCheck = cmp.Or(cfg.PeerCheck, "peer")
+
+	peerOpts := append([]grpc.ServerOption{
+		grpc.Creds(credentials.NewTLS(tlsCfg)),
+		grpc.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{MinTime: peerPingMinTime, PermitWithoutStream: true}),
+	}, cfg.PeerOptions...)
+
 	r := &Runtime{
 		cfg:      cfg,
 		log:      log,
-		peerGRPC: grpc.NewServer(append([]grpc.ServerOption{grpc.Creds(credentials.NewTLS(tlsCfg))}, cfg.PeerOptions...)...),
+		peerGRPC: grpc.NewServer(peerOpts...),
 		started:  make(chan struct{}),
 	}
 
@@ -180,7 +199,7 @@ func (r *Runtime) Run(ctx context.Context) error {
 		return err
 	}
 
-	r.health.Critical(health.SystemHTTP, health.ListenerCheck(r.peerLn), health.WithName("peer"))
+	r.health.Critical(health.SystemHTTP, health.ListenerCheck(r.peerLn), health.WithName(r.cfg.PeerCheck))
 
 	if r.httpLn != nil {
 		r.health.Critical(health.SystemHTTP, health.ListenerCheck(r.httpLn), health.WithName("api"))
@@ -235,7 +254,7 @@ func (r *Runtime) listen(ctx context.Context) error {
 
 	peer, err := lc.Listen(ctx, "tcp", r.cfg.Peer)
 	if err != nil {
-		return fmt.Errorf("listen.peer: %w", err)
+		return fmt.Errorf("%s: %w", r.cfg.PeerKey, err)
 	}
 
 	r.peerLn = peer
@@ -257,7 +276,7 @@ func (r *Runtime) listen(ctx context.Context) error {
 func (r *Runtime) serve(wg *sync.WaitGroup, served chan<- error) {
 	wg.Go(func() {
 		if err := r.peerGRPC.Serve(r.peerLn); err != nil {
-			served <- fmt.Errorf("serve listen.peer: %w", err)
+			served <- fmt.Errorf("serve %s: %w", r.cfg.PeerKey, err)
 		}
 	})
 
@@ -352,7 +371,7 @@ func gracefulStop(ctx context.Context, s *grpc.Server) {
 }
 
 func (r *Runtime) addrFields() []logging.Field {
-	fields := []logging.Field{logging.Str("listen.peer", r.peerLn.Addr().String())}
+	fields := []logging.Field{logging.Str(r.cfg.PeerKey, r.peerLn.Addr().String())}
 	if r.httpLn != nil {
 		fields = append(fields, logging.Str("listen.http", r.httpLn.Addr().String()))
 	}

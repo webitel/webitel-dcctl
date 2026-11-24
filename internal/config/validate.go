@@ -114,7 +114,7 @@ func (v *violations) loopback(key, value string) {
 }
 
 // nodeAddr requires an address other nodes can reach: it is advertised in
-// Consul as is.
+// Consul or dialed by other nodes as is.
 func (v *violations) nodeAddr(key, value string) {
 	ap, ok := v.addrPort(key, value)
 	if !ok {

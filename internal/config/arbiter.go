@@ -22,7 +22,8 @@ type Arbiter struct {
 
 // ArbiterListen holds the listener addresses of the arbiter.
 type ArbiterListen struct {
-	// API serves gRPC with mTLS for dcctl instances.
+	// API serves gRPC with mTLS for dcctl instances, which dial it, so it is
+	// a node address.
 	API string `yaml:"api"`
 	// Health serves the unauthenticated probes; loopback only.
 	Health string `yaml:"health"`
@@ -50,7 +51,7 @@ func LoadArbiter(path string) (*Arbiter, error) {
 func (c *Arbiter) Validate() error {
 	var v violations
 
-	v.addrPort("listen.api", c.Listen.API)
+	v.nodeAddr("listen.api", c.Listen.API)
 	v.loopback("listen.health", c.Listen.Health)
 
 	if v.required("data_dir", c.DataDir) && !filepath.IsAbs(c.DataDir) {

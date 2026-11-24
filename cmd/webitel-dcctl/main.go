@@ -13,14 +13,13 @@ import (
 
 	"github.com/webitel/webitel-go-kit/pkg/logging"
 
+	"github.com/webitel/webitel-dcctl/internal/arbiter"
 	"github.com/webitel/webitel-dcctl/internal/auth"
 	"github.com/webitel/webitel-dcctl/internal/buildinfo"
 	"github.com/webitel/webitel-dcctl/internal/config"
 	"github.com/webitel/webitel-dcctl/internal/runtime"
 	"github.com/webitel/webitel-dcctl/internal/source/consul"
 )
-
-var errNotImplemented = errors.New("not implemented")
 
 func main() {
 	if err := newApp().Run(os.Args); err != nil {
@@ -45,7 +44,7 @@ func newApp() *cli.App {
 				Name:   "arbiter",
 				Usage:  "Run the arbiter daemon",
 				Flags:  []cli.Flag{configFlag(config.DefaultArbiterPath)},
-				Action: arbiter,
+				Action: runArbiter,
 			},
 			{
 				Name:   "version",
@@ -65,26 +64,18 @@ func configFlag(path string) *cli.StringFlag {
 	}
 }
 
-func serve(c *cli.Context) (err error) {
+func serve(c *cli.Context) error {
 	cfg, err := config.LoadServe(c.String("config"))
 	if err != nil {
 		return err
 	}
 
-	ctx, stop := signal.NotifyContext(c.Context, os.Interrupt, syscall.SIGTERM)
-	defer stop()
+	return runDaemon(c, func(ctx context.Context) error {
+		return runServe(ctx, cfg)
+	})
+}
 
-	// After the first signal the default handling returns, so a second one
-	// kills a stuck shutdown.
-	context.AfterFunc(ctx, stop)
-
-	shutdownTelemetry, err := setupTelemetry(ctx, c.Command.Name)
-	if err != nil {
-		return err
-	}
-
-	defer func() { err = errors.Join(err, shutdownTelemetry()) }()
-
+func runServe(ctx context.Context, cfg *config.Serve) error {
 	httpOpts, peerOpts, err := serverOptions(ctx, cfg)
 	if err != nil {
 		return err
@@ -125,12 +116,35 @@ func serverOptions(ctx context.Context, cfg *config.Serve) (httpOpts, peerOpts [
 	return auth.ServerOptions(ctx, cfg.Auth.Users, catalog, logging.New(logging.WithComponent("dcctl.auth")))
 }
 
-func arbiter(c *cli.Context) error {
-	if _, err := config.LoadArbiter(c.String("config")); err != nil {
+func runArbiter(c *cli.Context) error {
+	cfg, err := config.LoadArbiter(c.String("config"))
+	if err != nil {
 		return err
 	}
 
-	return fmt.Errorf("%s: %w", c.Command.Name, errNotImplemented)
+	return runDaemon(c, func(ctx context.Context) error {
+		return arbiter.Run(ctx, cfg, logging.New(logging.WithComponent("dcctl.arbiter")))
+	})
+}
+
+// runDaemon runs fn until SIGINT or SIGTERM, with OpenTelemetry set up
+// around it.
+func runDaemon(c *cli.Context, fn func(context.Context) error) (err error) {
+	ctx, stop := signal.NotifyContext(c.Context, os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	// After the first signal the default handling returns, so a second one
+	// kills a stuck shutdown.
+	context.AfterFunc(ctx, stop)
+
+	shutdownTelemetry, err := setupTelemetry(ctx, c.Command.Name)
+	if err != nil {
+		return err
+	}
+
+	defer func() { err = errors.Join(err, shutdownTelemetry()) }()
+
+	return fn(ctx)
 }
 
 func printVersion(c *cli.Context) error {

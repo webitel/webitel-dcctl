@@ -188,15 +188,15 @@ func TestClosed(t *testing.T) {
 	require.NoError(t, s.Close())
 
 	_, err := s.Get(RecordState)
-	require.Error(t, err)
+	require.ErrorIs(t, err, ErrClosed)
 
 	_, err = s.CompareAndSwap(RecordState, state.Index, newJSON)
-	require.Error(t, err)
+	require.ErrorIs(t, err, ErrClosed)
 
 	_, err = s.Initialized()
-	require.Error(t, err)
+	require.ErrorIs(t, err, ErrClosed)
 
-	assert.Error(t, s.Check(t.Context()))
+	assert.ErrorIs(t, s.Check(t.Context()), ErrClosed)
 }
 
 func TestCheck(t *testing.T) {

@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"fmt"
+	"net/netip"
 
 	"buf.build/go/protovalidate"
 	"google.golang.org/grpc"
@@ -39,4 +40,32 @@ func ServerOptions(ctx context.Context, users []config.User, catalog Catalog, lo
 	}
 
 	return httpOpts, peerOpts, nil
+}
+
+// ArbiterServerOptions returns the interceptors of the arbiter listener: the
+// client certificate check against the IPs of clients, then request
+// validation.
+func ArbiterServerOptions(clients []string, log *logging.Logger) ([]grpc.ServerOption, error) {
+	ips := make([]netip.Addr, 0, len(clients))
+
+	for i, c := range clients {
+		ip, err := netip.ParseAddr(c)
+		if err != nil {
+			return nil, fmt.Errorf("clients[%d]: %q is not an IP address", i, c)
+		}
+
+		ips = append(ips, ip)
+	}
+
+	v, err := protovalidate.New()
+	if err != nil {
+		return nil, fmt.Errorf("protovalidate: %w", err)
+	}
+
+	peers := NewStaticPeers(ips, log)
+
+	return []grpc.ServerOption{
+		grpc.ChainUnaryInterceptor(peers.UnaryServerInterceptor(), validation.UnaryServerInterceptor(v)),
+		grpc.ChainStreamInterceptor(peers.StreamServerInterceptor(), validation.StreamServerInterceptor(v)),
+	}, nil
 }

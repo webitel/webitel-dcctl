@@ -1,6 +1,7 @@
 // Package auth authenticates dcctl calls: basic auth of people and external
 // initiators on listen.http, the node certificates of other dcctl instances
-// on listen.peer, and the HTTP rules of the gateway.
+// on listen.peer and on the arbiter's listen.api, and the HTTP rules of the
+// gateway.
 package auth
 
 import (
