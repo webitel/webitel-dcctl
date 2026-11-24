@@ -71,6 +71,24 @@ func startArbiter(t *testing.T) *testArbiter {
 		Clients: []string{allowedIP},
 	}
 
+	return &testArbiter{cfg: cfg, ca: ca, stop: runArbiter(t, cfg)}
+}
+
+// restart stops a and runs it again with the same config and store.
+func (a *testArbiter) restart(t *testing.T) {
+	t.Helper()
+
+	require.NoError(t, a.stop())
+
+	a.stop = runArbiter(t, a.cfg)
+}
+
+// runArbiter runs the arbiter of cfg until it is ready, and returns the
+// func that stops it and returns the error of Run. The end of the test
+// stops it too.
+func runArbiter(t *testing.T, cfg *config.Arbiter) (stop func() error) {
+	t.Helper()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	finished := make(chan struct{})
 
@@ -82,7 +100,7 @@ func startArbiter(t *testing.T) *testArbiter {
 		runErr = arbiter.RunWithHealth(ctx, cfg, testHealth, testLogger())
 	}()
 
-	stop := sync.OnceValue(func() error {
+	stop = sync.OnceValue(func() error {
 		cancel()
 		<-finished
 
@@ -95,7 +113,7 @@ func startArbiter(t *testing.T) *testArbiter {
 
 	for {
 		if code, _, err := healthGet(t, cfg.Listen.Health+"/readyz"); err == nil && code == http.StatusOK {
-			break
+			return stop
 		}
 
 		select {
@@ -106,10 +124,6 @@ func startArbiter(t *testing.T) *testArbiter {
 		case <-time.After(20 * time.Millisecond):
 		}
 	}
-
-	a := &testArbiter{cfg: cfg, ca: ca, stop: stop}
-
-	return a
 }
 
 // healthGet returns the status code and body of GET http://addrPath.
