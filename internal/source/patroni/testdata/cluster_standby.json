@@ -1,0 +1,29 @@
+{
+  "members": [
+    {
+      "name": "pg-4",
+      "role": "standby_leader",
+      "state": "running",
+      "api_url": "https://10.1.0.14:8008/patroni",
+      "host": "10.1.0.14",
+      "port": 5432,
+      "timeline": 4,
+      "lsn": "0/6000000",
+      "tags": {"failover_priority": 2}
+    },
+    {
+      "name": "pg-5",
+      "role": "replica",
+      "state": "streaming",
+      "api_url": "https://10.1.0.15:8008/patroni",
+      "host": "10.1.0.15",
+      "port": 5432,
+      "timeline": 4,
+      "receive_lsn": "0/5FFFC00",
+      "replay_lsn": "0/5FFFC00",
+      "lag": 1024,
+      "tags": {"failover_priority": 1}
+    }
+  ],
+  "scope": "webitel-postgres"
+}

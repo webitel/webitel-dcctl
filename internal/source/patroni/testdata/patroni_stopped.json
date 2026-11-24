@@ -1,0 +1,16 @@
+{
+  "state": "stopped",
+  "role": "replica",
+  "server_version": 170004,
+  "xlog": {
+    "received_location": null,
+    "replayed_location": null,
+    "replayed_timestamp": null,
+    "paused": false
+  },
+  "patroni": {
+    "version": "4.1.3",
+    "scope": "webitel-postgres",
+    "name": "pg-6"
+  }
+}
