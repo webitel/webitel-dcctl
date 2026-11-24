@@ -390,6 +390,12 @@ type Status struct {
 	Quorum *Status_Quorum `protobuf:"bytes,15,opt,name=quorum,proto3" json:"quorum,omitempty"`
 	// Lease.
 	Lease *Status_Lease `protobuf:"bytes,16,opt,name=lease,proto3" json:"lease,omitempty"`
+	// Current RUNNING or INTERRUPTED operation.
+	// (-- api-linter: core::0122::embedded-resource=disabled
+	//
+	//	aip.dev/not-precedent: the summary carries the current operation so
+	//	the UI renders it from one read. --)
+	Operation *Operation `protobuf:"bytes,17,opt,name=operation,proto3" json:"operation,omitempty"`
 	// Raised alarms.
 	Alarms []*Status_Alarm `protobuf:"bytes,18,rep,name=alarms,proto3" json:"alarms,omitempty"`
 	// Datacenters, summary fields only.
@@ -540,6 +546,13 @@ func (x *Status) GetQuorum() *Status_Quorum {
 func (x *Status) GetLease() *Status_Lease {
 	if x != nil {
 		return x.Lease
+	}
+	return nil
+}
+
+func (x *Status) GetOperation() *Operation {
+	if x != nil {
+		return x.Operation
 	}
 	return nil
 }
@@ -957,7 +970,7 @@ var File_webitel_dcctl_v1_status_proto protoreflect.FileDescriptor
 
 const file_webitel_dcctl_v1_status_proto_rawDesc = "" +
 	"\n" +
-	"\x1dwebitel/dcctl/v1/status.proto\x12\x10webitel.dcctl.v1\x1a\x1fgoogle/api/field_behavior.proto\x1a\x19google/api/resource.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1dwebitel/dcctl/v1/common.proto\x1a!webitel/dcctl/v1/datacenter.proto\"\x89\x19\n" +
+	"\x1dwebitel/dcctl/v1/status.proto\x12\x10webitel.dcctl.v1\x1a\x1fgoogle/api/field_behavior.proto\x1a\x19google/api/resource.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1dwebitel/dcctl/v1/common.proto\x1a!webitel/dcctl/v1/datacenter.proto\x1a webitel/dcctl/v1/operation.proto\"\xca\x19\n" +
 	"\x06Status\x12\x18\n" +
 	"\x04name\x18\x01 \x01(\tB\x04\xe2A\x01\bR\x04name\x12<\n" +
 	"\bobserver\x18\x02 \x01(\v2\x1a.webitel.dcctl.v1.InstanceB\x04\xe2A\x01\x03R\bobserver\x12C\n" +
@@ -981,7 +994,8 @@ const file_webitel_dcctl_v1_status_proto_rawDesc = "" +
 	"updateTime\x12<\n" +
 	"\x06voters\x18\x0e \x03(\v2\x1e.webitel.dcctl.v1.Status.VoterB\x04\xe2A\x01\x03R\x06voters\x12=\n" +
 	"\x06quorum\x18\x0f \x01(\v2\x1f.webitel.dcctl.v1.Status.QuorumB\x04\xe2A\x01\x03R\x06quorum\x12:\n" +
-	"\x05lease\x18\x10 \x01(\v2\x1e.webitel.dcctl.v1.Status.LeaseB\x04\xe2A\x01\x03R\x05lease\x12<\n" +
+	"\x05lease\x18\x10 \x01(\v2\x1e.webitel.dcctl.v1.Status.LeaseB\x04\xe2A\x01\x03R\x05lease\x12?\n" +
+	"\toperation\x18\x11 \x01(\v2\x1b.webitel.dcctl.v1.OperationB\x04\xe2A\x01\x03R\toperation\x12<\n" +
 	"\x06alarms\x18\x12 \x03(\v2\x1e.webitel.dcctl.v1.Status.AlarmB\x04\xe2A\x01\x03R\x06alarms\x12D\n" +
 	"\vdatacenters\x18\x13 \x03(\v2\x1c.webitel.dcctl.v1.DatacenterB\x04\xe2A\x01\x03R\vdatacenters\x1a\x84\x04\n" +
 	"\x05Voter\x12=\n" +
@@ -1099,9 +1113,10 @@ var file_webitel_dcctl_v1_status_proto_goTypes = []any{
 	(*Instance)(nil),              // 10: webitel.dcctl.v1.Instance
 	(*timestamppb.Timestamp)(nil), // 11: google.protobuf.Timestamp
 	(*durationpb.Duration)(nil),   // 12: google.protobuf.Duration
-	(*Datacenter)(nil),            // 13: webitel.dcctl.v1.Datacenter
-	(Source_Error)(0),             // 14: webitel.dcctl.v1.Source.Error
-	(*structpb.Struct)(nil),       // 15: google.protobuf.Struct
+	(*Operation)(nil),             // 13: webitel.dcctl.v1.Operation
+	(*Datacenter)(nil),            // 14: webitel.dcctl.v1.Datacenter
+	(Source_Error)(0),             // 15: webitel.dcctl.v1.Source.Error
+	(*structpb.Struct)(nil),       // 16: google.protobuf.Struct
 }
 var file_webitel_dcctl_v1_status_proto_depIdxs = []int32{
 	10, // 0: webitel.dcctl.v1.Status.observer:type_name -> webitel.dcctl.v1.Instance
@@ -1112,22 +1127,23 @@ var file_webitel_dcctl_v1_status_proto_depIdxs = []int32{
 	6,  // 5: webitel.dcctl.v1.Status.voters:type_name -> webitel.dcctl.v1.Status.Voter
 	7,  // 6: webitel.dcctl.v1.Status.quorum:type_name -> webitel.dcctl.v1.Status.Quorum
 	8,  // 7: webitel.dcctl.v1.Status.lease:type_name -> webitel.dcctl.v1.Status.Lease
-	9,  // 8: webitel.dcctl.v1.Status.alarms:type_name -> webitel.dcctl.v1.Status.Alarm
-	13, // 9: webitel.dcctl.v1.Status.datacenters:type_name -> webitel.dcctl.v1.Datacenter
-	1,  // 10: webitel.dcctl.v1.Status.Voter.type:type_name -> webitel.dcctl.v1.Status.Voter.Type
-	14, // 11: webitel.dcctl.v1.Status.Voter.error:type_name -> webitel.dcctl.v1.Source.Error
-	2,  // 12: webitel.dcctl.v1.Status.Quorum.mode:type_name -> webitel.dcctl.v1.Status.Quorum.Mode
-	12, // 13: webitel.dcctl.v1.Status.Lease.age:type_name -> google.protobuf.Duration
-	3,  // 14: webitel.dcctl.v1.Status.Alarm.type:type_name -> webitel.dcctl.v1.Status.Alarm.Type
-	4,  // 15: webitel.dcctl.v1.Status.Alarm.severity:type_name -> webitel.dcctl.v1.Status.Alarm.Severity
-	11, // 16: webitel.dcctl.v1.Status.Alarm.start_time:type_name -> google.protobuf.Timestamp
-	15, // 17: webitel.dcctl.v1.Status.Alarm.facts:type_name -> google.protobuf.Struct
-	1,  // 18: webitel.dcctl.v1.Status.Alarm.voter_type:type_name -> webitel.dcctl.v1.Status.Voter.Type
-	19, // [19:19] is the sub-list for method output_type
-	19, // [19:19] is the sub-list for method input_type
-	19, // [19:19] is the sub-list for extension type_name
-	19, // [19:19] is the sub-list for extension extendee
-	0,  // [0:19] is the sub-list for field type_name
+	13, // 8: webitel.dcctl.v1.Status.operation:type_name -> webitel.dcctl.v1.Operation
+	9,  // 9: webitel.dcctl.v1.Status.alarms:type_name -> webitel.dcctl.v1.Status.Alarm
+	14, // 10: webitel.dcctl.v1.Status.datacenters:type_name -> webitel.dcctl.v1.Datacenter
+	1,  // 11: webitel.dcctl.v1.Status.Voter.type:type_name -> webitel.dcctl.v1.Status.Voter.Type
+	15, // 12: webitel.dcctl.v1.Status.Voter.error:type_name -> webitel.dcctl.v1.Source.Error
+	2,  // 13: webitel.dcctl.v1.Status.Quorum.mode:type_name -> webitel.dcctl.v1.Status.Quorum.Mode
+	12, // 14: webitel.dcctl.v1.Status.Lease.age:type_name -> google.protobuf.Duration
+	3,  // 15: webitel.dcctl.v1.Status.Alarm.type:type_name -> webitel.dcctl.v1.Status.Alarm.Type
+	4,  // 16: webitel.dcctl.v1.Status.Alarm.severity:type_name -> webitel.dcctl.v1.Status.Alarm.Severity
+	11, // 17: webitel.dcctl.v1.Status.Alarm.start_time:type_name -> google.protobuf.Timestamp
+	16, // 18: webitel.dcctl.v1.Status.Alarm.facts:type_name -> google.protobuf.Struct
+	1,  // 19: webitel.dcctl.v1.Status.Alarm.voter_type:type_name -> webitel.dcctl.v1.Status.Voter.Type
+	20, // [20:20] is the sub-list for method output_type
+	20, // [20:20] is the sub-list for method input_type
+	20, // [20:20] is the sub-list for extension type_name
+	20, // [20:20] is the sub-list for extension extendee
+	0,  // [0:20] is the sub-list for field type_name
 }
 
 func init() { file_webitel_dcctl_v1_status_proto_init() }
@@ -1137,6 +1153,7 @@ func file_webitel_dcctl_v1_status_proto_init() {
 	}
 	file_webitel_dcctl_v1_common_proto_init()
 	file_webitel_dcctl_v1_datacenter_proto_init()
+	file_webitel_dcctl_v1_operation_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
