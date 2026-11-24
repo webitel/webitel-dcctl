@@ -9,6 +9,7 @@ import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
 import "webitel/dcctl/v1/common.proto";
 import "webitel/dcctl/v1/datacenter.proto";
+import "webitel/dcctl/v1/operation.proto";
 
 option go_package = "github.com/webitel/webitel-dcctl/gen/go/dcctl/v1;dcctlv1";
 
@@ -271,6 +272,12 @@ message Status {
 
   // Lease.
   Lease lease = 16 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Current RUNNING or INTERRUPTED operation.
+  // (-- api-linter: core::0122::embedded-resource=disabled
+  //     aip.dev/not-precedent: the summary carries the current operation so
+  //     the UI renders it from one read. --)
+  Operation operation = 17 [(google.api.field_behavior) = OUTPUT_ONLY];
 
   // Raised alarms.
   repeated Alarm alarms = 18 [(google.api.field_behavior) = OUTPUT_ONLY];

@@ -1,0 +1,233 @@
+syntax = "proto3";
+
+package webitel.dcctl.v1;
+
+import "buf/validate/validate.proto";
+import "google/api/field_behavior.proto";
+import "google/api/field_info.proto";
+import "google/api/resource.proto";
+import "protoc-gen-openapiv2/options/annotations.proto";
+import "webitel/dcctl/v1/common.proto";
+
+option go_package = "github.com/webitel/webitel-dcctl/gen/go/dcctl/v1;dcctlv1";
+
+// Request message for DatacenterService.SwitchDatacenter.
+message SwitchDatacenterRequest {
+  // Datacenter to switch to: `datacenters/{datacenter}`.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "dcctl.webitel.com/Datacenter",
+    (buf.validate.field).string.pattern = "^datacenters/[A-Za-z0-9_-]{1,63}$"
+  ];
+
+  // Confirmations. Switch needs none.
+  Confirmation confirmation = 2 [(google.api.field_behavior) = OPTIONAL];
+
+  // Run the preflight only and return the plan.
+  bool validate_only = 3 [(google.api.field_behavior) = OPTIONAL];
+
+  // Idempotency key, UUID v4. A repeat with the same body returns the
+  // existing operation; with another body it fails with REQUEST_ID_MISMATCH.
+  string request_id = 4 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_info).format = UUID4,
+    (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {format: "uuid"},
+    (buf.validate.field).string.uuid = true,
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE
+  ];
+}
+
+// Request message for DatacenterService.FailoverDatacenter.
+message FailoverDatacenterRequest {
+  // Datacenter to fail over to: `datacenters/{datacenter}`.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "dcctl.webitel.com/Datacenter",
+    (buf.validate.field).string.pattern = "^datacenters/[A-Za-z0-9_-]{1,63}$"
+  ];
+
+  // Confirmations: `isolation`; `not_max_lsn` in warm_standby;
+  // `max_discard_bytes` in stretch without a Patroni leader.
+  Confirmation confirmation = 2 [(google.api.field_behavior) = OPTIONAL];
+
+  // Run the preflight only and return the plan.
+  bool validate_only = 3 [(google.api.field_behavior) = OPTIONAL];
+
+  // Idempotency key, UUID v4. A repeat with the same body returns the
+  // existing operation; with another body it fails with REQUEST_ID_MISMATCH.
+  string request_id = 4 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_info).format = UUID4,
+    (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {format: "uuid"},
+    (buf.validate.field).string.uuid = true,
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE
+  ];
+}
+
+// Request message for DatacenterService.DemoteDatacenter.
+message DemoteDatacenterRequest {
+  // Datacenter with the old primary: `datacenters/{datacenter}`.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "dcctl.webitel.com/Datacenter",
+    (buf.validate.field).string.pattern = "^datacenters/[A-Za-z0-9_-]{1,63}$"
+  ];
+
+  // Confirmations: `max_discard_bytes` when the datacenter diverged.
+  Confirmation confirmation = 2 [(google.api.field_behavior) = OPTIONAL];
+
+  // Run the preflight only and return the plan.
+  bool validate_only = 3 [(google.api.field_behavior) = OPTIONAL];
+
+  // Idempotency key, UUID v4. A repeat with the same body returns the
+  // existing operation; with another body it fails with REQUEST_ID_MISMATCH.
+  string request_id = 4 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_info).format = UUID4,
+    (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {format: "uuid"},
+    (buf.validate.field).string.uuid = true,
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE
+  ];
+}
+
+// Request message for DatacenterService.RepointDatacenter.
+message RepointDatacenterRequest {
+  // Standby datacenter to point at the active one: `datacenters/{datacenter}`.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "dcctl.webitel.com/Datacenter",
+    (buf.validate.field).string.pattern = "^datacenters/[A-Za-z0-9_-]{1,63}$"
+  ];
+
+  // Confirmations: `max_discard_bytes` when the datacenter diverged.
+  Confirmation confirmation = 2 [(google.api.field_behavior) = OPTIONAL];
+
+  // Run the preflight only and return the plan.
+  bool validate_only = 3 [(google.api.field_behavior) = OPTIONAL];
+
+  // Idempotency key, UUID v4. A repeat with the same body returns the
+  // existing operation; with another body it fails with REQUEST_ID_MISMATCH.
+  string request_id = 4 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_info).format = UUID4,
+    (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {format: "uuid"},
+    (buf.validate.field).string.uuid = true,
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE
+  ];
+}
+
+// Request message for DatacenterService.MarkDatacenterRecovered.
+message MarkDatacenterRecoveredRequest {
+  // Recovered datacenter: `datacenters/{datacenter}`.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "dcctl.webitel.com/Datacenter",
+    (buf.validate.field).string.pattern = "^datacenters/[A-Za-z0-9_-]{1,63}$"
+  ];
+
+  // Confirmations. Mark recovered needs none.
+  Confirmation confirmation = 2 [(google.api.field_behavior) = OPTIONAL];
+
+  // Run the preflight only and return the plan.
+  bool validate_only = 3 [(google.api.field_behavior) = OPTIONAL];
+
+  // Idempotency key, UUID v4. A repeat with the same body returns the
+  // existing operation; with another body it fails with REQUEST_ID_MISMATCH.
+  string request_id = 4 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_info).format = UUID4,
+    (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {format: "uuid"},
+    (buf.validate.field).string.uuid = true,
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE
+  ];
+}
+
+// Request message for DatacenterService.ResolveConflict.
+message ResolveConflictRequest {
+  // Datacenter whose generation record wins: `datacenters/{datacenter}`.
+  string winner = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "dcctl.webitel.com/Datacenter",
+    (buf.validate.field).string.pattern = "^datacenters/[A-Za-z0-9_-]{1,63}$"
+  ];
+
+  // Confirmations: `isolation`.
+  Confirmation confirmation = 2 [(google.api.field_behavior) = OPTIONAL];
+
+  // Run the preflight only and return the plan.
+  bool validate_only = 3 [(google.api.field_behavior) = OPTIONAL];
+
+  // Idempotency key, UUID v4. A repeat with the same body returns the
+  // existing operation; with another body it fails with REQUEST_ID_MISMATCH.
+  string request_id = 4 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_info).format = UUID4,
+    (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {format: "uuid"},
+    (buf.validate.field).string.uuid = true,
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE
+  ];
+}
+
+// Request message for DatacenterService.InitializeDatacenters.
+message InitializeDatacentersRequest {
+  // Datacenter to record as active: `datacenters/{datacenter}`.
+  string active_datacenter = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "dcctl.webitel.com/Datacenter",
+    (buf.validate.field).string.pattern = "^datacenters/[A-Za-z0-9_-]{1,63}$"
+  ];
+
+  // Confirmations. Initialization needs none.
+  Confirmation confirmation = 2 [(google.api.field_behavior) = OPTIONAL];
+
+  // Run the preflight only and return the plan.
+  bool validate_only = 3 [(google.api.field_behavior) = OPTIONAL];
+
+  // Idempotency key, UUID v4. A repeat with the same body returns the
+  // existing operation; with another body it fails with REQUEST_ID_MISMATCH.
+  string request_id = 4 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_info).format = UUID4,
+    (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {format: "uuid"},
+    (buf.validate.field).string.uuid = true,
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE
+  ];
+}
+
+// Request message for DatacenterService.InitializeArbiter.
+message InitializeArbiterRequest {
+  // Confirmations. Arbiter initialization needs none.
+  Confirmation confirmation = 1 [(google.api.field_behavior) = OPTIONAL];
+
+  // Run the preflight only and return the plan.
+  bool validate_only = 2 [(google.api.field_behavior) = OPTIONAL];
+
+  // Idempotency key, UUID v4. A repeat with the same body returns the
+  // existing operation; with another body it fails with REQUEST_ID_MISMATCH.
+  string request_id = 3 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_info).format = UUID4,
+    (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {format: "uuid"},
+    (buf.validate.field).string.uuid = true,
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE
+  ];
+}
+
+// Request message for DatacenterService.SyncApps.
+message SyncAppsRequest {
+  // Confirmations. Sync needs none.
+  Confirmation confirmation = 1 [(google.api.field_behavior) = OPTIONAL];
+
+  // Run the preflight only and return the plan.
+  bool validate_only = 2 [(google.api.field_behavior) = OPTIONAL];
+
+  // Idempotency key, UUID v4. A repeat with the same body returns the
+  // existing operation; with another body it fails with REQUEST_ID_MISMATCH.
+  string request_id = 3 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_info).format = UUID4,
+    (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {format: "uuid"},
+    (buf.validate.field).string.uuid = true,
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE
+  ];
+}

@@ -1,0 +1,359 @@
+syntax = "proto3";
+
+package webitel.dcctl.v1;
+
+import "buf/validate/validate.proto";
+import "google/api/annotations.proto";
+import "google/api/client.proto";
+import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
+import "protoc-gen-openapiv2/options/annotations.proto";
+import "webitel/dcctl/v1/common.proto";
+import "webitel/dcctl/v1/operation.proto";
+
+option go_package = "github.com/webitel/webitel-dcctl/gen/go/dcctl/v1;dcctlv1";
+
+// Operations created by the actions.
+service OperationService {
+  // Lists operations from newest to oldest.
+  rpc ListOperations(ListOperationsRequest) returns (ListOperationsResponse) {
+    option (google.api.http) = {get: "/v1/operations"};
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      responses: {
+        key: "200"
+        value: {
+          description: "Operations, newest first."
+          examples: {
+            key: "application/json"
+            value:
+              '{"operations":[{"name":"operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10",'
+              '"type":"SWITCH","state":"RUNNING","target":"datacenters/dc_b","initiator":{"user":"support",'
+              '"address":"10.1.0.15","instance":{"node":"dcctl-a1","datacenter":"datacenters/dc_a",'
+              '"address":"10.1.0.81:10023"}},"leader":{"node":"dcctl-b1","datacenter":"datacenters/dc_b",'
+              '"address":"10.2.0.81:10023"},"mode":"QUORUM","previous_generation":"7",'
+              '"new_generation":"8","checks":[{"id":"coord.lock_free","result":"PASS",'
+              '"effect":"BLOCK","detail":"dcctl/lock is free in every reachable datacenter"},'
+              '{"id":"patroni.target_lag","result":"PASS","effect":"BLOCK","datacenter":"datacenters/dc_b",'
+              '"detail":"lag 0 B, limit 1048576 B","facts":{"lag_bytes":0,"limit_bytes":1048576}}],'
+              '"steps":[{"index":0,"type":"APPS_PREFLIGHT","state":"SUCCEEDED","start_time":"2026-11-23T10:15:02Z",'
+              '"end_time":"2026-11-23T10:15:04Z"},{"index":1,"type":"APPS_STOP","stage":3,'
+              '"datacenter":"datacenters/dc_a","state":"RUNNING","start_time":"2026-11-23T10:15:04Z",'
+              '"detail":"stopping 1 of 3 jobs"},{"index":2,"type":"PATRONI_DEMOTE","datacenter":"datacenters/dc_a",'
+              '"state":"PENDING"},{"index":3,"type":"GENERATION","state":"PENDING","point_of_no_return":true}],'
+              '"request_id":"6f1c2b9e-8d4a-4f3b-9c2e-1a7d5e3f9b40","create_time":"2026-11-23T10:15:01Z",'
+              '"update_time":"2026-11-23T10:15:04Z","switch_datacenter":{"name":"datacenters/dc_b",'
+              '"request_id":"6f1c2b9e-8d4a-4f3b-9c2e-1a7d5e3f9b40"}},{"name":"operations/4e2a7d10-93c6-4b8f-a1d2-7c5e9f0b3a61",'
+              '"type":"DEMOTE","state":"SUCCEEDED","target":"datacenters/dc_a","initiator":{"user":"support",'
+              '"address":"10.2.0.15","instance":{"node":"dcctl-b1","datacenter":"datacenters/dc_b",'
+              '"address":"10.2.0.81:10023"}},"leader":{"node":"dcctl-a1","datacenter":"datacenters/dc_a",'
+              '"address":"10.1.0.81:10023"},"mode":"QUORUM","previous_generation":"6",'
+              '"new_generation":"6","steps":[{"index":0,"type":"PATRONI_DEMOTE","datacenter":"datacenters/dc_a",'
+              '"state":"SUCCEEDED","start_time":"2026-11-22T08:01:10Z","end_time":"2026-11-22T08:01:40Z"}],'
+              '"create_time":"2026-11-22T08:01:09Z","update_time":"2026-11-22T08:01:40Z",'
+              '"end_time":"2026-11-22T08:01:40Z","demote_datacenter":{"name":"datacenters/dc_a"}}]}'
+          }
+        }
+      }
+    };
+  }
+
+  // Returns an operation.
+  rpc GetOperation(GetOperationRequest) returns (Operation) {
+    option (google.api.http) = {get: "/v1/{name=operations/*}"};
+    option (google.api.method_signature) = "name";
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      responses: {
+        key: "200"
+        value: {
+          description: "The operation."
+          examples: {
+            key: "application/json"
+            value:
+              '{"name":"operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10","type":"SWITCH",'
+              '"state":"RUNNING","target":"datacenters/dc_b","initiator":{"user":"support",'
+              '"address":"10.1.0.15","instance":{"node":"dcctl-a1","datacenter":"datacenters/dc_a",'
+              '"address":"10.1.0.81:10023"}},"leader":{"node":"dcctl-b1","datacenter":"datacenters/dc_b",'
+              '"address":"10.2.0.81:10023"},"mode":"QUORUM","previous_generation":"7",'
+              '"new_generation":"8","checks":[{"id":"coord.lock_free","result":"PASS",'
+              '"effect":"BLOCK","detail":"dcctl/lock is free in every reachable datacenter"},'
+              '{"id":"patroni.target_lag","result":"PASS","effect":"BLOCK","datacenter":"datacenters/dc_b",'
+              '"detail":"lag 0 B, limit 1048576 B","facts":{"lag_bytes":0,"limit_bytes":1048576}}],'
+              '"steps":[{"index":0,"type":"APPS_PREFLIGHT","state":"SUCCEEDED","start_time":"2026-11-23T10:15:02Z",'
+              '"end_time":"2026-11-23T10:15:04Z"},{"index":1,"type":"APPS_STOP","stage":3,'
+              '"datacenter":"datacenters/dc_a","state":"RUNNING","start_time":"2026-11-23T10:15:04Z",'
+              '"detail":"stopping 1 of 3 jobs"},{"index":2,"type":"PATRONI_DEMOTE","datacenter":"datacenters/dc_a",'
+              '"state":"PENDING"},{"index":3,"type":"GENERATION","state":"PENDING","point_of_no_return":true}],'
+              '"request_id":"6f1c2b9e-8d4a-4f3b-9c2e-1a7d5e3f9b40","create_time":"2026-11-23T10:15:01Z",'
+              '"update_time":"2026-11-23T10:15:04Z","switch_datacenter":{"name":"datacenters/dc_b",'
+              '"request_id":"6f1c2b9e-8d4a-4f3b-9c2e-1a7d5e3f9b40"}}'
+          }
+        }
+      }
+      responses: {
+        key: "404"
+        value: {
+          description: "No such operation: `dcctl.operation.not_found`."
+          schema: {
+            json_schema: {ref: ".webitel.dcctl.v1.Error"}
+          }
+          examples: {
+            key: "application/json"
+            value:
+              '{"id":"dcctl.operation.not_found","code":404,"status":"Not Found","detail":"operation not found",'
+              '"metadata":{"operation":"operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10"}}'
+          }
+        }
+      }
+    };
+  }
+
+  // Streams the operation after every change; the first message is the
+  // current state. Through the gateway every message is one JSON line
+  // `{"result": ...}`. After a disconnect, get the operation and watch again.
+  rpc WatchOperation(WatchOperationRequest) returns (stream Operation) {
+    option (google.api.http) = {get: "/v1/{name=operations/*}:watch"};
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      responses: {
+        key: "200"
+        value: {
+          description: "One JSON line per change."
+          examples: {
+            key: "application/json"
+            value:
+              '{"result":{"name":"operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10","type":"SWITCH",'
+              '"state":"RUNNING","target":"datacenters/dc_b","initiator":{"user":"support",'
+              '"address":"10.1.0.15","instance":{"node":"dcctl-a1","datacenter":"datacenters/dc_a",'
+              '"address":"10.1.0.81:10023"}},"leader":{"node":"dcctl-b1","datacenter":"datacenters/dc_b",'
+              '"address":"10.2.0.81:10023"},"mode":"QUORUM","previous_generation":"7",'
+              '"new_generation":"8","checks":[{"id":"coord.lock_free","result":"PASS",'
+              '"effect":"BLOCK","detail":"dcctl/lock is free in every reachable datacenter"},'
+              '{"id":"patroni.target_lag","result":"PASS","effect":"BLOCK","datacenter":"datacenters/dc_b",'
+              '"detail":"lag 0 B, limit 1048576 B","facts":{"lag_bytes":0,"limit_bytes":1048576}}],'
+              '"steps":[{"index":0,"type":"APPS_PREFLIGHT","state":"SUCCEEDED","start_time":"2026-11-23T10:15:02Z",'
+              '"end_time":"2026-11-23T10:15:04Z"},{"index":1,"type":"APPS_STOP","stage":3,'
+              '"datacenter":"datacenters/dc_a","state":"RUNNING","start_time":"2026-11-23T10:15:04Z",'
+              '"detail":"stopping 1 of 3 jobs"},{"index":2,"type":"PATRONI_DEMOTE","datacenter":"datacenters/dc_a",'
+              '"state":"PENDING"},{"index":3,"type":"GENERATION","state":"PENDING","point_of_no_return":true}],'
+              '"request_id":"6f1c2b9e-8d4a-4f3b-9c2e-1a7d5e3f9b40","create_time":"2026-11-23T10:15:01Z",'
+              '"update_time":"2026-11-23T10:15:04Z","switch_datacenter":{"name":"datacenters/dc_b",'
+              '"request_id":"6f1c2b9e-8d4a-4f3b-9c2e-1a7d5e3f9b40"}}}'
+          }
+        }
+      }
+      responses: {
+        key: "404"
+        value: {
+          description: "No such operation: `dcctl.operation.not_found`."
+          schema: {
+            json_schema: {ref: ".webitel.dcctl.v1.Error"}
+          }
+          examples: {
+            key: "application/json"
+            value:
+              '{"id":"dcctl.operation.not_found","code":404,"status":"Not Found","detail":"operation not found",'
+              '"metadata":{"operation":"operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10"}}'
+          }
+        }
+      }
+    };
+  }
+
+  // Continues an INTERRUPTED operation from the first unconfirmed step.
+  rpc ResumeOperation(ResumeOperationRequest) returns (Operation) {
+    option (google.api.http) = {
+      post: "/v1/{name=operations/*}:resume"
+      body: "*"
+    };
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      responses: {
+        key: "200"
+        value: {description: "The resumed operation. With validate_only, the operation with the checks of the resume."}
+      }
+      responses: {
+        key: "400"
+        value: {
+          description: "Rejected: `dcctl.request.invalid`, `dcctl.operation.not_interrupted`, `dcctl.preflight.failed`, `dcctl.confirmation.required`."
+          schema: {
+            json_schema: {ref: ".webitel.dcctl.v1.Error"}
+          }
+          examples: {
+            key: "application/json"
+            value:
+              '{"id":"dcctl.operation.not_interrupted","code":400,"status":"Bad Request",'
+              '"detail":"operation is not INTERRUPTED","metadata":{"operation":"operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10",'
+              '"state":"RUNNING"}}'
+          }
+        }
+      }
+      responses: {
+        key: "404"
+        value: {
+          description: "No such operation: `dcctl.operation.not_found`."
+          schema: {
+            json_schema: {ref: ".webitel.dcctl.v1.Error"}
+          }
+          examples: {
+            key: "application/json"
+            value:
+              '{"id":"dcctl.operation.not_found","code":404,"status":"Not Found","detail":"operation not found",'
+              '"metadata":{"operation":"operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10"}}'
+          }
+        }
+      }
+      responses: {
+        key: "409"
+        value: {
+          description: "Conflict: `dcctl.lock.busy`."
+          schema: {
+            json_schema: {ref: ".webitel.dcctl.v1.Error"}
+          }
+          examples: {
+            key: "application/json"
+            value:
+              '{"id":"dcctl.lock.busy","code":409,"status":"Conflict","detail":"dcctl/lock is held by another instance",'
+              '"metadata":{"holder":"dcctl-a1"}}'
+          }
+        }
+      }
+      responses: {
+        key: "503"
+        value: {
+          description: "The leading instance is unreachable: `dcctl.leader.unavailable`."
+          schema: {
+            json_schema: {ref: ".webitel.dcctl.v1.Error"}
+          }
+          examples: {
+            key: "application/json"
+            value:
+              '{"id":"dcctl.leader.unavailable","code":503,"status":"Service Unavailable",'
+              '"detail":"leading instance is unreachable","metadata":{"instance":"dcctl-b1"}}'
+          }
+        }
+      }
+    };
+  }
+
+  // Gives up an INTERRUPTED operation.
+  rpc AbandonOperation(AbandonOperationRequest) returns (Operation) {
+    option (google.api.http) = {
+      post: "/v1/{name=operations/*}:abandon"
+      body: "*"
+    };
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      responses: {
+        key: "200"
+        value: {description: "The abandoned operation. With validate_only, the operation with the checks of the abandon."}
+      }
+      responses: {
+        key: "400"
+        value: {
+          description: "Rejected: `dcctl.request.invalid`, `dcctl.operation.not_interrupted`."
+          schema: {
+            json_schema: {ref: ".webitel.dcctl.v1.Error"}
+          }
+          examples: {
+            key: "application/json"
+            value:
+              '{"id":"dcctl.operation.not_interrupted","code":400,"status":"Bad Request",'
+              '"detail":"operation is not INTERRUPTED","metadata":{"operation":"operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10",'
+              '"state":"RUNNING"}}'
+          }
+        }
+      }
+      responses: {
+        key: "404"
+        value: {
+          description: "No such operation: `dcctl.operation.not_found`."
+          schema: {
+            json_schema: {ref: ".webitel.dcctl.v1.Error"}
+          }
+          examples: {
+            key: "application/json"
+            value:
+              '{"id":"dcctl.operation.not_found","code":404,"status":"Not Found","detail":"operation not found",'
+              '"metadata":{"operation":"operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10"}}'
+          }
+        }
+      }
+    };
+  }
+}
+
+// Request message for OperationService.ListOperations.
+message ListOperationsRequest {
+  // Maximum number of operations to return. Default 50, maximum 500.
+  int32 page_size = 1 [
+    (google.api.field_behavior) = OPTIONAL,
+    (buf.validate.field).int32 = {
+      gte: 0
+      lte: 500
+    }
+  ];
+
+  // Page token from a previous response.
+  string page_token = 2 [
+    (google.api.field_behavior) = OPTIONAL,
+    (buf.validate.field).string.max_len = 1024
+  ];
+}
+
+// Response message for OperationService.ListOperations.
+message ListOperationsResponse {
+  // Operations from newest to oldest.
+  repeated Operation operations = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Token of the next page. Empty on the last page.
+  string next_page_token = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// Request message for OperationService.GetOperation.
+message GetOperationRequest {
+  // Operation: `operations/{operation}`.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "dcctl.webitel.com/Operation",
+    (buf.validate.field).string.pattern = "^operations/[A-Za-z0-9._-]{1,128}$"
+  ];
+}
+
+// Request message for OperationService.WatchOperation.
+message WatchOperationRequest {
+  // Operation: `operations/{operation}`.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "dcctl.webitel.com/Operation",
+    (buf.validate.field).string.pattern = "^operations/[A-Za-z0-9._-]{1,128}$"
+  ];
+}
+
+// Request message for OperationService.ResumeOperation.
+message ResumeOperationRequest {
+  // Operation: `operations/{operation}`.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "dcctl.webitel.com/Operation",
+    (buf.validate.field).string.pattern = "^operations/[A-Za-z0-9._-]{1,128}$"
+  ];
+
+  // Confirmations: `isolation` to continue in FORCED mode.
+  Confirmation confirmation = 2 [(google.api.field_behavior) = OPTIONAL];
+
+  // Run the preflight only.
+  bool validate_only = 3 [(google.api.field_behavior) = OPTIONAL];
+}
+
+// Request message for OperationService.AbandonOperation.
+message AbandonOperationRequest {
+  // Operation: `operations/{operation}`.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "dcctl.webitel.com/Operation",
+    (buf.validate.field).string.pattern = "^operations/[A-Za-z0-9._-]{1,128}$"
+  ];
+
+  // Confirmations. Abandon needs none.
+  Confirmation confirmation = 2 [(google.api.field_behavior) = OPTIONAL];
+
+  // Run the preflight only.
+  bool validate_only = 3 [(google.api.field_behavior) = OPTIONAL];
+}
