@@ -87,6 +87,7 @@ type Patroni struct {
 	Password string `yaml:"password"`
 	// Endpoints is a static initial list of members as host:port of their
 	// REST API (always https), used instead of the Consul catalog when set.
+	// Only for stretch, where one cluster spans every datacenter.
 	Endpoints          []string        `yaml:"endpoints"`
 	PlannedMaxLagBytes int64           `yaml:"planned_max_lag_bytes"`
 	Timeouts           PatroniTimeouts `yaml:"timeouts"`
@@ -119,7 +120,12 @@ type Apps struct {
 
 // Status holds the state collection settings.
 type Status struct {
-	Interval       time.Duration `yaml:"interval"`
+	// Interval is the pause between the end of a collection cycle and the start
+	// of the next.
+	Interval time.Duration `yaml:"interval"`
+	// RequestTimeout is how long a collection cycle waits for one source. A
+	// source may try several endpoints in turn, so one attempt against one
+	// endpoint gets a third of it.
 	RequestTimeout time.Duration `yaml:"request_timeout"`
 	DegradedAfter  time.Duration `yaml:"degraded_after"`
 	// RabbitMQService is the RabbitMQ service name in Consul; see RabbitMQServiceFor.

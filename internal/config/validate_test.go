@@ -33,7 +33,8 @@ func TestServeValidate_valid(t *testing.T) {
 		{name: "no_info_services", mutate: func(c *Serve) { c.Status.InfoServices = nil }},
 		{name: "no_arbiter", mutate: func(c *Serve) { c.Arbiter.Address = "" }},
 		{name: "consul_server_hostname", mutate: func(c *Serve) { c.Consul.Servers[1].Address = "consul.dc-b.example:8500" }},
-		{name: "patroni_endpoints", mutate: func(c *Serve) {
+		{name: "patroni_endpoints_on_stretch", mutate: func(c *Serve) {
+			c.Profile, c.Arbiter.Address = ProfileStretch, ""
 			c.Patroni.Endpoints = []string{"10.1.0.11:8008", "pg-b1.example:8008"}
 		}},
 		{name: "bcrypt_max_cost", mutate: func(c *Serve) {
@@ -131,6 +132,7 @@ func TestServeValidate_invalid(t *testing.T) {
 		{"patroni_scope_empty", func(c *Serve) { c.Patroni.Scope = "" }, "patroni.scope: must not be empty"},
 		{"patroni_password_without_username", func(c *Serve) { c.Patroni.Username = "" }, "patroni.username: must be set together with patroni.password"},
 		{"patroni_username_without_password", func(c *Serve) { c.Patroni.Password = "" }, "patroni.password: must be set together with patroni.username"},
+		{"patroni_endpoints_on_warm_standby", func(c *Serve) { c.Patroni.Endpoints = []string{"10.1.0.11:8008"} }, "patroni.endpoints: must be empty for profile warm_standby"},
 		{"patroni_endpoint_empty", func(c *Serve) { c.Patroni.Endpoints = []string{""} }, "patroni.endpoints[0]: must not be empty"},
 		{"patroni_endpoint_no_port", func(c *Serve) { c.Patroni.Endpoints = []string{"10.1.0.11:8008", "10.1.0.12"} }, `patroni.endpoints[1]: "10.1.0.12" is not a host:port address`},
 		{"patroni_endpoint_url", func(c *Serve) { c.Patroni.Endpoints = []string{"https://10.1.0.11:8008"} }, `patroni.endpoints[0]: "https://10.1.0.11:8008" is not a host:port address`},
