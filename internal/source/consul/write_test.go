@@ -134,7 +134,7 @@ func TestTagKVListDeleteCAS(t *testing.T) {
 		})
 		c := newTestClient(t, srv.addr())
 
-		_, err := c.Instances(ctx, "web", "http", false)
+		_, _, err := c.Instances(ctx, "web", "http", false)
 		require.NoError(t, err)
 		assert.Equal(t, "http", tag)
 	})

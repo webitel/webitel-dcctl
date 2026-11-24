@@ -86,6 +86,22 @@ func newTestClients(t *testing.T, profile config.Profile, addrs ...string) *Clie
 	return c
 }
 
+// newStaleClient returns the client of dc_a with stale reads.
+func newStaleClient(t *testing.T, addr string) *Client {
+	t.Helper()
+
+	c, err := New(Options{
+		Profile:    config.ProfileWarmStandby,
+		Servers:    []config.ConsulServer{{Address: addr, Datacenter: "dc_a"}},
+		SessionTTL: 15 * time.Second,
+		Timeout:    500 * time.Millisecond,
+		AllowStale: true,
+	})
+	require.NoError(t, err)
+
+	return c.mustClient(t, "dc_a")
+}
+
 func (c *Clients) mustClient(t *testing.T, dc string) *Client {
 	t.Helper()
 
@@ -149,7 +165,7 @@ func TestFailover(t *testing.T) {
 		ok := newFake(t, respond(http.StatusOK, healthBody))
 		c := newTestClient(t, refusedAddr(t), ok.addr())
 
-		got, err := c.Instances(ctx, "web", "", true)
+		got, _, err := c.Instances(ctx, "web", "", true)
 		require.NoError(t, err)
 		require.Len(t, got, 1)
 		assert.Equal(t, int32(1), ok.hits.Load())
@@ -161,7 +177,7 @@ func TestFailover(t *testing.T) {
 		c := newTestClient(t, broken.addr(), ok.addr())
 
 		for range 2 {
-			_, err := c.Instances(ctx, "web", "", true)
+			_, _, err := c.Instances(ctx, "web", "", true)
 			require.NoError(t, err)
 		}
 
@@ -184,13 +200,13 @@ func TestFailover(t *testing.T) {
 		second := newFake(t, respond(http.StatusOK, healthBody))
 		c := newTestClient(t, first.addr(), second.addr())
 
-		_, err := c.Instances(ctx, "web", "", true)
+		_, _, err := c.Instances(ctx, "web", "", true)
 		require.NoError(t, err)
 
 		second.Close()
 		up.Store(true)
 
-		_, err = c.Instances(ctx, "web", "", true)
+		_, _, err = c.Instances(ctx, "web", "", true)
 		require.NoError(t, err)
 	})
 
@@ -199,7 +215,7 @@ func TestFailover(t *testing.T) {
 		ok := newFake(t, respond(http.StatusOK, healthBody))
 		c := newTestClient(t, denied.addr(), ok.addr())
 
-		_, err := c.Instances(ctx, "web", "", true)
+		_, _, err := c.Instances(ctx, "web", "", true)
 		require.Error(t, err)
 
 		reason, found := source.ReasonOf(err)
@@ -211,7 +227,7 @@ func TestFailover(t *testing.T) {
 	t.Run("all_servers_down_is_classified_refused", func(t *testing.T) {
 		c := newTestClient(t, refusedAddr(t), refusedAddr(t))
 
-		_, err := c.Instances(ctx, "web", "", true)
+		_, _, err := c.Instances(ctx, "web", "", true)
 		require.Error(t, err)
 
 		reason, found := source.ReasonOf(err)
@@ -224,7 +240,7 @@ func TestFailover(t *testing.T) {
 		ok := newFake(t, respond(http.StatusOK, healthBody))
 		c := newTestClient(t, hung.addr(), ok.addr())
 
-		_, err := c.Instances(ctx, "web", "", true)
+		_, _, err := c.Instances(ctx, "web", "", true)
 		require.NoError(t, err)
 	})
 
@@ -232,7 +248,7 @@ func TestFailover(t *testing.T) {
 		hung := newFake(t, func(_ http.ResponseWriter, r *http.Request) { <-r.Context().Done() })
 		c := newTestClient(t, hung.addr())
 
-		_, err := c.Instances(ctx, "web", "", true)
+		_, _, err := c.Instances(ctx, "web", "", true)
 		require.Error(t, err)
 
 		reason, _ := source.ReasonOf(err)
@@ -243,7 +259,7 @@ func TestFailover(t *testing.T) {
 		bad := newFake(t, respond(http.StatusOK, "{not json"))
 		c := newTestClient(t, bad.addr())
 
-		_, err := c.Instances(ctx, "web", "", true)
+		_, _, err := c.Instances(ctx, "web", "", true)
 		require.Error(t, err)
 
 		reason, _ := source.ReasonOf(err)
@@ -254,7 +270,7 @@ func TestFailover(t *testing.T) {
 		empty := newFake(t, respond(http.StatusOK, ""))
 		c := newTestClient(t, empty.addr())
 
-		_, err := c.Instances(ctx, "web", "", true)
+		_, _, err := c.Instances(ctx, "web", "", true)
 		require.Error(t, err)
 
 		reason, _ := source.ReasonOf(err)
@@ -269,7 +285,7 @@ func TestFailover(t *testing.T) {
 		cctx, cancel := context.WithCancel(ctx)
 		time.AfterFunc(50*time.Millisecond, cancel)
 
-		_, err := c.Instances(cctx, "web", "", true)
+		_, _, err := c.Instances(cctx, "web", "", true)
 		require.ErrorIs(t, err, context.Canceled)
 
 		_, classified := source.ReasonOf(err)
@@ -285,7 +301,7 @@ func TestFailover(t *testing.T) {
 		dctx, cancel := context.WithTimeout(ctx, 50*time.Millisecond)
 		defer cancel()
 
-		_, err := c.Instances(dctx, "web", "", true)
+		_, _, err := c.Instances(dctx, "web", "", true)
 		require.Error(t, err)
 
 		reason, _ := source.ReasonOf(err)

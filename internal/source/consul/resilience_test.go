@@ -130,7 +130,7 @@ func TestStatusErrorKeepsTheChain(t *testing.T) {
 	f := newFake(t, respond(http.StatusInternalServerError, "No cluster leader"))
 	c := newTestClient(t, f.addr())
 
-	_, err := c.Instances(t.Context(), "web", "", true)
+	_, _, err := c.Instances(t.Context(), "web", "", true)
 
 	var se *source.StatusError
 
