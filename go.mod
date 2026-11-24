@@ -11,7 +11,11 @@ require (
 	github.com/testcontainers/testcontainers-go v0.45.0
 	github.com/urfave/cli/v2 v2.27.7
 	github.com/webitel/webitel-go-kit/infra/discovery v0.0.0-20261123164451-517eb2e1276d
+	github.com/webitel/webitel-go-kit/infra/health v0.4.0
+	github.com/webitel/webitel-go-kit/infra/otel v0.7.1
+	github.com/webitel/webitel-go-kit/pkg/logging v0.1.1
 	go.etcd.io/bbolt v1.5.0
+	go.uber.org/goleak v1.3.0
 	go.yaml.in/yaml/v3 v3.0.5
 	golang.org/x/crypto v0.59.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20261110000943-09e21b237f2c
@@ -71,10 +75,12 @@ require (
 	github.com/tklauser/numcpus v0.12.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
+	go.opentelemetry.io/contrib/bridges/otelslog v0.21.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.69.0 // indirect
-	go.opentelemetry.io/otel v1.45.0 // indirect
-	go.opentelemetry.io/otel/metric v1.45.0 // indirect
-	go.opentelemetry.io/otel/trace v1.45.0 // indirect
+	go.opentelemetry.io/otel v1.47.0 // indirect
+	go.opentelemetry.io/otel/log v1.47.0 // indirect
+	go.opentelemetry.io/otel/metric v1.47.0 // indirect
+	go.opentelemetry.io/otel/trace v1.47.0 // indirect
 )
 
 require (

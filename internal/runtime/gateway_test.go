@@ -33,6 +33,11 @@ func errorInfo(r apierr.Reason, md map[string]string) *errdetails.ErrorInfo {
 	return &errdetails.ErrorInfo{Domain: apierr.Domain, Reason: string(r), Metadata: md}
 }
 
+// testErrorHandler is a Runtime with only what handleError uses.
+func testErrorHandler() *Runtime {
+	return &Runtime{log: testLogger()}
+}
+
 func TestErrorBodyReasons(t *testing.T) {
 	for _, r := range apierr.Reasons() {
 		t.Run(string(r), func(t *testing.T) {
@@ -121,14 +126,13 @@ func TestErrorBodyDetails(t *testing.T) {
 }
 
 func TestHandleError(t *testing.T) {
-	mux := newGatewayMux()
 	w := httptest.NewRecorder()
 	r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/v1/status", nil)
 
 	err := withDetails(t, codes.Unauthenticated, "authentication required",
 		errorInfo(apierr.ReasonAuthenticationRequired, nil)).Err()
 
-	handleError(t.Context(), mux, gatewayMarshaler(), w, r, err)
+	testErrorHandler().handleError(t.Context(), nil, gatewayMarshaler(), w, r, err)
 
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 	assert.Empty(t, w.Header().Values("Www-Authenticate"))
@@ -144,7 +148,7 @@ func TestHandleErrorHTTPStatusError(t *testing.T) {
 
 	err := &runtime.HTTPStatusError{HTTPStatus: http.StatusMethodNotAllowed, Err: status.Error(codes.Unimplemented, "method not allowed")}
 
-	handleError(t.Context(), newGatewayMux(), gatewayMarshaler(), w, r, err)
+	testErrorHandler().handleError(t.Context(), nil, gatewayMarshaler(), w, r, err)
 
 	assert.Equal(t, http.StatusMethodNotAllowed, w.Code)
 	assert.JSONEq(t, `{"code":405,"status":"Method Not Allowed","detail":"method not allowed"}`, w.Body.String())
@@ -156,7 +160,7 @@ func TestHandleErrorInvalidHTTPStatus(t *testing.T) {
 
 	err := &runtime.HTTPStatusError{HTTPStatus: 0, Err: status.Error(codes.Internal, "boom")}
 
-	handleError(t.Context(), newGatewayMux(), gatewayMarshaler(), w, r, err)
+	testErrorHandler().handleError(t.Context(), nil, gatewayMarshaler(), w, r, err)
 
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 	assert.JSONEq(t, `{"code":500,"status":"Internal Server Error","detail":"boom"}`, w.Body.String())

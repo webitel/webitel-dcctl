@@ -8,10 +8,11 @@ import (
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	spb "google.golang.org/genproto/googleapis/rpc/status"
-	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
+
+	"github.com/webitel/webitel-go-kit/pkg/logging"
 
 	dcctlv1 "github.com/webitel/webitel-dcctl/gen/go/dcctl/v1"
 	"github.com/webitel/webitel-dcctl/internal/apierr"
@@ -20,7 +21,7 @@ import (
 // violationField is the Violation.type of a BadRequest field violation.
 const violationField = "field"
 
-func newGatewayMux() *runtime.ServeMux {
+func newGatewayMux(handleError runtime.ErrorHandlerFunc) *runtime.ServeMux {
 	return runtime.NewServeMux(
 		runtime.WithMarshalerOption(runtime.MIMEWildcard, gatewayMarshaler()),
 		runtime.WithErrorHandler(handleError),
@@ -55,7 +56,7 @@ func (m streamErrorMarshaler) Marshal(v any) ([]byte, error) {
 // handleError writes err in the gateway error format. Unlike the grpc-gateway
 // default it never sets WWW-Authenticate: browsers would show their own login
 // dialog even for fetch.
-func handleError(_ context.Context, _ *runtime.ServeMux, m runtime.Marshaler, w http.ResponseWriter, _ *http.Request, err error) {
+func (r *Runtime) handleError(ctx context.Context, _ *runtime.ServeMux, m runtime.Marshaler, w http.ResponseWriter, _ *http.Request, err error) {
 	var custom *runtime.HTTPStatusError
 	if errors.As(err, &custom) {
 		err = custom.Err
@@ -68,7 +69,7 @@ func handleError(_ context.Context, _ *runtime.ServeMux, m runtime.Marshaler, w 
 
 	buf, merr := m.Marshal(body)
 	if merr != nil {
-		grpclog.Errorf("marshal gateway error: %v", merr)
+		r.log.ErrorCtx(ctx, "marshal gateway error", logging.Err(merr))
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 
 		return
@@ -80,7 +81,7 @@ func handleError(_ context.Context, _ *runtime.ServeMux, m runtime.Marshaler, w 
 	w.WriteHeader(int(body.GetCode()))
 
 	if _, err := w.Write(buf); err != nil {
-		grpclog.Errorf("write gateway error: %v", err)
+		r.log.WarnCtx(ctx, "write gateway error", logging.Err(err))
 	}
 }
 
