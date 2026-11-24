@@ -190,3 +190,26 @@ func TestMarshalerUsesProtoNames(t *testing.T) {
 
 	assert.JSONEq(t, `{"result":{"detected_active_datacenter":"datacenters/dc_a"}}`, string(got))
 }
+
+func TestIncomingHeader(t *testing.T) {
+	tests := []struct {
+		header string
+		want   string
+		ok     bool
+	}{
+		{"Authorization", "", false},
+		{"authorization", "", false},
+		{"Cookie", "", false},
+		{"Accept", runtime.MetadataPrefix + "Accept", true},
+		{"Grpc-Metadata-X-Dcctl-Initiator", "", false},
+		{"X-Custom", "", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.header, func(t *testing.T) {
+			got, ok := incomingHeader(tt.header)
+			assert.Equal(t, tt.ok, ok)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
