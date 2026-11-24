@@ -88,12 +88,23 @@ func (c *Client) ExecuteQuery(ctx context.Context, name string) ([]ServiceNode, 
 // empty) in datacenter dc. In stretch the query is filtered by node-meta
 // <consul.node_meta_key>:<dc>.
 func (c *Clients) HealthyAddrs(ctx context.Context, dc, service, tag string) ([]string, error) {
+	return c.addrs(ctx, dc, service, tag, true)
+}
+
+// RegisteredAddrs returns host:port of every instance of service in datacenter dc,
+// whatever the state of its checks. In stretch the query is filtered by node-meta
+// <consul.node_meta_key>:<dc>.
+func (c *Clients) RegisteredAddrs(ctx context.Context, dc, service string) ([]string, error) {
+	return c.addrs(ctx, dc, service, "", false)
+}
+
+func (c *Clients) addrs(ctx context.Context, dc, service, tag string, passingOnly bool) ([]string, error) {
 	cl, err := c.Client(dc)
 	if err != nil {
 		return nil, err
 	}
 
-	nodes, err := cl.Instances(ctx, service, tag, true)
+	nodes, err := cl.Instances(ctx, service, tag, passingOnly)
 	if err != nil {
 		return nil, err
 	}
