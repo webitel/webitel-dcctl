@@ -1,14 +1,20 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/urfave/cli/v2"
 
+	"github.com/webitel/webitel-go-kit/pkg/logging"
+
 	"github.com/webitel/webitel-dcctl/internal/buildinfo"
 	"github.com/webitel/webitel-dcctl/internal/config"
+	"github.com/webitel/webitel-dcctl/internal/runtime"
 )
 
 var errNotImplemented = errors.New("not implemented")
@@ -56,12 +62,38 @@ func configFlag(path string) *cli.StringFlag {
 	}
 }
 
-func serve(c *cli.Context) error {
-	if _, err := config.LoadServe(c.String("config")); err != nil {
+func serve(c *cli.Context) (err error) {
+	cfg, err := config.LoadServe(c.String("config"))
+	if err != nil {
 		return err
 	}
 
-	return fmt.Errorf("%s: %w", c.Command.Name, errNotImplemented)
+	ctx, stop := signal.NotifyContext(c.Context, os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	// After the first signal the default handling returns, so a second one
+	// kills a stuck shutdown.
+	context.AfterFunc(ctx, stop)
+
+	shutdownTelemetry, err := setupTelemetry(ctx, c.Command.Name)
+	if err != nil {
+		return err
+	}
+
+	defer func() { err = errors.Join(err, shutdownTelemetry()) }()
+
+	rt, err := runtime.New(runtime.Config{
+		HTTP:   cfg.Listen.HTTP,
+		Peer:   cfg.Listen.Peer,
+		Health: cfg.Listen.Health,
+		TLS:    cfg.TLS,
+		Consul: &runtime.Consul{Datacenter: cfg.Datacenter, NodeMetaKey: cfg.Consul.NodeMetaKey},
+	}, logging.New(logging.WithComponent("dcctl.runtime")))
+	if err != nil {
+		return err
+	}
+
+	return rt.Run(ctx)
 }
 
 func arbiter(c *cli.Context) error {
