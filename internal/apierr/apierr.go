@@ -3,7 +3,12 @@
 // and the gRPC code of each reason.
 package apierr
 
-import "google.golang.org/grpc/codes"
+import (
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/protoadapt"
+)
 
 // Domain is the google.rpc.ErrorInfo domain of every dcctl error.
 const Domain = "dcctl.webitel.com"
@@ -91,4 +96,22 @@ func (r Reason) Code() codes.Code {
 	}
 
 	return e.code
+}
+
+// New returns a gRPC status error with the code of r, msg and the details,
+// after an ErrorInfo with r.
+func New(r Reason, msg string, details ...protoadapt.MessageV1) error {
+	st := status.New(r.Code(), msg)
+
+	withDetails, err := st.WithDetails(append(
+		[]protoadapt.MessageV1{&errdetails.ErrorInfo{Domain: Domain, Reason: string(r)}},
+		details...,
+	)...)
+	if err != nil {
+		// Only a detail that cannot be marshaled gets here; the code and
+		// message still reach the client.
+		return st.Err()
+	}
+
+	return withDetails.Err()
 }

@@ -52,6 +52,10 @@ type Config struct {
 	// Peer, for example interceptors.
 	HTTPOptions []grpc.ServerOption
 	PeerOptions []grpc.ServerOption
+	// APIGuard, when set, checks every request under /api/ before the
+	// gateway. Its error is written in the gateway error format; a
+	// *runtime.HTTPStatusError sets the HTTP status.
+	APIGuard func(*http.Request) error
 	// Consul, when set, makes Run check the datacenter of the local Consul
 	// agent and register Peer in it.
 	Consul *Consul

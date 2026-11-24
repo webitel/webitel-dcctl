@@ -4,7 +4,10 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/webitel/webitel-dcctl/internal/apierr"
 )
@@ -80,4 +83,31 @@ func TestDomain(t *testing.T) {
 	t.Parallel()
 
 	assert.Equal(t, "dcctl.webitel.com", apierr.Domain)
+}
+
+func TestNew(t *testing.T) {
+	t.Parallel()
+
+	bad := &errdetails.BadRequest{FieldViolations: []*errdetails.BadRequest_FieldViolation{
+		{Field: "name", Description: "must match"},
+	}}
+
+	err := apierr.New(apierr.ReasonRequestInvalid, "invalid request", bad)
+
+	st, ok := status.FromError(err)
+	require.True(t, ok)
+	assert.Equal(t, codes.InvalidArgument, st.Code())
+	assert.Equal(t, "invalid request", st.Message())
+
+	details := st.Details()
+	require.Len(t, details, 2)
+
+	info, ok := details[0].(*errdetails.ErrorInfo)
+	require.True(t, ok, "first detail is %T", details[0])
+	assert.Equal(t, apierr.Domain, info.GetDomain())
+	assert.Equal(t, "REQUEST_INVALID", info.GetReason())
+
+	got, ok := details[1].(*errdetails.BadRequest)
+	require.True(t, ok, "second detail is %T", details[1])
+	assert.Equal(t, "name", got.GetFieldViolations()[0].GetField())
 }

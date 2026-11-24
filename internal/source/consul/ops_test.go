@@ -85,6 +85,53 @@ func TestHealthyAddrs(t *testing.T) {
 	})
 }
 
+func TestRegisteredAddrs(t *testing.T) {
+	ctx := t.Context()
+
+	serve := func(t *testing.T) (*fake, *http.Request) {
+		t.Helper()
+
+		var got http.Request
+
+		f := newFake(t, func(w http.ResponseWriter, r *http.Request) {
+			got = *r.Clone(context.Background())
+			_, _ = w.Write([]byte(healthBody))
+		})
+
+		return f, &got
+	}
+
+	t.Run("not_only_passing", func(t *testing.T) {
+		f, req := serve(t)
+		c := newTestClients(t, config.ProfileWarmStandby, f.addr())
+
+		addrs, err := c.RegisteredAddrs(ctx, "dc_a", "web")
+		require.NoError(t, err)
+		assert.Equal(t, []string{"10.0.1.1:8080"}, addrs)
+		assert.Equal(t, "/v1/health/service/web", req.URL.Path)
+		assert.Empty(t, req.URL.Query()["passing"])
+		assert.Empty(t, req.URL.Query()["tag"])
+		assert.Empty(t, req.URL.Query()["node-meta"])
+	})
+
+	t.Run("stretch_filters_by_node_meta_of_the_datacenter", func(t *testing.T) {
+		f, req := serve(t)
+		c := newTestClients(t, config.ProfileStretch, f.addr())
+
+		_, err := c.RegisteredAddrs(ctx, "dc_a", "web")
+		require.NoError(t, err)
+		assert.Equal(t, []string{"webitel_datacenter:dc_a"}, req.URL.Query()["node-meta"])
+	})
+
+	t.Run("unknown_datacenter", func(t *testing.T) {
+		f, _ := serve(t)
+		c := newTestClients(t, config.ProfileStretch, f.addr())
+
+		_, err := c.RegisteredAddrs(ctx, "dc_x", "web")
+		require.ErrorIs(t, err, ErrUnknownDatacenter)
+	})
+}
+
 func TestKV(t *testing.T) {
 	ctx := t.Context()
 

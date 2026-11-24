@@ -23,11 +23,8 @@ import (
 	_ "github.com/webitel/webitel-go-kit/infra/otel/sdk/trace/stdout"
 )
 
-const (
-	serviceName = "webitel-dcctl"
-	// telemetryFlushTimeout bounds the export of what is left on exit.
-	telemetryFlushTimeout = 5 * time.Second
-)
+// telemetryFlushTimeout bounds the export of what is left on exit.
+const telemetryFlushTimeout = 5 * time.Second
 
 // setupTelemetry configures the OpenTelemetry SDK from the OTEL_* variables.
 // Records before that go to stderr through the bootstrap logger.
@@ -38,7 +35,7 @@ func setupTelemetry(ctx context.Context, command string) (shutdown func() error,
 	)
 
 	sdkShutdown, err := otelsdk.Configure(ctx, otelsdk.WithResource(resource.NewSchemaless(
-		semconv.ServiceName(serviceName),
+		semconv.ServiceName(buildinfo.ServiceName),
 		semconv.ServiceVersion(buildinfo.Version),
 		semconv.ServiceNamespace("webitel"),
 	)))

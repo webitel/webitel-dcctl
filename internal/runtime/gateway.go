@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"net/textproto"
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
@@ -25,7 +26,21 @@ func newGatewayMux(handleError runtime.ErrorHandlerFunc) *runtime.ServeMux {
 	return runtime.NewServeMux(
 		runtime.WithMarshalerOption(runtime.MIMEWildcard, gatewayMarshaler()),
 		runtime.WithErrorHandler(handleError),
+		runtime.WithIncomingHeaderMatcher(incomingHeader),
 	)
+}
+
+// incomingHeader is runtime.DefaultHeaderMatcher without the credentials:
+// the default also copies Authorization and Cookie to grpcgateway-*
+// metadata, which every handler would see. The gateway passes Authorization
+// as authorization metadata on its own.
+func incomingHeader(key string) (string, bool) {
+	switch textproto.CanonicalMIMEHeaderKey(key) {
+	case "Authorization", "Cookie":
+		return "", false
+	}
+
+	return runtime.DefaultHeaderMatcher(key)
 }
 
 func gatewayMarshaler() runtime.Marshaler {

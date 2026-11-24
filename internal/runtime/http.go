@@ -9,7 +9,7 @@ import (
 // rest to the UI.
 func (r *Runtime) httpHandler() http.Handler {
 	mux := http.NewServeMux()
-	mux.Handle("/api/", http.StripPrefix("/api", r.gateway))
+	mux.Handle("/api/", r.guardAPI(http.StripPrefix("/api", r.gateway)))
 
 	if r.ui != nil {
 		mux.Handle("/", r.ui)
@@ -23,5 +23,25 @@ func (r *Runtime) httpHandler() http.Handler {
 		}
 
 		mux.ServeHTTP(w, req)
+	})
+}
+
+// guardAPI runs Config.APIGuard before next.
+func (r *Runtime) guardAPI(next http.Handler) http.Handler {
+	guard := r.cfg.APIGuard
+	if guard == nil {
+		return next
+	}
+
+	m := gatewayMarshaler()
+
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if err := guard(req); err != nil {
+			r.handleError(req.Context(), r.gateway, m, w, req, err)
+
+			return
+		}
+
+		next.ServeHTTP(w, req)
 	})
 }
