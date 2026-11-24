@@ -1,0 +1,283 @@
+syntax = "proto3";
+
+package webitel.dcctl.v1;
+
+import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
+import "google/protobuf/duration.proto";
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+import "webitel/dcctl/v1/common.proto";
+import "webitel/dcctl/v1/datacenter.proto";
+
+option go_package = "github.com/webitel/webitel-dcctl/gen/go/dcctl/v1;dcctlv1";
+
+// Summary state of the installation as seen by the instance in `observer`.
+// Built from the last collection cycle; reads are not forwarded.
+message Status {
+  option (google.api.resource) = {
+    type: "dcctl.webitel.com/Status"
+    pattern: "status"
+    singular: "status"
+    plural: "statuses"
+  };
+
+  // Deployment profile.
+  enum Profile {
+    // Not set.
+    PROFILE_UNSPECIFIED = 0;
+    // A Patroni cluster and a Consul per datacenter.
+    WARM_STANDBY = 1;
+    // One Patroni cluster and one Consul over all datacenters.
+    STRETCH = 2;
+  }
+
+  // A voter: the Consul KV of a datacenter or the arbiter.
+  message Voter {
+    // Voter kind.
+    enum Type {
+      // Not set.
+      TYPE_UNSPECIFIED = 0;
+      // Consul KV of the datacenter in `datacenter`.
+      DATACENTER = 1;
+      // The arbiter.
+      ARBITER = 2;
+    }
+
+    // Voter kind.
+    Type type = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+    // Datacenter of a DATACENTER voter.
+    string datacenter = 2 [
+      (google.api.field_behavior) = OUTPUT_ONLY,
+      (google.api.resource_reference).type = "dcctl.webitel.com/Datacenter"
+    ];
+
+    // The voter answers.
+    bool reachable = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+    // Why the voter does not answer.
+    Source.Error error = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+    // Generation of the voter record.
+    int64 generation = 5 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+    // Active datacenter of the voter record.
+    string active_datacenter = 6 [
+      (google.api.field_behavior) = OUTPUT_ONLY,
+      (google.api.resource_reference).type = "dcctl.webitel.com/Datacenter"
+    ];
+
+    // The voter record was written in FORCED mode.
+    bool forced = 7 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+    // The voter record counts for the effective state.
+    bool valid = 8 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+    // ARBITER: the arbiter storage is initialized.
+    bool initialized = 9 [(google.api.field_behavior) = OUTPUT_ONLY];
+  }
+
+  // Whether a generation can be written on a majority of voters.
+  message Quorum {
+    // Write mode available now.
+    enum Mode {
+      // Not set.
+      MODE_UNSPECIFIED = 0;
+      // A majority is reachable.
+      QUORUM = 1;
+      // Only FORCED writes with the isolation confirmation.
+      FORCED_ONLY = 2;
+    }
+
+    // A majority of voters is reachable.
+    bool available = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+    // Write mode available now.
+    Mode mode = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+    // Reachable voters.
+    int32 reachable_count = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+    // Voters that make a majority.
+    int32 required_count = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+    // All voters.
+    int32 total_count = 5 [(google.api.field_behavior) = OUTPUT_ONLY];
+  }
+
+  // Lease of the active datacenter.
+  message Lease {
+    // Datacenter that holds the lease.
+    string holder = 1 [
+      (google.api.field_behavior) = OUTPUT_ONLY,
+      (google.api.resource_reference).type = "dcctl.webitel.com/Datacenter"
+    ];
+
+    // Generation of the lease.
+    int64 generation = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+    // Renewal counter.
+    int64 counter = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+    // Time since the counter last changed, by the observer clock.
+    google.protobuf.Duration age = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+    // The lease is considered lost.
+    bool lost = 5 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+    // The holder has fencing rules enabled.
+    bool fencing = 6 [(google.api.field_behavior) = OUTPUT_ONLY];
+  }
+
+  // A raised alarm. Alarms are computed on every cycle.
+  message Alarm {
+    // Alarm type.
+    enum Type {
+      // Not set.
+      TYPE_UNSPECIFIED = 0;
+      // Two valid records with one generation and different active
+      // datacenters.
+      CONFLICT = 1;
+      // A voter has a newer generation without a majority.
+      UNCOMMITTED = 2;
+      // A datacenter voter has an older generation.
+      STALE = 3;
+      // An inactive datacenter runs a managed job.
+      SPLIT_BRAIN = 4;
+      // warm_standby: the Patroni leader of an inactive datacenter is
+      // primary.
+      DB_SPLIT = 5;
+      // More than one Patroni primary.
+      MULTIPLE_PRIMARIES = 6;
+      // No Patroni primary in the active datacenter.
+      DB_PRIMARY_MISSING = 7;
+      // No source of the datacenter is reachable.
+      DATACENTER_UNREACHABLE = 8;
+      // stretch: the Patroni leader is outside the active datacenter.
+      DB_LEADER_MISMATCH = 9;
+      // The lease is not renewed or does not match the effective state.
+      LEASE_LOST = 10;
+      // A managed job of the active datacenter is not healthy.
+      APPS_DEGRADED = 11;
+      // A Patroni member is unreachable, unusable or not running, or
+      // Patroni is paused.
+      DB_DEGRADED = 12;
+      // warm_standby: a standby does not follow the active datacenter.
+      STANDBY_NOT_FOLLOWING = 13;
+      // A voter is unreachable.
+      VOTER_UNREACHABLE = 14;
+      // A majority of voters is unreachable.
+      QUORUM_LOST = 15;
+      // The arbiter storage is empty.
+      ARBITER_UNINITIALIZED = 16;
+      // An operation is INTERRUPTED.
+      OPERATION_INTERRUPTED = 17;
+    }
+
+    // Alarm severity.
+    enum Severity {
+      // Not set.
+      SEVERITY_UNSPECIFIED = 0;
+      // Data at risk or the active datacenter does not serve; the operator
+      // has to act.
+      CRITICAL = 1;
+      // Everything else.
+      WARNING = 2;
+    }
+
+    // Alarm type.
+    Type type = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+    // Severity.
+    Severity severity = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+    // Datacenter of a datacenter alarm, or of a DATACENTER voter alarm.
+    string datacenter = 3 [
+      (google.api.field_behavior) = OUTPUT_ONLY,
+      (google.api.resource_reference).type = "dcctl.webitel.com/Datacenter"
+    ];
+
+    // When the alarm was raised.
+    google.protobuf.Timestamp start_time = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+    // Human-readable explanation.
+    string detail = 5 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+    // Data the alarm is based on. Keys depend on the type. Numbers inside
+    // are JSON numbers, unlike int64 fields of the API, which are JSON
+    // strings.
+    google.protobuf.Struct facts = 6 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+    // Voter of a voter alarm (VOTER_UNREACHABLE, ARBITER_UNINITIALIZED); the
+    // datacenter of a DATACENTER voter is in `datacenter`. Not set for
+    // other alarms.
+    Voter.Type voter_type = 7 [(google.api.field_behavior) = OUTPUT_ONLY];
+  }
+
+  // Resource name: always `status`.
+  string name = 1 [(google.api.field_behavior) = IDENTIFIER];
+
+  // Instance whose view this is.
+  Instance observer = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // When the last collection cycle finished.
+  google.protobuf.Timestamp observe_time = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Duration of the last collection cycle.
+  google.protobuf.Duration cycle_duration = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Deployment profile.
+  Profile profile = 5 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // At least one voter has the dcctl state.
+  bool initialized = 6 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Datacenter with the Patroni primary (warm_standby) or leader (stretch).
+  string detected_active_datacenter = 7 [
+    (google.api.field_behavior) = OUTPUT_ONLY,
+    (google.api.resource_reference).type = "dcctl.webitel.com/Datacenter"
+  ];
+
+  // Active datacenter of the effective state.
+  string active_datacenter = 8 [
+    (google.api.field_behavior) = OUTPUT_ONLY,
+    (google.api.resource_reference).type = "dcctl.webitel.com/Datacenter"
+  ];
+
+  // Generation of the effective state.
+  int64 generation = 9 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // The effective state was written in FORCED mode.
+  bool forced = 10 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Patroni timeline of the effective state.
+  int64 patroni_timeline = 11 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Datacenters waiting for recovery after a failover.
+  repeated string needs_recovery_datacenters = 12 [
+    (google.api.field_behavior) = OUTPUT_ONLY,
+    (google.api.resource_reference).type = "dcctl.webitel.com/Datacenter"
+  ];
+
+  // When the effective state was written. For display only.
+  google.protobuf.Timestamp update_time = 13 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Voters.
+  repeated Voter voters = 14 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Quorum.
+  Quorum quorum = 15 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Lease.
+  Lease lease = 16 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Raised alarms.
+  repeated Alarm alarms = 18 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Datacenters, summary fields only.
+  // (-- api-linter: core::0122::embedded-resource=disabled
+  //     aip.dev/not-precedent: the summary carries every datacenter so the UI
+  //     renders it from one read. --)
+  repeated Datacenter datacenters = 19 [(google.api.field_behavior) = OUTPUT_ONLY];
+}

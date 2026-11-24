@@ -1,0 +1,104 @@
+syntax = "proto3";
+
+package webitel.dcctl.v1;
+
+import "google/api/annotations.proto";
+import "google/api/field_behavior.proto";
+import "protoc-gen-openapiv2/options/annotations.proto";
+import "webitel/dcctl/v1/check.proto";
+import "webitel/dcctl/v1/status.proto";
+
+option go_package = "github.com/webitel/webitel-dcctl/gen/go/dcctl/v1;dcctlv1";
+
+// Summary state of the installation.
+service StatusService {
+  // Returns the summary state as seen by the instance that answers.
+  // (-- api-linter: core::0131::http-uri-name=disabled
+  //     aip.dev/not-precedent: `status` is a top-level singleton, its path
+  //     has no name variable. --)
+  // (-- api-linter: core::0131::method-signature=disabled
+  //     aip.dev/not-precedent: `status` is a top-level singleton without a
+  //     name in the request. --)
+  rpc GetStatus(GetStatusRequest) returns (Status) {
+    option (google.api.http) = {get: "/v1/status"};
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      responses: {
+        key: "200"
+        value: {
+          description: "Summary state."
+          examples: {
+            key: "application/json"
+            value:
+              '{"name":"status","observer":{"node":"dcctl-a1","datacenter":"datacenters/dc_a",'
+              '"address":"10.1.0.81:10023"},"observe_time":"2026-11-23T10:14:55Z","cycle_duration":"0.420s",'
+              '"profile":"WARM_STANDBY","initialized":true,"detected_active_datacenter":"datacenters/dc_a",'
+              '"active_datacenter":"datacenters/dc_a","generation":"7","patroni_timeline":"5",'
+              '"update_time":"2026-11-20T16:02:11Z","voters":[{"type":"DATACENTER","datacenter":"datacenters/dc_a",'
+              '"reachable":true,"generation":"7","active_datacenter":"datacenters/dc_a",'
+              '"valid":true},{"type":"DATACENTER","datacenter":"datacenters/dc_b","reachable":true,'
+              '"generation":"7","active_datacenter":"datacenters/dc_a","valid":true},'
+              '{"type":"ARBITER","reachable":false,"error":"TIMEOUT","generation":"7",'
+              '"active_datacenter":"datacenters/dc_a","valid":true,"initialized":true}],'
+              '"quorum":{"available":true,"mode":"QUORUM","reachable_count":2,"required_count":2,'
+              '"total_count":3},"lease":{"holder":"datacenters/dc_a","generation":"7",'
+              '"counter":"18342","age":"4.100s"},"alarms":[{"type":"VOTER_UNREACHABLE",'
+              '"severity":"WARNING","voter_type":"ARBITER","start_time":"2026-11-23T10:12:40Z",'
+              '"detail":"arbiter does not answer","facts":{"address":"10.9.0.10:10024",'
+              '"error":"timeout"}}],"datacenters":[{"name":"datacenters/dc_a","state":"ACTIVE",'
+              '"health":"OK","sources":[{"system":"CONSUL","endpoint":"10.1.0.89:8500",'
+              '"reachable":true,"observe_time":"2026-11-23T10:14:55Z"},{"system":"NOMAD",'
+              '"endpoint":"https://10.1.0.91:4646","reachable":true,"observe_time":"2026-11-23T10:14:55Z"},'
+              '{"system":"PATRONI","endpoint":"https://10.1.0.95:8008","reachable":true,'
+              '"observe_time":"2026-11-23T10:14:55Z"}],"patroni":{"leader":"pg-a1","role":"PRIMARY",'
+              '"timeline":"5"},"nomad":{"leader":"10.1.0.91:4647","ready_node_count":3,'
+              '"job_counts":{"healthy_count":12}}},{"name":"datacenters/dc_b","state":"STANDBY",'
+              '"health":"OK","sources":[{"system":"CONSUL","endpoint":"10.2.0.89:8500",'
+              '"reachable":true,"observe_time":"2026-11-23T10:14:55Z"},{"system":"NOMAD",'
+              '"endpoint":"https://10.2.0.91:4646","reachable":true,"observe_time":"2026-11-23T10:14:55Z"},'
+              '{"system":"PATRONI","endpoint":"https://10.2.0.95:8008","reachable":true,'
+              '"observe_time":"2026-11-23T10:14:55Z"}],"patroni":{"leader":"pg-b1","role":"STANDBY_LEADER",'
+              '"timeline":"5","standby_cluster_host":"10.1.0.95","upstream_datacenter":"datacenters/dc_a",'
+              '"lag_bytes":"0"},"nomad":{"leader":"10.2.0.91:4647","ready_node_count":3,'
+              '"job_counts":{"stopped_count":12}}}]}'
+          }
+        }
+      }
+    };
+  }
+
+  // Checks the conditions of a completed switch for the current active
+  // datacenter without changing anything.
+  rpc VerifyStatus(VerifyStatusRequest) returns (VerifyStatusResponse) {
+    option (google.api.http) = {get: "/v1/status:verify"};
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      responses: {
+        key: "200"
+        value: {
+          description: "Verify checks."
+          examples: {
+            key: "application/json"
+            value:
+              '{"checks":[{"id":"verify.patroni","result":"PASS","detail":"dc_a primary,'
+              ' dc_b standby_leader follows dc_a on timeline 5"},{"id":"verify.jobs",'
+              '"result":"PASS","detail":"12 jobs healthy in dc_a, stopped in dc_b"},{"id":"verify.state",'
+              '"result":"PASS","detail":"generation 7 on 3 of 3 voters"}]}'
+          }
+        }
+      }
+    };
+  }
+}
+
+// Request message for StatusService.GetStatus.
+// (-- api-linter: core::0131::request-name-required=disabled
+//     aip.dev/not-precedent: `status` is a top-level singleton without a parent. --)
+message GetStatusRequest {}
+
+// Request message for StatusService.VerifyStatus.
+message VerifyStatusRequest {}
+
+// Response message for StatusService.VerifyStatus.
+message VerifyStatusResponse {
+  // Checks `verify.*`. An unreachable datacenter gives WARN.
+  repeated Check checks = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
