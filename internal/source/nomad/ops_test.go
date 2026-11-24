@@ -309,3 +309,13 @@ func TestStatusReadsMayBeStaleButStartReadIsConsistent(t *testing.T) {
 	require.NoError(t, c.Start(t.Context(), "engine"))
 	assert.False(t, f.stale["GET /v1/job/engine"], "the read Start registers from is consistent")
 }
+
+func TestVersion(t *testing.T) {
+	c, f := setup(t)
+	f.version = "1.7.2+ent"
+
+	version, err := c.Version(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, "1.7.2+ent", version)
+	assert.True(t, f.stale["GET /v1/agent/self"], "a status read may be answered by a follower")
+}
