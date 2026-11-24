@@ -33,9 +33,9 @@ const (
 	defaultStopTimeout = 10 * time.Second
 	readHeaderTimeout  = 10 * time.Second
 	idleTimeout        = 2 * time.Minute
-	bufconnSize        = 1 << 20
 	// healthStopMargin bounds the health transports past the drain hold.
 	healthStopMargin = 5 * time.Second
+	bufconnSize      = 1 << 20
 )
 
 // Config holds the listeners and settings of a Runtime.
@@ -52,6 +52,9 @@ type Config struct {
 	// Peer, for example interceptors.
 	HTTPOptions []grpc.ServerOption
 	PeerOptions []grpc.ServerOption
+	// Consul, when set, makes Run check the datacenter of the local Consul
+	// agent and register Peer in it.
+	Consul *Consul
 	// HealthConfig tunes the health checks; zero fields take the go-kit defaults.
 	HealthConfig health.Config
 	// StopTimeout bounds the graceful stop of the servers; zero means 10s.
@@ -162,9 +165,10 @@ func (r *Runtime) Health() *health.Registry {
 }
 
 // Run serves until ctx is done, then stops gracefully. It returns early when
-// a listener cannot bind or a server fails.
+// the local Consul agent belongs to another datacenter, a listener cannot
+// bind, the registration fails or a server fails.
 func (r *Runtime) Run(ctx context.Context) error {
-	if err := r.listen(ctx); err != nil {
+	if err := r.prepare(ctx); err != nil {
 		if r.gwConn != nil {
 			_ = r.gwConn.Close()
 		}
@@ -183,7 +187,13 @@ func (r *Runtime) Run(ctx context.Context) error {
 	served := make(chan error, 3)
 	r.serve(&wg, served)
 
+	var deregister func(context.Context) error
+
 	runErr := r.health.Start(context.WithoutCancel(ctx))
+	if runErr == nil && r.cfg.Consul != nil {
+		deregister, runErr = r.cfg.Consul.register(ctx, r.peerLn.Addr(), r.health.ReadyFunc(), r.log.Slog())
+	}
+
 	if runErr == nil {
 		r.log.InfoCtx(ctx, "started", r.addrFields()...)
 		close(r.started)
@@ -197,11 +207,22 @@ func (r *Runtime) Run(ctx context.Context) error {
 	stopCtx := context.WithoutCancel(ctx)
 	r.log.InfoCtx(stopCtx, "stopping")
 
-	err := errors.Join(runErr, r.stop(stopCtx))
+	err := errors.Join(runErr, r.stop(stopCtx, deregister))
 
 	wg.Wait()
 
 	return err
+}
+
+// prepare runs the start checks and binds the listeners.
+func (r *Runtime) prepare(ctx context.Context) error {
+	if c := r.cfg.Consul; c != nil {
+		if err := c.checkDatacenter(ctx); err != nil {
+			return err
+		}
+	}
+
+	return r.listen(ctx)
 }
 
 // listen binds every listener, or none.
@@ -264,10 +285,16 @@ func (r *Runtime) serve(wg *sync.WaitGroup, served chan<- error) {
 	})
 }
 
-// stop drains health, then stops the servers, each within StopTimeout.
-func (r *Runtime) stop(ctx context.Context) error {
+// stop leaves Consul, drains health, then stops the servers within
+// StopTimeout.
+func (r *Runtime) stop(ctx context.Context, deregister func(context.Context) error) error {
+	var err error
+	if deregister != nil {
+		err = deregister(ctx)
+	}
+
 	hctx, cancel := context.WithTimeout(ctx, r.drainHold()+healthStopMargin)
-	err := r.health.Shutdown(hctx)
+	err = errors.Join(err, r.health.Shutdown(hctx))
 
 	cancel()
 

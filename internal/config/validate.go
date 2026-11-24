@@ -30,7 +30,7 @@ func (c *Serve) Validate() error {
 	v.datacenter(c.Datacenter, c.Consul.Servers)
 
 	v.loopback("listen.http", c.Listen.HTTP)
-	v.addrPort("listen.peer", c.Listen.Peer)
+	v.nodeAddr("listen.peer", c.Listen.Peer)
 	v.loopback("listen.health", c.Listen.Health)
 	v.tls(c.TLS)
 	v.users(c.Auth.Users)
@@ -110,6 +110,19 @@ func (v *violations) addrPort(key, value string) (netip.AddrPort, bool) {
 func (v *violations) loopback(key, value string) {
 	if ap, ok := v.addrPort(key, value); ok && !ap.Addr().IsLoopback() {
 		v.add(key, "%q is not a loopback address", value)
+	}
+}
+
+// nodeAddr requires an address other nodes can reach: it is advertised in
+// Consul as is.
+func (v *violations) nodeAddr(key, value string) {
+	ap, ok := v.addrPort(key, value)
+	if !ok {
+		return
+	}
+
+	if a := ap.Addr(); a.IsUnspecified() || a.IsLoopback() || a.IsLinkLocalUnicast() {
+		v.add(key, "%q is not a node address", value)
 	}
 }
 
