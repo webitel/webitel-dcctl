@@ -37,7 +37,7 @@ const (
 )
 
 // ErrNoEndpoints means there is no member to start the discovery from.
-var ErrNoEndpoints = errors.New("no patroni endpoints")
+var ErrNoEndpoints = fmt.Errorf("no patroni endpoints: %w", source.ErrNoEndpoints)
 
 // Resolver gives the initial member list from the service catalog.
 type Resolver interface {

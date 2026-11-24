@@ -56,6 +56,9 @@ func TestClassify(t *testing.T) {
 			return &url.Error{Op: "Get", URL: "https://10.0.0.1:4646", Err: io.EOF}
 		}, want: source.ReasonHTTP},
 		{name: "other", err: func(*testing.T) error { return errors.New("connection reset by peer") }, want: source.ReasonHTTP},
+		{name: "no_endpoints", err: func(*testing.T) error {
+			return fmt.Errorf("service nomad in dc_a: %w", source.ErrNoEndpoints)
+		}, want: source.ReasonNoEndpoints},
 	}
 
 	for _, tt := range tests {
