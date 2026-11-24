@@ -9,6 +9,14 @@
     {
       "name": "ArbiterService",
       "description": "Storage of the arbiter voter, served by `webitel-dcctl arbiter` over gRPC\nwith mTLS only.\n\nAn arbiter without `records/state` is uninitialized. Until a dcctl\ninstance creates `records/state` with allow_missing, every other call\nfails with FAILED_PRECONDITION, reason ARBITER_UNINITIALIZED."
+    },
+    {
+      "name": "DatacenterService",
+      "description": "Datacenters."
+    },
+    {
+      "name": "StatusService",
+      "description": "Summary state of the installation."
     }
   ],
   "basePath": "/api",
@@ -18,8 +26,1877 @@
   "produces": [
     "application/json"
   ],
-  "paths": {},
-  "definitions": {},
+  "paths": {
+    "/v1/datacenters": {
+      "get": {
+        "summary": "Lists all datacenters in one page.",
+        "operationId": "ListDatacenters",
+        "responses": {
+          "200": {
+            "description": "All datacenters.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.ListDatacentersResponse"
+            },
+            "examples": {
+              "application/json": {
+                "datacenters": [
+                  {
+                    "name": "datacenters/dc_a",
+                    "state": "ACTIVE",
+                    "health": "OK",
+                    "sources": [
+                      {
+                        "system": "CONSUL",
+                        "endpoint": "10.1.0.89:8500",
+                        "reachable": true,
+                        "observe_time": "2026-11-23T10:14:55Z"
+                      },
+                      {
+                        "system": "NOMAD",
+                        "endpoint": "https://10.1.0.91:4646",
+                        "reachable": true,
+                        "observe_time": "2026-11-23T10:14:55Z"
+                      },
+                      {
+                        "system": "PATRONI",
+                        "endpoint": "https://10.1.0.95:8008",
+                        "reachable": true,
+                        "observe_time": "2026-11-23T10:14:55Z"
+                      }
+                    ],
+                    "patroni": {
+                      "leader": "pg-a1",
+                      "role": "PRIMARY",
+                      "timeline": "5"
+                    },
+                    "nomad": {
+                      "leader": "10.1.0.91:4647",
+                      "ready_node_count": 3,
+                      "job_counts": {
+                        "healthy_count": 12
+                      }
+                    }
+                  },
+                  {
+                    "name": "datacenters/dc_b",
+                    "state": "STANDBY",
+                    "health": "OK",
+                    "sources": [
+                      {
+                        "system": "CONSUL",
+                        "endpoint": "10.2.0.89:8500",
+                        "reachable": true,
+                        "observe_time": "2026-11-23T10:14:55Z"
+                      },
+                      {
+                        "system": "NOMAD",
+                        "endpoint": "https://10.2.0.91:4646",
+                        "reachable": true,
+                        "observe_time": "2026-11-23T10:14:55Z"
+                      },
+                      {
+                        "system": "PATRONI",
+                        "endpoint": "https://10.2.0.95:8008",
+                        "reachable": true,
+                        "observe_time": "2026-11-23T10:14:55Z"
+                      }
+                    ],
+                    "patroni": {
+                      "leader": "pg-b1",
+                      "role": "STANDBY_LEADER",
+                      "timeline": "5",
+                      "standby_cluster_host": "10.1.0.95",
+                      "upstream_datacenter": "datacenters/dc_a",
+                      "lag_bytes": "0"
+                    },
+                    "nomad": {
+                      "leader": "10.2.0.91:4647",
+                      "ready_node_count": 3,
+                      "job_counts": {
+                        "stopped_count": 12
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request: `dcctl.request.invalid`.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Error"
+            },
+            "examples": {
+              "application/json": {
+                "id": "dcctl.request.invalid",
+                "code": 400,
+                "status": "Bad Request",
+                "detail": "invalid request",
+                "violations": [
+                  {
+                    "type": "field",
+                    "subject": "page_size",
+                    "description": "value must be greater than or equal to 0 and less than or equal to 500"
+                  }
+                ]
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong basic auth: `dcctl.auth.required`. Sent without `WWW-Authenticate`.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Error"
+            },
+            "examples": {
+              "application/json": {
+                "id": "dcctl.auth.required",
+                "code": 401,
+                "status": "Unauthorized",
+                "detail": "authentication required"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "page_size",
+            "description": "Accepted for AIP-158; the server returns all datacenters.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "page_token",
+            "description": "Accepted for AIP-158; the server returns all datacenters.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "DatacenterService"
+        ]
+      }
+    },
+    "/v1/datacenters/{datacenter}": {
+      "get": {
+        "summary": "Returns the datacenter details as seen by the instance that answers.",
+        "operationId": "GetDatacenter",
+        "responses": {
+          "200": {
+            "description": "Datacenter details.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Datacenter"
+            },
+            "examples": {
+              "application/json": {
+                "name": "datacenters/dc_b",
+                "state": "STANDBY",
+                "health": "OK",
+                "sources": [
+                  {
+                    "system": "CONSUL",
+                    "endpoint": "10.2.0.89:8500",
+                    "reachable": true,
+                    "observe_time": "2026-11-23T10:14:55Z"
+                  },
+                  {
+                    "system": "NOMAD",
+                    "endpoint": "https://10.2.0.91:4646",
+                    "reachable": true,
+                    "observe_time": "2026-11-23T10:14:55Z"
+                  },
+                  {
+                    "system": "PATRONI",
+                    "endpoint": "https://10.2.0.95:8008",
+                    "reachable": true,
+                    "observe_time": "2026-11-23T10:14:55Z"
+                  }
+                ],
+                "patroni": {
+                  "leader": "pg-b1",
+                  "role": "STANDBY_LEADER",
+                  "timeline": "5",
+                  "standby_cluster_host": "10.1.0.95",
+                  "upstream_datacenter": "datacenters/dc_a",
+                  "lag_bytes": "0",
+                  "members": [
+                    {
+                      "member": "pg-b1",
+                      "host": "10.2.0.95",
+                      "api_uri": "https://10.2.0.95:8008",
+                      "reachable": true,
+                      "role": "STANDBY_LEADER",
+                      "patroni_state": "streaming",
+                      "timeline": "5",
+                      "replication_state": "streaming",
+                      "xlog": {
+                        "received_location": "83886176",
+                        "replayed_location": "83886176",
+                        "replay_time": "2026-11-23T10:14:54Z"
+                      },
+                      "lag_bytes": "0",
+                      "version": "4.1.0",
+                      "usable": true
+                    },
+                    {
+                      "member": "pg-b2",
+                      "host": "10.2.0.96",
+                      "api_uri": "https://10.2.0.96:8008",
+                      "reachable": true,
+                      "role": "REPLICA",
+                      "patroni_state": "streaming",
+                      "timeline": "5",
+                      "replication_state": "streaming",
+                      "xlog": {
+                        "received_location": "83886176",
+                        "replayed_location": "83886176",
+                        "replay_time": "2026-11-23T10:14:54Z"
+                      },
+                      "lag_bytes": "0",
+                      "version": "4.1.0",
+                      "usable": true
+                    }
+                  ]
+                },
+                "nomad": {
+                  "leader": "10.2.0.91:4647",
+                  "ready_node_count": 3,
+                  "job_counts": {
+                    "stopped_count": 2
+                  },
+                  "stages": [
+                    {
+                      "stage": 1,
+                      "job_counts": {
+                        "stopped_count": 1
+                      },
+                      "jobs": [
+                        {
+                          "job": "freeswitch",
+                          "stage": 1,
+                          "type": "SYSTEM",
+                          "stop": true,
+                          "state": "STOPPED",
+                          "allocation_counts": {
+                            "complete": 3
+                          },
+                          "modify_index": "4182",
+                          "expected_node_count": 3
+                        }
+                      ]
+                    },
+                    {
+                      "stage": 3,
+                      "job_counts": {
+                        "stopped_count": 1
+                      },
+                      "jobs": [
+                        {
+                          "job": "webitel-core-api",
+                          "stage": 3,
+                          "type": "SERVICE",
+                          "stop": true,
+                          "state": "STOPPED",
+                          "allocation_counts": {
+                            "complete": 2
+                          },
+                          "modify_index": "4190"
+                        }
+                      ]
+                    }
+                  ],
+                  "unmanaged_jobs": [
+                    {
+                      "job": "node-exporter",
+                      "nomad_status": "running"
+                    }
+                  ]
+                },
+                "observer": {
+                  "node": "dcctl-a1",
+                  "datacenter": "datacenters/dc_a",
+                  "address": "10.1.0.81:10023"
+                },
+                "observe_time": "2026-11-23T10:14:55Z",
+                "consul": {
+                  "servers": [
+                    {
+                      "address": "10.2.0.89:8500",
+                      "reachable": true,
+                      "consul_datacenter": "dc_b"
+                    }
+                  ]
+                },
+                "info_checks": [
+                  {
+                    "id": "info.rabbitmq",
+                    "result": "PASS",
+                    "datacenter": "datacenters/dc_b",
+                    "detail": "rabbitmq: 3 of 3 passing",
+                    "facts": {
+                      "service": "rabbitmq",
+                      "passing": 3,
+                      "total": 3
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request: `dcctl.request.invalid`.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Error"
+            },
+            "examples": {
+              "application/json": {
+                "id": "dcctl.request.invalid",
+                "code": 400,
+                "status": "Bad Request",
+                "detail": "invalid request",
+                "violations": [
+                  {
+                    "type": "field",
+                    "subject": "page_size",
+                    "description": "value must be greater than or equal to 0 and less than or equal to 500"
+                  }
+                ]
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong basic auth: `dcctl.auth.required`. Sent without `WWW-Authenticate`.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Error"
+            },
+            "examples": {
+              "application/json": {
+                "id": "dcctl.auth.required",
+                "code": 401,
+                "status": "Unauthorized",
+                "detail": "authentication required"
+              }
+            }
+          },
+          "404": {
+            "description": "The datacenter is not in the config: `dcctl.datacenter.not_found`.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Error"
+            },
+            "examples": {
+              "application/json": {
+                "id": "dcctl.datacenter.not_found",
+                "code": 404,
+                "status": "Not Found",
+                "detail": "datacenter dc_c not found",
+                "metadata": {
+                  "datacenter": "datacenters/dc_c"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "datacenter",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "DatacenterService"
+        ]
+      }
+    },
+    "/v1/status": {
+      "get": {
+        "summary": "Returns the summary state as seen by the instance that answers.",
+        "operationId": "GetStatus",
+        "responses": {
+          "200": {
+            "description": "Summary state.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Status"
+            },
+            "examples": {
+              "application/json": {
+                "name": "status",
+                "observer": {
+                  "node": "dcctl-a1",
+                  "datacenter": "datacenters/dc_a",
+                  "address": "10.1.0.81:10023"
+                },
+                "observe_time": "2026-11-23T10:14:55Z",
+                "cycle_duration": "0.420s",
+                "profile": "WARM_STANDBY",
+                "initialized": true,
+                "detected_active_datacenter": "datacenters/dc_a",
+                "active_datacenter": "datacenters/dc_a",
+                "generation": "7",
+                "patroni_timeline": "5",
+                "update_time": "2026-11-20T16:02:11Z",
+                "voters": [
+                  {
+                    "type": "DATACENTER",
+                    "datacenter": "datacenters/dc_a",
+                    "reachable": true,
+                    "generation": "7",
+                    "active_datacenter": "datacenters/dc_a",
+                    "valid": true
+                  },
+                  {
+                    "type": "DATACENTER",
+                    "datacenter": "datacenters/dc_b",
+                    "reachable": true,
+                    "generation": "7",
+                    "active_datacenter": "datacenters/dc_a",
+                    "valid": true
+                  },
+                  {
+                    "type": "ARBITER",
+                    "reachable": false,
+                    "error": "TIMEOUT",
+                    "generation": "7",
+                    "active_datacenter": "datacenters/dc_a",
+                    "valid": true,
+                    "initialized": true
+                  }
+                ],
+                "quorum": {
+                  "available": true,
+                  "mode": "QUORUM",
+                  "reachable_count": 2,
+                  "required_count": 2,
+                  "total_count": 3
+                },
+                "lease": {
+                  "holder": "datacenters/dc_a",
+                  "generation": "7",
+                  "counter": "18342",
+                  "age": "4.100s"
+                },
+                "alarms": [
+                  {
+                    "type": "VOTER_UNREACHABLE",
+                    "severity": "WARNING",
+                    "voter_type": "ARBITER",
+                    "start_time": "2026-11-23T10:12:40Z",
+                    "detail": "arbiter does not answer",
+                    "facts": {
+                      "address": "10.9.0.10:10024",
+                      "error": "timeout"
+                    }
+                  }
+                ],
+                "datacenters": [
+                  {
+                    "name": "datacenters/dc_a",
+                    "state": "ACTIVE",
+                    "health": "OK",
+                    "sources": [
+                      {
+                        "system": "CONSUL",
+                        "endpoint": "10.1.0.89:8500",
+                        "reachable": true,
+                        "observe_time": "2026-11-23T10:14:55Z"
+                      },
+                      {
+                        "system": "NOMAD",
+                        "endpoint": "https://10.1.0.91:4646",
+                        "reachable": true,
+                        "observe_time": "2026-11-23T10:14:55Z"
+                      },
+                      {
+                        "system": "PATRONI",
+                        "endpoint": "https://10.1.0.95:8008",
+                        "reachable": true,
+                        "observe_time": "2026-11-23T10:14:55Z"
+                      }
+                    ],
+                    "patroni": {
+                      "leader": "pg-a1",
+                      "role": "PRIMARY",
+                      "timeline": "5"
+                    },
+                    "nomad": {
+                      "leader": "10.1.0.91:4647",
+                      "ready_node_count": 3,
+                      "job_counts": {
+                        "healthy_count": 12
+                      }
+                    }
+                  },
+                  {
+                    "name": "datacenters/dc_b",
+                    "state": "STANDBY",
+                    "health": "OK",
+                    "sources": [
+                      {
+                        "system": "CONSUL",
+                        "endpoint": "10.2.0.89:8500",
+                        "reachable": true,
+                        "observe_time": "2026-11-23T10:14:55Z"
+                      },
+                      {
+                        "system": "NOMAD",
+                        "endpoint": "https://10.2.0.91:4646",
+                        "reachable": true,
+                        "observe_time": "2026-11-23T10:14:55Z"
+                      },
+                      {
+                        "system": "PATRONI",
+                        "endpoint": "https://10.2.0.95:8008",
+                        "reachable": true,
+                        "observe_time": "2026-11-23T10:14:55Z"
+                      }
+                    ],
+                    "patroni": {
+                      "leader": "pg-b1",
+                      "role": "STANDBY_LEADER",
+                      "timeline": "5",
+                      "standby_cluster_host": "10.1.0.95",
+                      "upstream_datacenter": "datacenters/dc_a",
+                      "lag_bytes": "0"
+                    },
+                    "nomad": {
+                      "leader": "10.2.0.91:4647",
+                      "ready_node_count": 3,
+                      "job_counts": {
+                        "stopped_count": 12
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request: `dcctl.request.invalid`.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Error"
+            },
+            "examples": {
+              "application/json": {
+                "id": "dcctl.request.invalid",
+                "code": 400,
+                "status": "Bad Request",
+                "detail": "invalid request",
+                "violations": [
+                  {
+                    "type": "field",
+                    "subject": "page_size",
+                    "description": "value must be greater than or equal to 0 and less than or equal to 500"
+                  }
+                ]
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong basic auth: `dcctl.auth.required`. Sent without `WWW-Authenticate`.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Error"
+            },
+            "examples": {
+              "application/json": {
+                "id": "dcctl.auth.required",
+                "code": 401,
+                "status": "Unauthorized",
+                "detail": "authentication required"
+              }
+            }
+          }
+        },
+        "tags": [
+          "StatusService"
+        ]
+      }
+    },
+    "/v1/status:verify": {
+      "get": {
+        "summary": "Checks the conditions of a completed switch for the current active\ndatacenter without changing anything.",
+        "operationId": "VerifyStatus",
+        "responses": {
+          "200": {
+            "description": "Verify checks.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.VerifyStatusResponse"
+            },
+            "examples": {
+              "application/json": {
+                "checks": [
+                  {
+                    "id": "verify.patroni",
+                    "result": "PASS",
+                    "detail": "dc_a primary, dc_b standby_leader follows dc_a on timeline 5"
+                  },
+                  {
+                    "id": "verify.jobs",
+                    "result": "PASS",
+                    "detail": "12 jobs healthy in dc_a, stopped in dc_b"
+                  },
+                  {
+                    "id": "verify.state",
+                    "result": "PASS",
+                    "detail": "generation 7 on 3 of 3 voters"
+                  }
+                ]
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request: `dcctl.request.invalid`.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Error"
+            },
+            "examples": {
+              "application/json": {
+                "id": "dcctl.request.invalid",
+                "code": 400,
+                "status": "Bad Request",
+                "detail": "invalid request",
+                "violations": [
+                  {
+                    "type": "field",
+                    "subject": "page_size",
+                    "description": "value must be greater than or equal to 0 and less than or equal to 500"
+                  }
+                ]
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong basic auth: `dcctl.auth.required`. Sent without `WWW-Authenticate`.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Error"
+            },
+            "examples": {
+              "application/json": {
+                "id": "dcctl.auth.required",
+                "code": 401,
+                "status": "Unauthorized",
+                "detail": "authentication required"
+              }
+            }
+          }
+        },
+        "tags": [
+          "StatusService"
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "google.protobuf.NullValue": {
+      "type": "string",
+      "enum": [
+        "NULL_VALUE"
+      ],
+      "default": "NULL_VALUE",
+      "description": "Represents a JSON `null`.\n\n`NullValue` is a sentinel, using an enum with only one value to represent\nthe null value for the `Value` type union.\n\nA field of type `NullValue` with any value other than `0` is considered\ninvalid. Most ProtoJSON serializers will emit a `Value` with a `null_value`\nset as a JSON `null` regardless of the integer value, and so will round trip\nto a `0` value.\n\n - NULL_VALUE: Null value."
+    },
+    "webitel.dcctl.v1.Check": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Stable check identifier, for example `coord.lock_free`.",
+          "readOnly": true
+        },
+        "result": {
+          "$ref": "#/definitions/webitel.dcctl.v1.Check.Result",
+          "description": "Check result.",
+          "readOnly": true
+        },
+        "effect": {
+          "$ref": "#/definitions/webitel.dcctl.v1.Check.Effect",
+          "description": "Effect of a failure.",
+          "readOnly": true
+        },
+        "confirmation": {
+          "type": "string",
+          "description": "Confirmation field that accepts the failure, set when effect is CONFIRM:\n`isolation`, `not_max_lsn` or `max_discard_bytes`.",
+          "readOnly": true
+        },
+        "datacenter": {
+          "type": "string",
+          "description": "Datacenter the check is about, when it is about one.",
+          "readOnly": true
+        },
+        "detail": {
+          "type": "string",
+          "description": "Human-readable explanation.",
+          "readOnly": true
+        },
+        "facts": {
+          "type": "object",
+          "description": "Data the result is based on. Keys depend on the check. Numbers inside\nare JSON numbers, unlike int64 fields of the API, which are JSON strings.",
+          "readOnly": true
+        }
+      },
+      "description": "Result of one preflight, verify or informational check."
+    },
+    "webitel.dcctl.v1.Check.Effect": {
+      "type": "string",
+      "enum": [
+        "EFFECT_UNSPECIFIED",
+        "BLOCK",
+        "WARN_ONLY",
+        "CONFIRM"
+      ],
+      "default": "EFFECT_UNSPECIFIED",
+      "description": "What a failed check does to the action.\n\n - EFFECT_UNSPECIFIED: Informational and verify checks.\n - BLOCK: Failure rejects the action with PREFLIGHT_FAILED.\n - WARN_ONLY: Failure is reported as WARN and goes to the operation warnings.\n - CONFIRM: Failure requires the confirmation named in `confirmation`."
+    },
+    "webitel.dcctl.v1.Check.Result": {
+      "type": "string",
+      "enum": [
+        "RESULT_UNSPECIFIED",
+        "PASS",
+        "FAIL",
+        "WARN",
+        "SKIP"
+      ],
+      "default": "RESULT_UNSPECIFIED",
+      "description": "Check result.\n\n - RESULT_UNSPECIFIED: Not set.\n - PASS: The condition holds.\n - FAIL: The condition does not hold, or data to evaluate it is missing.\n - WARN: The condition does not hold, the action is not blocked.\n - SKIP: The check does not apply to the situation."
+    },
+    "webitel.dcctl.v1.Datacenter": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Resource name: `datacenters/{datacenter}`, where `{datacenter}` is the\nConsul datacenter name."
+        },
+        "state": {
+          "$ref": "#/definitions/webitel.dcctl.v1.Datacenter.State",
+          "description": "Role in coordination.",
+          "readOnly": true
+        },
+        "health": {
+          "$ref": "#/definitions/webitel.dcctl.v1.Datacenter.Health",
+          "description": "Whether the datacenter works in its role.",
+          "readOnly": true
+        },
+        "health_reasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Why health is DEGRADED or DOWN.",
+          "readOnly": true
+        },
+        "needs_recovery": {
+          "type": "boolean",
+          "description": "The datacenter is in needs_recovery of the effective state. Set even\nwhen state shows a higher-priority value.",
+          "readOnly": true
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/webitel.dcctl.v1.Source"
+          },
+          "description": "Reachability of each source.",
+          "readOnly": true
+        },
+        "consul": {
+          "$ref": "#/definitions/webitel.dcctl.v1.Datacenter.Consul",
+          "description": "Consul. GetDatacenter only.",
+          "readOnly": true
+        },
+        "patroni": {
+          "$ref": "#/definitions/webitel.dcctl.v1.Datacenter.Patroni",
+          "description": "Patroni.",
+          "readOnly": true
+        },
+        "nomad": {
+          "$ref": "#/definitions/webitel.dcctl.v1.Datacenter.Nomad",
+          "description": "Nomad.",
+          "readOnly": true
+        },
+        "info_checks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/webitel.dcctl.v1.Check"
+          },
+          "description": "Informational checks `info.*`. They do not affect state, health,\nalarms or preflight. GetDatacenter only.",
+          "readOnly": true
+        },
+        "observer": {
+          "$ref": "#/definitions/webitel.dcctl.v1.Instance",
+          "description": "Instance whose view this is. GetDatacenter only.",
+          "readOnly": true
+        },
+        "observe_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the observer's last collection cycle finished. GetDatacenter only.",
+          "readOnly": true
+        }
+      },
+      "description": "A datacenter as seen by the instance that answers. ListDatacenters and\nStatus fill the summary fields; the observer, members, nodes, jobs and\ninfo checks are filled by GetDatacenter only."
+    },
+    "webitel.dcctl.v1.Datacenter.Consul": {
+      "type": "object",
+      "properties": {
+        "servers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/webitel.dcctl.v1.Datacenter.Consul.Server"
+          },
+          "description": "Servers of the datacenter.",
+          "readOnly": true
+        }
+      },
+      "description": "Consul of the datacenter."
+    },
+    "webitel.dcctl.v1.Datacenter.Consul.Server": {
+      "type": "object",
+      "properties": {
+        "address": {
+          "type": "string",
+          "description": "Server address.",
+          "readOnly": true
+        },
+        "reachable": {
+          "type": "boolean",
+          "description": "The server answers.",
+          "readOnly": true
+        },
+        "consul_datacenter": {
+          "type": "string",
+          "description": "Consul datacenter reported by the server. Differs from the\ndatacenter name on a misconfiguration.",
+          "readOnly": true
+        }
+      },
+      "description": "Consul server from the config."
+    },
+    "webitel.dcctl.v1.Datacenter.Health": {
+      "type": "string",
+      "enum": [
+        "HEALTH_UNSPECIFIED",
+        "OK",
+        "DEGRADED",
+        "DOWN",
+        "UNKNOWN"
+      ],
+      "default": "HEALTH_UNSPECIFIED",
+      "description": "Whether the datacenter works in its role.\n\n - HEALTH_UNSPECIFIED: Not set.\n - OK: Works in its role.\n - DEGRADED: Works with problems listed in health_reasons.\n - DOWN: Does not work in its role.\n - UNKNOWN: Unreachable, or a source is missing to tell."
+    },
+    "webitel.dcctl.v1.Datacenter.Nomad": {
+      "type": "object",
+      "properties": {
+        "leader": {
+          "type": "string",
+          "description": "Address of the Nomad leader.",
+          "readOnly": true
+        },
+        "ready_node_count": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Nodes in `ready`.",
+          "readOnly": true
+        },
+        "ineligible_node_count": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Nodes in `ineligible`.",
+          "readOnly": true
+        },
+        "draining_node_count": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Nodes in `draining`.",
+          "readOnly": true
+        },
+        "down_node_count": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Nodes in `down`.",
+          "readOnly": true
+        },
+        "not_ready_nodes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/webitel.dcctl.v1.Datacenter.Nomad.Node"
+          },
+          "description": "Nodes that are not ready. GetDatacenter only.",
+          "readOnly": true
+        },
+        "job_counts": {
+          "$ref": "#/definitions/webitel.dcctl.v1.Datacenter.Nomad.JobCounts",
+          "description": "Number of managed jobs in each state.",
+          "readOnly": true
+        },
+        "stages": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/webitel.dcctl.v1.Datacenter.Nomad.Stage"
+          },
+          "description": "Managed jobs by stage. GetDatacenter only.",
+          "readOnly": true
+        },
+        "unmanaged_jobs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/webitel.dcctl.v1.Datacenter.Nomad.UnmanagedJob"
+          },
+          "description": "Unmanaged jobs. GetDatacenter only.",
+          "readOnly": true
+        }
+      },
+      "description": "Nomad of the datacenter."
+    },
+    "webitel.dcctl.v1.Datacenter.Nomad.Job": {
+      "type": "object",
+      "properties": {
+        "job": {
+          "type": "string",
+          "description": "Job name.",
+          "readOnly": true
+        },
+        "stage": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Stage from `meta.dcctl_stage`.",
+          "readOnly": true
+        },
+        "type": {
+          "$ref": "#/definitions/webitel.dcctl.v1.Datacenter.Nomad.Job.Type",
+          "description": "Job type.",
+          "readOnly": true
+        },
+        "stop": {
+          "type": "boolean",
+          "description": "Nomad Stop flag.",
+          "readOnly": true
+        },
+        "state": {
+          "$ref": "#/definitions/webitel.dcctl.v1.Datacenter.Nomad.Job.State",
+          "description": "Job state.",
+          "readOnly": true
+        },
+        "allocation_counts": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "description": "Number of allocations by Nomad ClientStatus, for example\n`running`, `pending`, `failed`.",
+          "readOnly": true
+        },
+        "modify_index": {
+          "type": "string",
+          "format": "int64",
+          "description": "Nomad JobModifyIndex.",
+          "readOnly": true
+        },
+        "healthy_node_count": {
+          "type": "integer",
+          "format": "int32",
+          "description": "System job: nodes with a healthy allocation.",
+          "readOnly": true
+        },
+        "expected_node_count": {
+          "type": "integer",
+          "format": "int32",
+          "description": "System job: nodes expected to run it.",
+          "readOnly": true
+        },
+        "missing_nodes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/webitel.dcctl.v1.Datacenter.Nomad.Node"
+          },
+          "description": "System job: nodes without a healthy allocation and why.",
+          "readOnly": true
+        }
+      },
+      "description": "Managed job: a Nomad job with `meta.dcctl_stage`."
+    },
+    "webitel.dcctl.v1.Datacenter.Nomad.Job.State": {
+      "type": "string",
+      "enum": [
+        "STATE_UNSPECIFIED",
+        "STOPPED",
+        "STOPPING",
+        "HEALTHY",
+        "UNHEALTHY"
+      ],
+      "default": "STATE_UNSPECIFIED",
+      "description": "Job state.\n\n - STATE_UNSPECIFIED: Not set.\n - STOPPED: Stopped.\n - STOPPING: Stop requested, allocations are still pending, running or\nunknown.\n - HEALTHY: Running and healthy.\n - UNHEALTHY: Not stopped and not healthy, including while starting."
+    },
+    "webitel.dcctl.v1.Datacenter.Nomad.Job.Type": {
+      "type": "string",
+      "enum": [
+        "TYPE_UNSPECIFIED",
+        "SERVICE",
+        "SYSTEM",
+        "BATCH",
+        "SYSBATCH"
+      ],
+      "default": "TYPE_UNSPECIFIED",
+      "description": "Nomad job type.\n\n - TYPE_UNSPECIFIED: Not set.\n - SERVICE: service.\n - SYSTEM: system.\n - BATCH: batch.\n - SYSBATCH: sysbatch."
+    },
+    "webitel.dcctl.v1.Datacenter.Nomad.JobCounts": {
+      "type": "object",
+      "properties": {
+        "stopped_count": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Jobs in STOPPED.",
+          "readOnly": true
+        },
+        "stopping_count": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Jobs in STOPPING.",
+          "readOnly": true
+        },
+        "healthy_count": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Jobs in HEALTHY.",
+          "readOnly": true
+        },
+        "unhealthy_count": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Jobs in UNHEALTHY.",
+          "readOnly": true
+        }
+      },
+      "description": "Number of managed jobs in each state."
+    },
+    "webitel.dcctl.v1.Datacenter.Nomad.Node": {
+      "type": "object",
+      "properties": {
+        "node": {
+          "type": "string",
+          "description": "Node name.",
+          "readOnly": true
+        },
+        "reason": {
+          "$ref": "#/definitions/webitel.dcctl.v1.Datacenter.Nomad.Node.Reason",
+          "description": "Why the node is not ready.",
+          "readOnly": true
+        }
+      },
+      "description": "Nomad node that does not run managed jobs normally."
+    },
+    "webitel.dcctl.v1.Datacenter.Nomad.Node.Reason": {
+      "type": "string",
+      "enum": [
+        "REASON_UNSPECIFIED",
+        "DRAINING",
+        "DOWN",
+        "INELIGIBLE"
+      ],
+      "default": "REASON_UNSPECIFIED",
+      "description": "Why the node is not ready.\n\n - REASON_UNSPECIFIED: Not set.\n - DRAINING: The node is draining.\n - DOWN: The node is down.\n - INELIGIBLE: The node is ineligible for scheduling."
+    },
+    "webitel.dcctl.v1.Datacenter.Nomad.Stage": {
+      "type": "object",
+      "properties": {
+        "stage": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Stage number.",
+          "readOnly": true
+        },
+        "job_counts": {
+          "$ref": "#/definitions/webitel.dcctl.v1.Datacenter.Nomad.JobCounts",
+          "description": "Number of jobs of the stage in each state.",
+          "readOnly": true
+        },
+        "jobs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/webitel.dcctl.v1.Datacenter.Nomad.Job"
+          },
+          "description": "Jobs of the stage.",
+          "readOnly": true
+        }
+      },
+      "description": "Jobs of one stage."
+    },
+    "webitel.dcctl.v1.Datacenter.Nomad.UnmanagedJob": {
+      "type": "object",
+      "properties": {
+        "job": {
+          "type": "string",
+          "description": "Job name.",
+          "readOnly": true
+        },
+        "nomad_status": {
+          "type": "string",
+          "description": "Nomad job status as reported.",
+          "readOnly": true
+        }
+      },
+      "description": "Job without `meta.dcctl_stage`; dcctl does not manage it."
+    },
+    "webitel.dcctl.v1.Datacenter.Patroni": {
+      "type": "object",
+      "properties": {
+        "leader": {
+          "type": "string",
+          "description": "Leader member of the datacenter.",
+          "readOnly": true
+        },
+        "role": {
+          "$ref": "#/definitions/webitel.dcctl.v1.Datacenter.Patroni.Role",
+          "description": "Role of the leader.",
+          "readOnly": true
+        },
+        "timeline": {
+          "type": "string",
+          "format": "int64",
+          "description": "Timeline of the leader.",
+          "readOnly": true
+        },
+        "paused": {
+          "type": "boolean",
+          "description": "Patroni pause is set.",
+          "readOnly": true
+        },
+        "standby_cluster_host": {
+          "type": "string",
+          "description": "`standby_cluster.host` from the leader config.",
+          "readOnly": true
+        },
+        "upstream_datacenter": {
+          "type": "string",
+          "description": "Datacenter whose nodes standby_cluster_host points at.",
+          "readOnly": true
+        },
+        "lag_bytes": {
+          "type": "string",
+          "format": "int64",
+          "description": "Lag of the datacenter behind the active primary. Approximate between\nclusters.",
+          "readOnly": true
+        },
+        "divergence_lsn": {
+          "type": "string",
+          "description": "Point where the timeline diverged from the active leader, as an LSN\nlike `0/5000060`. Set only when the datacenter diverged.",
+          "readOnly": true
+        },
+        "divergence_bytes": {
+          "type": "string",
+          "format": "int64",
+          "description": "WAL written after the divergence point.",
+          "readOnly": true
+        },
+        "members": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/webitel.dcctl.v1.Datacenter.Patroni.Member"
+          },
+          "description": "Members. GetDatacenter only.",
+          "readOnly": true
+        }
+      },
+      "description": "Patroni cluster of the datacenter (warm_standby) or the part of the\ncluster in it (stretch)."
+    },
+    "webitel.dcctl.v1.Datacenter.Patroni.Member": {
+      "type": "object",
+      "properties": {
+        "member": {
+          "type": "string",
+          "description": "Member name.",
+          "readOnly": true
+        },
+        "host": {
+          "type": "string",
+          "description": "PostgreSQL host.",
+          "readOnly": true
+        },
+        "api_uri": {
+          "type": "string",
+          "description": "Patroni REST API URI.",
+          "readOnly": true
+        },
+        "reachable": {
+          "type": "boolean",
+          "description": "The REST API answers.",
+          "readOnly": true
+        },
+        "error": {
+          "$ref": "#/definitions/webitel.dcctl.v1.Source.Error",
+          "description": "Why the REST API does not answer.",
+          "readOnly": true
+        },
+        "role": {
+          "$ref": "#/definitions/webitel.dcctl.v1.Datacenter.Patroni.Role",
+          "description": "Member role.",
+          "readOnly": true
+        },
+        "patroni_state": {
+          "type": "string",
+          "description": "Patroni member state as reported, for example `running`,\n`streaming`.",
+          "readOnly": true
+        },
+        "timeline": {
+          "type": "string",
+          "format": "int64",
+          "description": "Timeline.",
+          "readOnly": true
+        },
+        "replication_state": {
+          "type": "string",
+          "description": "Replication state as reported, for example `streaming`.",
+          "readOnly": true
+        },
+        "xlog": {
+          "$ref": "#/definitions/webitel.dcctl.v1.Datacenter.Patroni.Xlog",
+          "description": "WAL positions.",
+          "readOnly": true
+        },
+        "lag_bytes": {
+          "type": "string",
+          "format": "int64",
+          "description": "Lag behind the cluster leader.",
+          "readOnly": true
+        },
+        "version": {
+          "type": "string",
+          "description": "Patroni version.",
+          "readOnly": true
+        },
+        "failover_priority": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Patroni failover_priority tag.",
+          "readOnly": true
+        },
+        "no_failover": {
+          "type": "boolean",
+          "description": "Patroni nofailover tag.",
+          "readOnly": true
+        },
+        "usable": {
+          "type": "boolean",
+          "description": "The member can be used by dcctl.",
+          "readOnly": true
+        },
+        "unusable_reason": {
+          "$ref": "#/definitions/webitel.dcctl.v1.Datacenter.Patroni.UnusableReason",
+          "description": "Why the member cannot be used.",
+          "readOnly": true
+        }
+      },
+      "description": "Patroni member."
+    },
+    "webitel.dcctl.v1.Datacenter.Patroni.Role": {
+      "type": "string",
+      "enum": [
+        "ROLE_UNSPECIFIED",
+        "PRIMARY",
+        "STANDBY_LEADER",
+        "REPLICA",
+        "SYNC_STANDBY",
+        "QUORUM_STANDBY"
+      ],
+      "default": "ROLE_UNSPECIFIED",
+      "description": "Role of a Patroni member.\n\n - ROLE_UNSPECIFIED: Not set or not reported.\n - PRIMARY: Primary.\n - STANDBY_LEADER: Leader of a standby cluster.\n - REPLICA: Replica.\n - SYNC_STANDBY: Synchronous standby.\n - QUORUM_STANDBY: Quorum standby."
+    },
+    "webitel.dcctl.v1.Datacenter.Patroni.UnusableReason": {
+      "type": "string",
+      "enum": [
+        "UNUSABLE_REASON_UNSPECIFIED",
+        "VERSION",
+        "TLS",
+        "UNREACHABLE"
+      ],
+      "default": "UNUSABLE_REASON_UNSPECIFIED",
+      "description": "Why a member cannot be used.\n\n - UNUSABLE_REASON_UNSPECIFIED: The member is usable.\n - VERSION: Patroni is older than 4.1.0.\n - TLS: The REST API has no valid TLS certificate.\n - UNREACHABLE: The REST API does not answer."
+    },
+    "webitel.dcctl.v1.Datacenter.Patroni.Xlog": {
+      "type": "object",
+      "properties": {
+        "location": {
+          "type": "string",
+          "format": "int64",
+          "description": "Current WAL position of a primary.",
+          "readOnly": true
+        },
+        "received_location": {
+          "type": "string",
+          "format": "int64",
+          "description": "Last received WAL position of a replica.",
+          "readOnly": true
+        },
+        "replayed_location": {
+          "type": "string",
+          "format": "int64",
+          "description": "Last replayed WAL position of a replica.",
+          "readOnly": true
+        },
+        "replay_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Commit time of the last replayed transaction.",
+          "readOnly": true
+        }
+      },
+      "description": "WAL positions of a member, in bytes."
+    },
+    "webitel.dcctl.v1.Datacenter.State": {
+      "type": "string",
+      "enum": [
+        "STATE_UNSPECIFIED",
+        "UNREACHABLE",
+        "UNINITIALIZED",
+        "ACTIVE",
+        "SPLIT_BRAIN",
+        "DB_SPLIT",
+        "STALE",
+        "NEEDS_RECOVERY",
+        "STANDBY"
+      ],
+      "default": "STATE_UNSPECIFIED",
+      "description": "Role of the datacenter in coordination. The first matching value in\nthis order wins.\n\n - STATE_UNSPECIFIED: Not set.\n - UNREACHABLE: No source of the datacenter is reachable.\n - UNINITIALIZED: No voter has the dcctl state.\n - ACTIVE: The active datacenter of the effective state.\n - SPLIT_BRAIN: An inactive datacenter runs a managed job that is not stopped.\n - DB_SPLIT: warm_standby: the Patroni leader of an inactive datacenter is primary.\n - STALE: The voter of the datacenter has an older generation.\n - NEEDS_RECOVERY: Waits for recovery after a failover.\n - STANDBY: Healthy standby."
+    },
+    "webitel.dcctl.v1.Error": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Error id, for example `dcctl.preflight.failed`.",
+          "readOnly": true
+        },
+        "code": {
+          "type": "integer",
+          "format": "int32",
+          "description": "HTTP status code.",
+          "readOnly": true
+        },
+        "detail": {
+          "type": "string",
+          "description": "Message for the developer.",
+          "readOnly": true
+        },
+        "status": {
+          "type": "string",
+          "description": "HTTP status text.",
+          "readOnly": true
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "ErrorInfo metadata: `operation`, `holder`, `datacenter`, `instance`,\n`state`.",
+          "readOnly": true
+        },
+        "violations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/webitel.dcctl.v1.Violation"
+          },
+          "description": "BadRequest field violations and PreconditionFailure violations.",
+          "readOnly": true
+        }
+      },
+      "description": "Error body of the HTTP gateway. gRPC clients get google.rpc.Status with\nErrorInfo (domain `dcctl.webitel.com`), BadRequest, PreconditionFailure\nand Preflight details instead. Clients tell errors apart by `id`, not by\nthe HTTP status."
+    },
+    "webitel.dcctl.v1.Instance": {
+      "type": "object",
+      "properties": {
+        "node": {
+          "type": "string",
+          "description": "Consul node name of the instance.",
+          "readOnly": true
+        },
+        "datacenter": {
+          "type": "string",
+          "description": "Datacenter of the instance.",
+          "readOnly": true
+        },
+        "address": {
+          "type": "string",
+          "description": "Peer address of the instance (`listen.peer`).",
+          "readOnly": true
+        }
+      },
+      "description": "A dcctl instance: one `webitel-dcctl serve` process."
+    },
+    "webitel.dcctl.v1.ListDatacentersResponse": {
+      "type": "object",
+      "properties": {
+        "datacenters": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/webitel.dcctl.v1.Datacenter"
+          },
+          "description": "Datacenters, summary fields only.",
+          "readOnly": true
+        },
+        "next_page_token": {
+          "type": "string",
+          "description": "Always empty.",
+          "readOnly": true
+        }
+      },
+      "description": "Response message for DatacenterService.ListDatacenters."
+    },
+    "webitel.dcctl.v1.Source": {
+      "type": "object",
+      "properties": {
+        "system": {
+          "$ref": "#/definitions/webitel.dcctl.v1.Source.System",
+          "description": "System.",
+          "readOnly": true
+        },
+        "endpoint": {
+          "type": "string",
+          "description": "Address the source was read from.",
+          "readOnly": true
+        },
+        "reachable": {
+          "type": "boolean",
+          "description": "The last request succeeded.",
+          "readOnly": true
+        },
+        "error": {
+          "$ref": "#/definitions/webitel.dcctl.v1.Source.Error",
+          "description": "Why the last request failed.",
+          "readOnly": true
+        },
+        "unreachable_start_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the source became unreachable.",
+          "readOnly": true
+        },
+        "observe_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the data was last read successfully.",
+          "readOnly": true
+        }
+      },
+      "description": "A source of the datacenter state. An unreachable source keeps its last\nknown data with observe_time."
+    },
+    "webitel.dcctl.v1.Source.Error": {
+      "type": "string",
+      "enum": [
+        "ERROR_UNSPECIFIED",
+        "TIMEOUT",
+        "REFUSED",
+        "DNS",
+        "TLS",
+        "AUTH",
+        "HTTP",
+        "INVALID"
+      ],
+      "default": "ERROR_UNSPECIFIED",
+      "description": "Why the source is unreachable.\n\n - ERROR_UNSPECIFIED: Reachable.\n - TIMEOUT: Request timed out.\n - REFUSED: Connection refused.\n - DNS: Name resolution failed.\n - TLS: TLS handshake or certificate check failed.\n - AUTH: Authentication failed.\n - HTTP: Unexpected HTTP status.\n - INVALID: Response could not be parsed."
+    },
+    "webitel.dcctl.v1.Source.System": {
+      "type": "string",
+      "enum": [
+        "SYSTEM_UNSPECIFIED",
+        "CONSUL",
+        "NOMAD",
+        "PATRONI"
+      ],
+      "default": "SYSTEM_UNSPECIFIED",
+      "description": "System the source belongs to.\n\n - SYSTEM_UNSPECIFIED: Not set.\n - CONSUL: Consul.\n - NOMAD: Nomad.\n - PATRONI: Patroni."
+    },
+    "webitel.dcctl.v1.Status": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Resource name: always `status`."
+        },
+        "observer": {
+          "$ref": "#/definitions/webitel.dcctl.v1.Instance",
+          "description": "Instance whose view this is.",
+          "readOnly": true
+        },
+        "observe_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the last collection cycle finished.",
+          "readOnly": true
+        },
+        "cycle_duration": {
+          "type": "string",
+          "description": "Duration of the last collection cycle.",
+          "readOnly": true
+        },
+        "profile": {
+          "$ref": "#/definitions/webitel.dcctl.v1.Status.Profile",
+          "description": "Deployment profile.",
+          "readOnly": true
+        },
+        "initialized": {
+          "type": "boolean",
+          "description": "At least one voter has the dcctl state.",
+          "readOnly": true
+        },
+        "detected_active_datacenter": {
+          "type": "string",
+          "description": "Datacenter with the Patroni primary (warm_standby) or leader (stretch).",
+          "readOnly": true
+        },
+        "active_datacenter": {
+          "type": "string",
+          "description": "Active datacenter of the effective state.",
+          "readOnly": true
+        },
+        "generation": {
+          "type": "string",
+          "format": "int64",
+          "description": "Generation of the effective state.",
+          "readOnly": true
+        },
+        "forced": {
+          "type": "boolean",
+          "description": "The effective state was written in FORCED mode.",
+          "readOnly": true
+        },
+        "patroni_timeline": {
+          "type": "string",
+          "format": "int64",
+          "description": "Patroni timeline of the effective state.",
+          "readOnly": true
+        },
+        "needs_recovery_datacenters": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Datacenters waiting for recovery after a failover.",
+          "readOnly": true
+        },
+        "update_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the effective state was written. For display only.",
+          "readOnly": true
+        },
+        "voters": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/webitel.dcctl.v1.Status.Voter"
+          },
+          "description": "Voters.",
+          "readOnly": true
+        },
+        "quorum": {
+          "$ref": "#/definitions/webitel.dcctl.v1.Status.Quorum",
+          "description": "Quorum.",
+          "readOnly": true
+        },
+        "lease": {
+          "$ref": "#/definitions/webitel.dcctl.v1.Status.Lease",
+          "description": "Lease.",
+          "readOnly": true
+        },
+        "alarms": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/webitel.dcctl.v1.Status.Alarm"
+          },
+          "description": "Raised alarms.",
+          "readOnly": true
+        },
+        "datacenters": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/webitel.dcctl.v1.Datacenter"
+          },
+          "description": "Datacenters, summary fields only.",
+          "readOnly": true
+        }
+      },
+      "description": "Summary state of the installation as seen by the instance in `observer`.\nBuilt from the last collection cycle; reads are not forwarded."
+    },
+    "webitel.dcctl.v1.Status.Alarm": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "$ref": "#/definitions/webitel.dcctl.v1.Status.Alarm.Type",
+          "description": "Alarm type.",
+          "readOnly": true
+        },
+        "severity": {
+          "$ref": "#/definitions/webitel.dcctl.v1.Status.Alarm.Severity",
+          "description": "Severity.",
+          "readOnly": true
+        },
+        "datacenter": {
+          "type": "string",
+          "description": "Datacenter of a datacenter alarm, or of a DATACENTER voter alarm.",
+          "readOnly": true
+        },
+        "start_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the alarm was raised.",
+          "readOnly": true
+        },
+        "detail": {
+          "type": "string",
+          "description": "Human-readable explanation.",
+          "readOnly": true
+        },
+        "facts": {
+          "type": "object",
+          "description": "Data the alarm is based on. Keys depend on the type. Numbers inside\nare JSON numbers, unlike int64 fields of the API, which are JSON\nstrings.",
+          "readOnly": true
+        },
+        "voter_type": {
+          "$ref": "#/definitions/webitel.dcctl.v1.Status.Voter.Type",
+          "description": "Voter of a voter alarm (VOTER_UNREACHABLE, ARBITER_UNINITIALIZED); the\ndatacenter of a DATACENTER voter is in `datacenter`. Not set for\nother alarms.",
+          "readOnly": true
+        }
+      },
+      "description": "A raised alarm. Alarms are computed on every cycle."
+    },
+    "webitel.dcctl.v1.Status.Alarm.Severity": {
+      "type": "string",
+      "enum": [
+        "SEVERITY_UNSPECIFIED",
+        "CRITICAL",
+        "WARNING"
+      ],
+      "default": "SEVERITY_UNSPECIFIED",
+      "description": "Alarm severity.\n\n - SEVERITY_UNSPECIFIED: Not set.\n - CRITICAL: Data at risk or the active datacenter does not serve; the operator\nhas to act.\n - WARNING: Everything else."
+    },
+    "webitel.dcctl.v1.Status.Alarm.Type": {
+      "type": "string",
+      "enum": [
+        "TYPE_UNSPECIFIED",
+        "CONFLICT",
+        "UNCOMMITTED",
+        "STALE",
+        "SPLIT_BRAIN",
+        "DB_SPLIT",
+        "MULTIPLE_PRIMARIES",
+        "DB_PRIMARY_MISSING",
+        "DATACENTER_UNREACHABLE",
+        "DB_LEADER_MISMATCH",
+        "LEASE_LOST",
+        "APPS_DEGRADED",
+        "DB_DEGRADED",
+        "STANDBY_NOT_FOLLOWING",
+        "VOTER_UNREACHABLE",
+        "QUORUM_LOST",
+        "ARBITER_UNINITIALIZED",
+        "OPERATION_INTERRUPTED"
+      ],
+      "default": "TYPE_UNSPECIFIED",
+      "description": "Alarm type.\n\n - TYPE_UNSPECIFIED: Not set.\n - CONFLICT: Two valid records with one generation and different active\ndatacenters.\n - UNCOMMITTED: A voter has a newer generation without a majority.\n - STALE: A datacenter voter has an older generation.\n - SPLIT_BRAIN: An inactive datacenter runs a managed job.\n - DB_SPLIT: warm_standby: the Patroni leader of an inactive datacenter is\nprimary.\n - MULTIPLE_PRIMARIES: More than one Patroni primary.\n - DB_PRIMARY_MISSING: No Patroni primary in the active datacenter.\n - DATACENTER_UNREACHABLE: No source of the datacenter is reachable.\n - DB_LEADER_MISMATCH: stretch: the Patroni leader is outside the active datacenter.\n - LEASE_LOST: The lease is not renewed or does not match the effective state.\n - APPS_DEGRADED: A managed job of the active datacenter is not healthy.\n - DB_DEGRADED: A Patroni member is unreachable, unusable or not running, or\nPatroni is paused.\n - STANDBY_NOT_FOLLOWING: warm_standby: a standby does not follow the active datacenter.\n - VOTER_UNREACHABLE: A voter is unreachable.\n - QUORUM_LOST: A majority of voters is unreachable.\n - ARBITER_UNINITIALIZED: The arbiter storage is empty.\n - OPERATION_INTERRUPTED: An operation is INTERRUPTED."
+    },
+    "webitel.dcctl.v1.Status.Lease": {
+      "type": "object",
+      "properties": {
+        "holder": {
+          "type": "string",
+          "description": "Datacenter that holds the lease.",
+          "readOnly": true
+        },
+        "generation": {
+          "type": "string",
+          "format": "int64",
+          "description": "Generation of the lease.",
+          "readOnly": true
+        },
+        "counter": {
+          "type": "string",
+          "format": "int64",
+          "description": "Renewal counter.",
+          "readOnly": true
+        },
+        "age": {
+          "type": "string",
+          "description": "Time since the counter last changed, by the observer clock.",
+          "readOnly": true
+        },
+        "lost": {
+          "type": "boolean",
+          "description": "The lease is considered lost.",
+          "readOnly": true
+        },
+        "fencing": {
+          "type": "boolean",
+          "description": "The holder has fencing rules enabled.",
+          "readOnly": true
+        }
+      },
+      "description": "Lease of the active datacenter."
+    },
+    "webitel.dcctl.v1.Status.Profile": {
+      "type": "string",
+      "enum": [
+        "PROFILE_UNSPECIFIED",
+        "WARM_STANDBY",
+        "STRETCH"
+      ],
+      "default": "PROFILE_UNSPECIFIED",
+      "description": "Deployment profile.\n\n - PROFILE_UNSPECIFIED: Not set.\n - WARM_STANDBY: A Patroni cluster and a Consul per datacenter.\n - STRETCH: One Patroni cluster and one Consul over all datacenters."
+    },
+    "webitel.dcctl.v1.Status.Quorum": {
+      "type": "object",
+      "properties": {
+        "available": {
+          "type": "boolean",
+          "description": "A majority of voters is reachable.",
+          "readOnly": true
+        },
+        "mode": {
+          "$ref": "#/definitions/webitel.dcctl.v1.Status.Quorum.Mode",
+          "description": "Write mode available now.",
+          "readOnly": true
+        },
+        "reachable_count": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Reachable voters.",
+          "readOnly": true
+        },
+        "required_count": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Voters that make a majority.",
+          "readOnly": true
+        },
+        "total_count": {
+          "type": "integer",
+          "format": "int32",
+          "description": "All voters.",
+          "readOnly": true
+        }
+      },
+      "description": "Whether a generation can be written on a majority of voters."
+    },
+    "webitel.dcctl.v1.Status.Quorum.Mode": {
+      "type": "string",
+      "enum": [
+        "MODE_UNSPECIFIED",
+        "QUORUM",
+        "FORCED_ONLY"
+      ],
+      "default": "MODE_UNSPECIFIED",
+      "description": "Write mode available now.\n\n - MODE_UNSPECIFIED: Not set.\n - QUORUM: A majority is reachable.\n - FORCED_ONLY: Only FORCED writes with the isolation confirmation."
+    },
+    "webitel.dcctl.v1.Status.Voter": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "$ref": "#/definitions/webitel.dcctl.v1.Status.Voter.Type",
+          "description": "Voter kind.",
+          "readOnly": true
+        },
+        "datacenter": {
+          "type": "string",
+          "description": "Datacenter of a DATACENTER voter.",
+          "readOnly": true
+        },
+        "reachable": {
+          "type": "boolean",
+          "description": "The voter answers.",
+          "readOnly": true
+        },
+        "error": {
+          "$ref": "#/definitions/webitel.dcctl.v1.Source.Error",
+          "description": "Why the voter does not answer.",
+          "readOnly": true
+        },
+        "generation": {
+          "type": "string",
+          "format": "int64",
+          "description": "Generation of the voter record.",
+          "readOnly": true
+        },
+        "active_datacenter": {
+          "type": "string",
+          "description": "Active datacenter of the voter record.",
+          "readOnly": true
+        },
+        "forced": {
+          "type": "boolean",
+          "description": "The voter record was written in FORCED mode.",
+          "readOnly": true
+        },
+        "valid": {
+          "type": "boolean",
+          "description": "The voter record counts for the effective state.",
+          "readOnly": true
+        },
+        "initialized": {
+          "type": "boolean",
+          "description": "ARBITER: the arbiter storage is initialized.",
+          "readOnly": true
+        }
+      },
+      "description": "A voter: the Consul KV of a datacenter or the arbiter."
+    },
+    "webitel.dcctl.v1.Status.Voter.Type": {
+      "type": "string",
+      "enum": [
+        "TYPE_UNSPECIFIED",
+        "DATACENTER",
+        "ARBITER"
+      ],
+      "default": "TYPE_UNSPECIFIED",
+      "description": "Voter kind.\n\n - TYPE_UNSPECIFIED: Not set.\n - DATACENTER: Consul KV of the datacenter in `datacenter`.\n - ARBITER: The arbiter."
+    },
+    "webitel.dcctl.v1.VerifyStatusResponse": {
+      "type": "object",
+      "properties": {
+        "checks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/webitel.dcctl.v1.Check"
+          },
+          "description": "Checks `verify.*`. An unreachable datacenter gives WARN.",
+          "readOnly": true
+        }
+      },
+      "description": "Response message for StatusService.VerifyStatus."
+    },
+    "webitel.dcctl.v1.Violation": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "`field` for BadRequest; `check` or `confirmation` for\nPreconditionFailure.",
+          "readOnly": true
+        },
+        "subject": {
+          "type": "string",
+          "description": "Request field path, check id or confirmation field.",
+          "readOnly": true
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable explanation.",
+          "readOnly": true
+        }
+      },
+      "description": "One violation of BadRequest or PreconditionFailure."
+    }
+  },
   "securityDefinitions": {
     "BasicAuth": {
       "type": "basic"
