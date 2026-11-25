@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"time"
 
 	"go.opentelemetry.io/otel/sdk/resource"
 	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
 
+	"github.com/webitel/webitel-go-kit/infra/discovery"
 	otelsdk "github.com/webitel/webitel-go-kit/infra/otel/sdk"
 	"github.com/webitel/webitel-go-kit/pkg/logging"
 
@@ -34,11 +36,12 @@ func setupTelemetry(ctx context.Context, command string) (shutdown func() error,
 		logging.Str("version", buildinfo.Version),
 	)
 
-	sdkShutdown, err := otelsdk.Configure(ctx, otelsdk.WithResource(resource.NewSchemaless(
-		semconv.ServiceName(buildinfo.ServiceName),
-		semconv.ServiceVersion(buildinfo.Version),
-		semconv.ServiceNamespace("webitel"),
-	)))
+	res, err := serviceResource(command)
+	if err != nil {
+		return nil, err
+	}
+
+	sdkShutdown, err := otelsdk.Configure(ctx, otelsdk.WithResource(res))
 
 	shutdown = func() error {
 		sctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), telemetryFlushTimeout)
@@ -56,4 +59,27 @@ func setupTelemetry(ctx context.Context, command string) (shutdown func() error,
 	}
 
 	return shutdown, nil
+}
+
+// serviceResource names the process of command as the observer of its metrics. The
+// instance id of serve is the one it registers in Consul with; the arbiter has one of
+// its own, as both may run on one host.
+func serviceResource(command string) (*resource.Resource, error) {
+	host, err := os.Hostname()
+	if err != nil {
+		return nil, fmt.Errorf("host name: %w", err)
+	}
+
+	instance := buildinfo.ServiceName
+	if command != "serve" {
+		instance += "-" + command
+	}
+
+	return resource.NewSchemaless(
+		semconv.ServiceName(buildinfo.ServiceName),
+		semconv.ServiceVersion(buildinfo.Version),
+		semconv.ServiceNamespace("webitel"),
+		semconv.ServiceInstanceID(discovery.GenerateInstanceID(instance)),
+		semconv.HostName(host),
+	), nil
 }

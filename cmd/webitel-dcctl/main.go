@@ -10,8 +10,8 @@ import (
 	"syscall"
 
 	"github.com/urfave/cli/v2"
+	"go.opentelemetry.io/otel"
 
-	"github.com/webitel/webitel-go-kit/infra/health"
 	"github.com/webitel/webitel-go-kit/pkg/logging"
 
 	"github.com/webitel/webitel-dcctl/internal/api"
@@ -25,10 +25,8 @@ import (
 	"github.com/webitel/webitel-dcctl/internal/runtime"
 	"github.com/webitel/webitel-dcctl/internal/source/consul"
 	"github.com/webitel/webitel-dcctl/internal/status"
+	"github.com/webitel/webitel-dcctl/internal/telemetry"
 )
-
-// healthSystemDcctl is the health system of the checks of dcctl itself.
-const healthSystemDcctl health.System = "dcctl"
 
 func main() {
 	if err := newApp().Run(os.Args); err != nil {
@@ -138,9 +136,30 @@ func runServe(ctx context.Context, cfg *config.Serve) (err error) {
 		return err
 	}
 
-	rt.Health().Liveness(healthSystemDcctl, collector.Check, health.WithName("collector"))
+	j, err := newJournal(cfg, clients)
+	if err != nil {
+		return err
+	}
 
-	apiOpts, err := readAPI(cfg, clients, collector)
+	tracker, err := status.NewTracker(status.TrackerConfigFrom(cfg), j, logging.New(logging.WithComponent("dcctl.status")))
+	if err != nil {
+		return err
+	}
+
+	telemetry.RegisterHealth(rt.Health(), collector.Check, tracker, telemetry.HealthConfig{
+		Datacenter: cfg.Datacenter,
+		Profile:    cfg.Profile,
+		Arbiter:    arb != nil,
+	})
+
+	metrics, err := telemetry.RegisterMetrics(otel.GetMeterProvider(), tracker, collect.StaleAfter(cfg.Status))
+	if err != nil {
+		return err
+	}
+
+	defer func() { err = errors.Join(err, metrics.Unregister()) }()
+
+	apiOpts, err := readAPI(cfg, clients, j, tracker)
 	if err != nil {
 		return err
 	}
@@ -165,6 +184,7 @@ func runServe(ctx context.Context, cfg *config.Serve) (err error) {
 	var wg sync.WaitGroup
 
 	wg.Go(func() { collector.Run(ctx) })
+	wg.Go(func() { tracker.Run(ctx, collector) })
 
 	err = rt.Run(ctx)
 
@@ -193,15 +213,28 @@ func consulClients(cfg *config.Serve) (*consul.Clients, error) {
 	return clients, nil
 }
 
-// readAPI returns what the API reads from: the status of collector, dcctl/op
-// and the journal in the KV of every voter, and listen.peer as the observer
-// address. Nothing provides alarms and verify checks yet.
-func readAPI(cfg *config.Serve, clients *consul.Clients, collector *collect.Collector) (api.Options, error) {
+// newJournal returns the journal in the KV of every voter.
+func newJournal(cfg *config.Serve, clients *consul.Clients) (*journal.Journal, error) {
 	named, err := coord.NamedClients(cfg.Profile, clients)
 	if err != nil {
-		return api.Options{}, err
+		return nil, err
 	}
 
+	j, err := journal.New(journal.KVs(named), journal.Options{
+		MaxEntries: cfg.Journal.MaxEntries,
+		Timeout:    cfg.Status.RequestTimeout,
+	}, logging.New(logging.WithComponent("dcctl.journal")))
+	if err != nil {
+		return nil, fmt.Errorf("journal: %w", err)
+	}
+
+	return j, nil
+}
+
+// readAPI returns what the API reads from: the status and the alarms of the last cycle
+// of tracker, dcctl/op in the KV of every voter, the journal j and listen.peer as the
+// observer address. Nothing provides verify checks yet.
+func readAPI(cfg *config.Serve, clients *consul.Clients, j *journal.Journal, tracker *status.Tracker) (api.Options, error) {
 	kvs, err := coord.NewKVs(cfg.Profile, clients)
 	if err != nil {
 		return api.Options{}, err
@@ -212,20 +245,15 @@ func readAPI(cfg *config.Serve, clients *consul.Clients, collector *collect.Coll
 		return api.Options{}, fmt.Errorf("operations: %w", err)
 	}
 
-	j, err := journal.New(journal.KVs(named), journal.Options{
-		MaxEntries: cfg.Journal.MaxEntries,
-		Timeout:    cfg.Status.RequestTimeout,
-	}, logging.New(logging.WithComponent("dcctl.journal")))
-	if err != nil {
-		return api.Options{}, fmt.Errorf("journal: %w", err)
-	}
+	log := logging.New(logging.WithComponent("dcctl.api"))
 
 	return api.Options{
 		Address:    cfg.Listen.Peer,
-		Status:     api.FromCollector(collector, status.ConfigFrom(cfg)),
+		Status:     api.FromTracker(tracker),
 		Operations: ops,
 		Journal:    j,
-		Log:        logging.New(logging.WithComponent("dcctl.api")),
+		Alarms:     api.TrackerAlarms(tracker, log),
+		Log:        log,
 	}, nil
 }
 
