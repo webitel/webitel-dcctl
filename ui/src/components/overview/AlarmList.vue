@@ -51,13 +51,14 @@ import { useI18n } from 'vue-i18n';
 
 import type { WebitelDcctlV1StatusAlarm as Alarm } from '@/api/gen/_models';
 import { useEnumLabel } from '@/composables/useEnumLabel';
+import { useTimeText } from '@/composables/useTimeText';
 import { useStatusStore } from '@/stores/status';
 import { alarmTarget } from '@/utils/alarmTarget';
 import { resourceId } from '@/utils/datacenterSummary';
 import { severityColor, toChipColor } from '@/utils/statusMapping';
 
 const store = useStatusStore();
-const { t, locale } = useI18n();
+const { t } = useI18n();
 const enumLabel = useEnumLabel();
 
 /** The object of the alarm: a datacenter, or the arbiter. */
@@ -68,11 +69,7 @@ const subject = (alarm: Alarm): string => {
 		: '';
 };
 
-const formatTime = (iso: string): string =>
-	new Intl.DateTimeFormat(locale.value, {
-		dateStyle: 'short',
-		timeStyle: 'medium',
-	}).format(new Date(iso));
+const formatTime = useTimeText();
 </script>
 
 <style scoped>
