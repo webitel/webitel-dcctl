@@ -7,12 +7,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/structpb"
 
+	"github.com/webitel/webitel-dcctl/internal/check"
 	"github.com/webitel/webitel-dcctl/internal/collect"
 	"github.com/webitel/webitel-dcctl/internal/source/consul"
 	"github.com/webitel/webitel-dcctl/internal/status"
 )
 
-func check(t *testing.T, d status.Datacenter, id status.CheckID) status.Check {
+func infoCheck(t *testing.T, d status.Datacenter, id check.ID) check.Check {
 	t.Helper()
 
 	for _, c := range d.InfoChecks {
@@ -23,32 +24,32 @@ func check(t *testing.T, d status.Datacenter, id status.CheckID) status.Check {
 
 	t.Fatalf("no check %s in %s", id, d.Name)
 
-	return status.Check{}
+	return check.Check{}
 }
 
 func TestBuild_infoChecks(t *testing.T) {
 	d := datacenter(t, status.Build(warm(), testConfig(), now), dcB)
 
-	assert.Equal(t, status.Check{
-		ID: status.CheckInfoAPI, Result: status.CheckPass, Datacenter: dcB,
+	assert.Equal(t, check.Check{
+		ID: check.InfoAPI, Result: check.Pass, Datacenter: dcB,
 		Detail: "prepared query webitel-api gives 1 instance",
 		Facts:  map[string]any{"count": 1, "datacenters": map[string]any{dcB: 1}},
-	}, check(t, d, status.CheckInfoAPI))
+	}, infoCheck(t, d, check.InfoAPI))
 
-	assert.Equal(t, status.Check{
-		ID: status.CheckInfoServices, Result: status.CheckPass, Datacenter: dcB,
+	assert.Equal(t, check.Check{
+		ID: check.InfoServices, Result: check.Pass, Datacenter: dcB,
 		Detail: "every service has a passing instance",
 		Facts: map[string]any{"services": map[string]any{
 			"engine":   map[string]any{"passing": 1, "total": 1},
 			"opensips": map[string]any{"passing": 1, "total": 2},
 		}},
-	}, check(t, d, status.CheckInfoServices))
+	}, infoCheck(t, d, check.InfoServices))
 
-	assert.Equal(t, status.Check{
-		ID: status.CheckInfoRabbitMQ, Result: status.CheckPass, Datacenter: dcB,
+	assert.Equal(t, check.Check{
+		ID: check.InfoRabbitMQ, Result: check.Pass, Datacenter: dcB,
 		Detail: "service rabbitmq has 1 passing instance of 1",
 		Facts:  map[string]any{"service": "rabbitmq", "passing": 1, "total": 1},
-	}, check(t, d, status.CheckInfoRabbitMQ))
+	}, infoCheck(t, d, check.InfoRabbitMQ))
 
 	for _, c := range d.InfoChecks {
 		_, err := structpb.NewStruct(c.Facts)
@@ -66,10 +67,10 @@ func TestBuild_infoChecksFail(t *testing.T) {
 		s.Clusters[1].API = up(collect.Instances{})
 
 		d := datacenter(t, status.Build(s, testConfig(), now), dcB)
-		assert.Equal(t, status.CheckFail, check(t, d, status.CheckInfoRabbitMQ).Result)
-		assert.Equal(t, status.CheckFail, check(t, d, status.CheckInfoServices).Result)
-		assert.Equal(t, "no passing instance of engine", check(t, d, status.CheckInfoServices).Detail)
-		assert.Equal(t, status.CheckFail, check(t, d, status.CheckInfoAPI).Result)
+		assert.Equal(t, check.Fail, infoCheck(t, d, check.InfoRabbitMQ).Result)
+		assert.Equal(t, check.Fail, infoCheck(t, d, check.InfoServices).Result)
+		assert.Equal(t, "no passing instance of engine", infoCheck(t, d, check.InfoServices).Detail)
+		assert.Equal(t, check.Fail, infoCheck(t, d, check.InfoAPI).Result)
 	})
 
 	t.Run("source_unreachable", func(t *testing.T) {
@@ -79,7 +80,7 @@ func TestBuild_infoChecksFail(t *testing.T) {
 
 		d := datacenter(t, status.Build(s, testConfig(), now), dcB)
 		for _, c := range d.InfoChecks {
-			assert.Equal(t, status.CheckFail, c.Result, c.ID)
+			assert.Equal(t, check.Fail, c.Result, c.ID)
 			assert.Equal(t, map[string]any{"reachable": false, "reason": "refused"}, c.Facts, c.ID)
 		}
 	})
@@ -99,16 +100,16 @@ func TestBuild_infoChecksStretchFilter(t *testing.T) {
 
 	d := datacenter(t, status.Build(s, cfg, now), dcB)
 
-	rabbit := check(t, d, status.CheckInfoRabbitMQ)
-	assert.Equal(t, status.CheckFail, rabbit.Result)
+	rabbit := infoCheck(t, d, check.InfoRabbitMQ)
+	assert.Equal(t, check.Fail, rabbit.Result)
 	assert.Equal(t, map[string]any{"service": "rabbitmq-dc_b", "passing": 0, "total": 1}, rabbit.Facts)
 
-	info := check(t, d, status.CheckInfoServices)
-	assert.Equal(t, status.CheckFail, info.Result)
+	info := infoCheck(t, d, check.InfoServices)
+	assert.Equal(t, check.Fail, info.Result)
 	assert.Equal(t, map[string]any{"passing": 0, "total": 1}, info.Facts["services"].(map[string]any)["engine"])
 
-	api := check(t, d, status.CheckInfoAPI)
-	assert.Equal(t, status.CheckPass, api.Result, "the query is one for the cluster")
+	api := infoCheck(t, d, check.InfoAPI)
+	assert.Equal(t, check.Pass, api.Result, "the query is one for the cluster")
 	assert.Equal(t, map[string]any{"count": 2, "datacenters": map[string]any{dcA: 2}}, api.Facts)
 }
 

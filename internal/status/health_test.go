@@ -5,6 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/webitel/webitel-dcctl/internal/check"
 	"github.com/webitel/webitel-dcctl/internal/collect"
 	"github.com/webitel/webitel-dcctl/internal/source/nomad"
 	"github.com/webitel/webitel-dcctl/internal/source/patroni"
@@ -389,8 +390,8 @@ func TestBuild_lastKnownCatalog(t *testing.T) {
 			d := datacenter(t, status.Build(s, testConfig(), now), dc)
 
 			assert.Equal(t, status.HealthOK, d.Health)
-			assert.Equal(t, status.CheckFail, check(t, d, status.CheckInfoServices).Result)
-			assert.Equal(t, status.CheckFail, check(t, d, status.CheckInfoRabbitMQ).Result)
+			assert.Equal(t, check.Fail, infoCheck(t, d, check.InfoServices).Result)
+			assert.Equal(t, check.Fail, infoCheck(t, d, check.InfoRabbitMQ).Result)
 		})
 	}
 }
