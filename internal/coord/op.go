@@ -125,6 +125,31 @@ func (v OpView) Primary() *OpCopy {
 	return nil
 }
 
+// Of returns the copy that answers for the operation name: the latest
+// updated copy that holds it finished, since an unfinished copy of a
+// finished operation is stale; else the copy in the KV of its leader's
+// datacenter; else its latest update. It returns nil when no copy holds the
+// operation.
+func (v OpView) Of(name string) *OpCopy {
+	if c := v.final(name); c != nil {
+		return c
+	}
+
+	var of OpView
+
+	for _, c := range v.Copies {
+		if c.Status == StatusPresent && c.Operation.GetName() == name {
+			of.Copies = append(of.Copies, c)
+		}
+	}
+
+	if c := of.Primary(); c != nil {
+		return c
+	}
+
+	return of.Latest()
+}
+
 // Blocking returns the first copy that keeps a new operation from starting:
 // one with an operation that is not finished, or one that cannot be read.
 // An operation in a state this dcctl does not know is not finished. A copy

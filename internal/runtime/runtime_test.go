@@ -237,6 +237,28 @@ func TestHTTPRouting(t *testing.T) {
 	assert.Equal(t, "ui", string(resp.body))
 }
 
+func TestStartedHTTPAddr(t *testing.T) {
+	rt := newTestRuntime(t, testConfig(newTestPKI(t)), &fakeStatus{})
+	assert.Nil(t, rt.HTTPAddr(), "no address before Run")
+
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan error, 1)
+
+	go func() { done <- rt.Run(ctx) }()
+
+	select {
+	case <-rt.Started():
+	case <-time.After(5 * time.Second):
+		require.FailNow(t, "runtime did not start")
+	}
+
+	resp := httpGet(t, "http://"+rt.HTTPAddr().String()+"/api/v1/status")
+	assert.Equal(t, http.StatusOK, resp.code)
+
+	cancel()
+	require.NoError(t, <-done)
+}
+
 func TestHTTPWithoutUI(t *testing.T) {
 	rt := newTestRuntime(t, testConfig(newTestPKI(t)), &fakeStatus{})
 	start(t, rt)

@@ -10,18 +10,21 @@ import (
 	"syscall"
 
 	"github.com/urfave/cli/v2"
-	"google.golang.org/grpc"
 
 	"github.com/webitel/webitel-go-kit/infra/health"
 	"github.com/webitel/webitel-go-kit/pkg/logging"
 
+	"github.com/webitel/webitel-dcctl/internal/api"
 	"github.com/webitel/webitel-dcctl/internal/arbiter"
 	"github.com/webitel/webitel-dcctl/internal/auth"
 	"github.com/webitel/webitel-dcctl/internal/buildinfo"
 	"github.com/webitel/webitel-dcctl/internal/collect"
 	"github.com/webitel/webitel-dcctl/internal/config"
+	"github.com/webitel/webitel-dcctl/internal/coord"
+	"github.com/webitel/webitel-dcctl/internal/journal"
 	"github.com/webitel/webitel-dcctl/internal/runtime"
 	"github.com/webitel/webitel-dcctl/internal/source/consul"
+	"github.com/webitel/webitel-dcctl/internal/status"
 )
 
 // healthSystemDcctl is the health system of the checks of dcctl itself.
@@ -82,7 +85,12 @@ func serve(c *cli.Context) error {
 }
 
 func runServe(ctx context.Context, cfg *config.Serve) (err error) {
-	httpOpts, peerOpts, err := serverOptions(ctx, cfg)
+	clients, err := consulClients(cfg)
+	if err != nil {
+		return err
+	}
+
+	httpOpts, peerOpts, err := auth.ServerOptions(ctx, cfg.Auth.Users, clients, logging.New(logging.WithComponent("dcctl.auth")))
 	if err != nil {
 		return err
 	}
@@ -132,6 +140,15 @@ func runServe(ctx context.Context, cfg *config.Serve) (err error) {
 
 	rt.Health().Liveness(healthSystemDcctl, collector.Check, health.WithName("collector"))
 
+	apiOpts, err := readAPI(cfg, clients, collector)
+	if err != nil {
+		return err
+	}
+
+	if err := api.Register(ctx, rt, apiOpts); err != nil {
+		return err
+	}
+
 	ctx, cancel := context.WithCancel(ctx)
 
 	var wg sync.WaitGroup
@@ -144,6 +161,61 @@ func runServe(ctx context.Context, cfg *config.Serve) (err error) {
 	wg.Wait()
 
 	return err
+}
+
+// consulClients returns the Consul clients of serve that decide on what they
+// read, so without stale reads: the instance check of auth, dcctl/op and the
+// journal. The collector reads through clients of its own.
+func consulClients(cfg *config.Serve) (*consul.Clients, error) {
+	clients, err := consul.New(consul.Options{
+		Profile:     cfg.Profile,
+		NodeMetaKey: cfg.Consul.NodeMetaKey,
+		Servers:     cfg.Consul.Servers,
+		SessionTTL:  cfg.Coordination.SessionTTL,
+		LockDelay:   cfg.Coordination.LockDelay,
+		Timeout:     cfg.Status.RequestTimeout,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("consul: %w", err)
+	}
+
+	return clients, nil
+}
+
+// readAPI returns what the API reads from: the status of collector, dcctl/op
+// and the journal in the KV of every voter, and listen.peer as the observer
+// address. Nothing provides alarms and verify checks yet.
+func readAPI(cfg *config.Serve, clients *consul.Clients, collector *collect.Collector) (api.Options, error) {
+	named, err := coord.NamedClients(cfg.Profile, clients)
+	if err != nil {
+		return api.Options{}, err
+	}
+
+	kvs, err := coord.NewKVs(cfg.Profile, clients)
+	if err != nil {
+		return api.Options{}, err
+	}
+
+	ops, err := coord.NewOpStore(kvs, cfg.Status.RequestTimeout, logging.New(logging.WithComponent("dcctl.op")))
+	if err != nil {
+		return api.Options{}, fmt.Errorf("operations: %w", err)
+	}
+
+	j, err := journal.New(journal.KVs(named), journal.Options{
+		MaxEntries: cfg.Journal.MaxEntries,
+		Timeout:    cfg.Status.RequestTimeout,
+	}, logging.New(logging.WithComponent("dcctl.journal")))
+	if err != nil {
+		return api.Options{}, fmt.Errorf("journal: %w", err)
+	}
+
+	return api.Options{
+		Address:    cfg.Listen.Peer,
+		Status:     api.FromCollector(collector, status.ConfigFrom(cfg)),
+		Operations: ops,
+		Journal:    j,
+		Log:        logging.New(logging.WithComponent("dcctl.api")),
+	}, nil
 }
 
 // instance names this dcctl instance as the node of the local Consul agent, which is
@@ -164,24 +236,6 @@ func instance(ctx context.Context, datacenter string, agent runtime.Consul, log 
 	log.WarnCtx(ctx, "instance is named by the hostname, the Consul node is unknown", logging.Str("node", host), logging.Err(err))
 
 	return collect.Instance{Datacenter: datacenter, Node: host}, nil
-}
-
-// serverOptions returns the interceptors of the listeners, with the dcctl
-// instances listed by the Consul servers of cfg.
-func serverOptions(ctx context.Context, cfg *config.Serve) (httpOpts, peerOpts []grpc.ServerOption, err error) {
-	catalog, err := consul.New(consul.Options{
-		Profile:     cfg.Profile,
-		NodeMetaKey: cfg.Consul.NodeMetaKey,
-		Servers:     cfg.Consul.Servers,
-		SessionTTL:  cfg.Coordination.SessionTTL,
-		LockDelay:   cfg.Coordination.LockDelay,
-		Timeout:     cfg.Status.RequestTimeout,
-	})
-	if err != nil {
-		return nil, nil, fmt.Errorf("consul: %w", err)
-	}
-
-	return auth.ServerOptions(ctx, cfg.Auth.Users, catalog, logging.New(logging.WithComponent("dcctl.auth")))
 }
 
 func runArbiter(c *cli.Context) error {

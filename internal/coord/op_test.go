@@ -496,3 +496,73 @@ func TestWriteUnknownThenConflict(t *testing.T) {
 	var running *coord.OperationRunningError
 	require.ErrorAs(t, got[0].Err, &running, "the cause is kept")
 }
+
+func TestViewOf(t *testing.T) {
+	present := func(name string, op *dcctlv1.Operation) coord.OpCopy {
+		return coord.OpCopy{Name: name, Status: coord.StatusPresent, Operation: op}
+	}
+	updated := func(op *dcctlv1.Operation, d time.Duration) *dcctlv1.Operation {
+		op.UpdateTime = timestamppb.New(opTime.Add(d))
+
+		return op
+	}
+
+	tests := []struct {
+		name   string
+		copies []coord.OpCopy
+		want   string
+	}{
+		{
+			name: "finished_over_newer_unfinished",
+			copies: []coord.OpCopy{
+				present("dc_a", updated(operation("1", dcctlv1.Operation_SUCCEEDED, "dc_a"), time.Minute)),
+				present("dc_b", updated(operation("1", dcctlv1.Operation_RUNNING, "dc_b"), 2*time.Minute)),
+			},
+			want: "dc_a",
+		},
+		{
+			name: "leader_copy_over_newer",
+			copies: []coord.OpCopy{
+				present("dc_a", updated(operation("1", dcctlv1.Operation_RUNNING, "dc_b"), time.Minute)),
+				present("dc_b", operation("1", dcctlv1.Operation_RUNNING, "dc_b")),
+			},
+			want: "dc_b",
+		},
+		{
+			name: "latest_without_leader_copy",
+			copies: []coord.OpCopy{
+				present("dc_a", updated(operation("1", dcctlv1.Operation_RUNNING, "dc_b"), time.Minute)),
+				present("dc_c", operation("1", dcctlv1.Operation_RUNNING, "dc_b")),
+				{Name: "dc_b", Status: coord.StatusUnreachable, Reason: source.ReasonTimeout},
+			},
+			want: "dc_a",
+		},
+		{
+			name: "leader_kv_holds_another_operation",
+			copies: []coord.OpCopy{
+				present("dc_a", operation("1", dcctlv1.Operation_RUNNING, "dc_b")),
+				present("dc_b", operation("2", dcctlv1.Operation_RUNNING, "dc_b")),
+			},
+			want: "dc_a",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := coord.OpView{Copies: tt.copies}.Of("operations/1")
+
+			require.NotNil(t, got)
+			assert.Equal(t, tt.want, got.Name)
+			assert.Equal(t, "operations/1", got.Operation.GetName())
+		})
+	}
+}
+
+func TestViewOfMissing(t *testing.T) {
+	v := coord.OpView{Copies: []coord.OpCopy{
+		{Name: "dc_a", Status: coord.StatusPresent, Operation: operation("2", dcctlv1.Operation_RUNNING, "dc_a")},
+		{Name: "dc_b", Status: coord.StatusInvalid},
+	}}
+
+	assert.Nil(t, v.Of("operations/1"))
+}

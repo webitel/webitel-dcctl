@@ -187,6 +187,21 @@ func (r *Runtime) Health() *health.Registry {
 	return r.health
 }
 
+// Started returns a channel closed once Run serves on every listener.
+func (r *Runtime) Started() <-chan struct{} {
+	return r.started
+}
+
+// HTTPAddr returns the address listen.http is bound to, nil without that
+// listener. Call it after Started is closed.
+func (r *Runtime) HTTPAddr() net.Addr {
+	if r.httpLn == nil {
+		return nil
+	}
+
+	return r.httpLn.Addr()
+}
+
 // Run serves until ctx is done, then stops gracefully. It returns early when
 // the local Consul agent belongs to another datacenter, a listener cannot
 // bind, the registration fails or a server fails.
