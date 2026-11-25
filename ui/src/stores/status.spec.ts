@@ -358,6 +358,33 @@ describe('data age with a skewed browser clock', () => {
 	});
 });
 
+describe('stale threshold', () => {
+	it('comes from interval and cycle_duration of the status', async () => {
+		getStatus.mockResolvedValue(
+			snapshot({
+				interval: '10s',
+				cycle_duration: '2s',
+				observe_time: new Date(NOW - 30_000).toISOString(),
+			}),
+		);
+		await store.refresh();
+
+		expect(store.staleAfter).toBe(36);
+		expect(store.age).toBe(30);
+		expect(store.isStale).toBe(false);
+	});
+
+	it('falls back to the default without the fields', async () => {
+		getStatus.mockResolvedValue(
+			snapshot({ observe_time: new Date(NOW - 30_000).toISOString() }),
+		);
+		await store.refresh();
+
+		expect(store.staleAfter).toBe(15);
+		expect(store.isStale).toBe(true);
+	});
+});
+
 describe('derived state', () => {
 	it('sorts alarms and datacenters', async () => {
 		await store.refresh();

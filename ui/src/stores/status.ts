@@ -5,7 +5,7 @@ import { isUnauthorized } from '@/api/client/apiError';
 import { serverOffsetMs } from '@/api/client/serverClock';
 import type { WebitelDcctlV1Status as Status } from '@/api/gen/_models';
 import { getStatusService } from '@/api/gen/status-service/status-service';
-import { ageSeconds, isStaleAge } from '@/utils/dataAge';
+import { ageSeconds, isStaleAge, staleAfterSeconds } from '@/utils/dataAge';
 import { isOperationShown } from '@/utils/operationLine';
 import { sortAlarms, sortDatacenters } from '@/utils/ordering';
 import { createPoller, POLL_INTERVAL_MS } from '@/utils/poller';
@@ -56,7 +56,9 @@ export const useStatusStore = defineStore('status', () => {
 			? ageSeconds(status.value.observe_time, now.value + serverOffsetMs())
 			: null,
 	);
-	const isStale = computed(() => isStaleAge(age.value));
+	/** Older than this many seconds is stale: from the status, the default before it. */
+	const staleAfter = computed(() => staleAfterSeconds(status.value));
+	const isStale = computed(() => isStaleAge(age.value, staleAfter.value));
 
 	return {
 		status,
@@ -66,6 +68,7 @@ export const useStatusStore = defineStore('status', () => {
 		datacenters,
 		activeOperation,
 		age,
+		staleAfter,
 		isStale,
 		start,
 		stop,

@@ -2,7 +2,7 @@
   <span
     class="data-age typo-body-1"
     :class="{ 'data-age--stale': stale }"
-    :title="stale ? $t('dcctl.header.staleHint', { seconds: STALE_AFTER_SECONDS }) : undefined"
+    :title="stale ? $t('dcctl.header.staleHint', { seconds: Math.round(staleAfter) }) : undefined"
     data-test="data-age"
   >
     <wt-icon
@@ -23,11 +23,16 @@
 import { useAgeText } from '@/composables/useAgeText';
 import { STALE_AFTER_SECONDS } from '@/utils/dataAge';
 
-defineProps<{
-	/** Seconds since the last collection cycle; `null` before the first answer. */
-	age: number | null;
-	stale: boolean;
-}>();
+withDefaults(
+	defineProps<{
+		/** Seconds since the last collection cycle; `null` before the first answer. */
+		age: number | null;
+		stale: boolean;
+		/** Age in seconds past which the data is stale, for the hint. */
+		staleAfter?: number;
+	}>(),
+	{ staleAfter: STALE_AFTER_SECONDS },
+);
 
 const ageText = useAgeText();
 </script>

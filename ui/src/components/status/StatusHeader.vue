@@ -16,6 +16,7 @@
     <data-age
       :age="store.age"
       :stale="store.isStale"
+      :stale-after="store.staleAfter"
     />
     <wt-chip
       v-if="store.error"
