@@ -269,6 +269,13 @@ func withC(s *collect.Snapshot, recv int64) *collect.Snapshot {
 	s.Datacenters = append(s.Datacenters, collect.Datacenter{Name: dcC, Services: up(services(dcC)), Nomad: up(stoppedNomad())})
 	s.Clusters = append(s.Clusters, standbyCluster(dcC, "10.0.2", recv))
 
+	editPatroni(s, dcA, func(p *collect.Patroni) {
+		m := memberNamed(p, "pg-a1")
+		pr := *m.Probe
+		pr.Replication = append(slices.Clone(pr.Replication), patroni.Replica{ClientAddr: "10.0.2.1", State: "streaming"})
+		m.Probe = &pr
+	})
+
 	return s
 }
 
