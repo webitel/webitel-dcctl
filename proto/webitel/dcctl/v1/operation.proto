@@ -105,6 +105,8 @@ message Operation {
       PATRONI_FOLLOW = 11;
       // Patroni switchover inside one cluster.
       PATRONI_SWITCHOVER = 12;
+      // Patroni failover inside one cluster without a leader (stretch).
+      PATRONI_FAILOVER = 13;
     }
 
     // Step state.

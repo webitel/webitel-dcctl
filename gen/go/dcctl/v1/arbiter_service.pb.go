@@ -35,8 +35,9 @@ type Record struct {
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// JSON of `dcctl/state` or `dcctl/lease`.
 	Value []byte `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
-	// Monotonic index of the record as a decimal string. In UpdateRecord, the
-	// index the caller read; empty with allow_missing to create the record.
+	// Monotonic index of the record as a decimal string without leading
+	// zeros; never 0. In UpdateRecord, the index the caller read; empty with
+	// allow_missing to create the record.
 	Etag string `protobuf:"bytes,3,opt,name=etag,proto3" json:"etag,omitempty"`
 	// When the record was last written.
 	UpdateTime    *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=update_time,json=updateTime,proto3" json:"update_time,omitempty"`
@@ -157,8 +158,8 @@ type UpdateRecordRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Record to write, with the etag the caller read.
 	Record *Record `protobuf:"bytes,1,opt,name=record,proto3" json:"record,omitempty"`
-	// Create the record when it does not exist. An empty etag is allowed only
-	// with allow_missing.
+	// Create the record when it does not exist. Requires an empty etag, and
+	// an empty etag requires allow_missing.
 	AllowMissing  bool `protobuf:"varint,2,opt,name=allow_missing,json=allowMissing,proto3" json:"allow_missing,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -212,22 +213,23 @@ var File_webitel_dcctl_v1_arbiter_service_proto protoreflect.FileDescriptor
 
 const file_webitel_dcctl_v1_arbiter_service_proto_rawDesc = "" +
 	"\n" +
-	"&webitel/dcctl/v1/arbiter_service.proto\x12\x10webitel.dcctl.v1\x1a\x1bbuf/validate/validate.proto\x1a\x17google/api/client.proto\x1a\x1fgoogle/api/field_behavior.proto\x1a\x19google/api/resource.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x96\x02\n" +
+	"&webitel/dcctl/v1/arbiter_service.proto\x12\x10webitel.dcctl.v1\x1a\x1bbuf/validate/validate.proto\x1a\x17google/api/client.proto\x1a\x1fgoogle/api/field_behavior.proto\x1a\x19google/api/resource.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x9e\x02\n" +
 	"\x06Record\x126\n" +
 	"\x04name\x18\x01 \x01(\tB\"\xe2A\x01\b\xbaH\x1br\x192\x17^records/(state|lease)$R\x04name\x12!\n" +
-	"\x05value\x18\x02 \x01(\fB\v\xe2A\x01\x02\xbaH\x04z\x02\x10\x01R\x05value\x12,\n" +
-	"\x04etag\x18\x03 \x01(\tB\x18\xe2A\x01\x01\xbaH\x11r\x0f2\r^[0-9]{0,20}$R\x04etag\x12A\n" +
+	"\x05value\x18\x02 \x01(\fB\v\xe2A\x01\x02\xbaH\x04z\x02\x10\x01R\x05value\x124\n" +
+	"\x04etag\x18\x03 \x01(\tB \xe2A\x01\x01\xbaH\x19r\x172\x15^([1-9][0-9]{0,19})?$R\x04etag\x12A\n" +
 	"\vupdate_time\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampB\x04\xe2A\x01\x03R\n" +
 	"updateTime:@\xeaA=\n" +
 	"\x18dcctl.webitel.com/Record\x12\x10records/{record}*\arecords2\x06record\"g\n" +
 	"\x10GetRecordRequest\x12S\n" +
 	"\x04name\x18\x01 \x01(\tB?\xe2A\x01\x02\xfaA\x1a\n" +
-	"\x18dcctl.webitel.com/Record\xbaH\x1br\x192\x17^records/(state|lease)$R\x04name\"\xf5\x01\n" +
+	"\x18dcctl.webitel.com/Record\xbaH\x1br\x192\x17^records/(state|lease)$R\x04name\"\xec\x02\n" +
 	"\x13UpdateRecordRequest\x12<\n" +
 	"\x06record\x18\x01 \x01(\v2\x18.webitel.dcctl.v1.RecordB\n" +
 	"\xe2A\x01\x02\xbaH\x03\xc8\x01\x01R\x06record\x12)\n" +
-	"\rallow_missing\x18\x02 \x01(\bB\x04\xe2A\x01\x01R\fallowMissing:u\xbaHr\x1ap\n" +
-	"\x12update_record.etag\x12,etag is required unless allow_missing is set\x1a,this.allow_missing || this.record.etag != ''2\xb7\x01\n" +
+	"\rallow_missing\x18\x02 \x01(\bB\x04\xe2A\x01\x01R\fallowMissing:\xeb\x01\xbaH\xe7\x01\x1ap\n" +
+	"\x12update_record.etag\x12,etag is required unless allow_missing is set\x1a,this.allow_missing || this.record.etag != ''\x1as\n" +
+	"\x1bupdate_record.allow_missing\x12%etag must be empty with allow_missing\x1a-!this.allow_missing || this.record.etag == ''2\xb7\x01\n" +
 	"\x0eArbiterService\x12R\n" +
 	"\tGetRecord\x12\".webitel.dcctl.v1.GetRecordRequest\x1a\x18.webitel.dcctl.v1.Record\"\a\xdaA\x04name\x12Q\n" +
 	"\fUpdateRecord\x12%.webitel.dcctl.v1.UpdateRecordRequest\x1a\x18.webitel.dcctl.v1.Record\"\x00B:Z8github.com/webitel/webitel-dcctl/gen/go/dcctl/v1;dcctlv1b\x06proto3"

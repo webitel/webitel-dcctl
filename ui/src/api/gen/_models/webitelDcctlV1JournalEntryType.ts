@@ -12,7 +12,8 @@
  *  - TYPE_UNSPECIFIED: Not set.
  *  - OPERATION: Operation start or end.
  *  - STEP: Operation step.
- *  - SYSTEM: Action dcctl takes by itself, see SystemAction.
+ *  - SYSTEM: Action dcctl takes by itself, without an operation, or a coordination
+ * event it records; see SystemAction.
  *  - ALARM: Alarm raised or cleared.
  */
 export type WebitelDcctlV1JournalEntryType =

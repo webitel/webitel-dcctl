@@ -24,7 +24,7 @@ export interface WebitelDcctlV1Datacenter {
 	readonly consul?: WebitelDcctlV1DatacenterConsul;
 	/** Whether the datacenter works in its role. */
 	readonly health?: WebitelDcctlV1DatacenterHealth;
-	/** Why health is DEGRADED or DOWN. */
+	/** Why health is DEGRADED, DOWN or UNKNOWN. */
 	readonly health_reasons?: readonly string[];
 	/**
 	 * Informational checks `info.*`. They do not affect state, health,

@@ -22,6 +22,7 @@
  *  - PATRONI_REPOINT: Point a standby cluster at the new primary.
  *  - PATRONI_FOLLOW: Wait for a standby cluster to follow the new primary.
  *  - PATRONI_SWITCHOVER: Patroni switchover inside one cluster.
+ *  - PATRONI_FAILOVER: Patroni failover inside one cluster without a leader (stretch).
  */
 export type WebitelDcctlV1OperationStepType =
 	(typeof WebitelDcctlV1OperationStepType)[keyof typeof WebitelDcctlV1OperationStepType];
@@ -40,4 +41,5 @@ export const WebitelDcctlV1OperationStepType = {
 	PatroniRepoint: 'PATRONI_REPOINT',
 	PatroniFollow: 'PATRONI_FOLLOW',
 	PatroniSwitchover: 'PATRONI_SWITCHOVER',
+	PatroniFailover: 'PATRONI_FAILOVER',
 } as const;

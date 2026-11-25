@@ -39,7 +39,7 @@ service JournalService {
               '"datacenter":"datacenters/dc_a","address":"10.1.0.81:10023"},"system":true},'
               '"datacenter":"datacenters/dc_a","system_action":"FENCE_APPS","params":{"jobs":["webitel-core-api",'
               '"opensips"]},"result":"OK","detail":"stopped 2 managed jobs: the effective state names dc_b as active"}],'
-              '"next_page_token":"MjAyNjExMjMxMDEyNDAwMDAwMDAwMDAtYTkxYzAzZDc"}'
+              '"next_page_token":"MjAyNjExMjIwODA1MTIwMDAwMDAwMDAtZTQwYjcxYzl8ZTNiMGM0NDI5OGZjMWMxNA"}'
           }
         }
       }

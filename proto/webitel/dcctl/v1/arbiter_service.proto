@@ -73,11 +73,12 @@ message Record {
     (buf.validate.field).bytes.min_len = 1
   ];
 
-  // Monotonic index of the record as a decimal string. In UpdateRecord, the
-  // index the caller read; empty with allow_missing to create the record.
+  // Monotonic index of the record as a decimal string without leading
+  // zeros; never 0. In UpdateRecord, the index the caller read; empty with
+  // allow_missing to create the record.
   string etag = 3 [
     (google.api.field_behavior) = OPTIONAL,
-    (buf.validate.field).string.pattern = "^[0-9]{0,20}$"
+    (buf.validate.field).string.pattern = "^([1-9][0-9]{0,19})?$"
   ];
 
   // When the record was last written.
@@ -104,6 +105,11 @@ message UpdateRecordRequest {
     message: "etag is required unless allow_missing is set"
     expression: "this.allow_missing || this.record.etag != ''"
   };
+  option (buf.validate.message).cel = {
+    id: "update_record.allow_missing"
+    message: "etag must be empty with allow_missing"
+    expression: "!this.allow_missing || this.record.etag == ''"
+  };
 
   // Record to write, with the etag the caller read.
   Record record = 1 [
@@ -111,7 +117,7 @@ message UpdateRecordRequest {
     (buf.validate.field).required = true
   ];
 
-  // Create the record when it does not exist. An empty etag is allowed only
-  // with allow_missing.
+  // Create the record when it does not exist. Requires an empty etag, and
+  // an empty etag requires allow_missing.
   bool allow_missing = 2 [(google.api.field_behavior) = OPTIONAL];
 }

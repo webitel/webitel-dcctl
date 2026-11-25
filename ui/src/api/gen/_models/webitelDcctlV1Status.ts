@@ -35,6 +35,12 @@ export interface WebitelDcctlV1Status {
 	readonly generation?: string;
 	/** At least one voter has the dcctl state. */
 	readonly initialized?: boolean;
+	/**
+	 * Configured pause between the end of one collection cycle and the start
+	 * of the next (`status.interval`). The next cycle finishes about interval
+	 * plus cycle_duration after observe_time.
+	 */
+	readonly interval?: string;
 	/** Lease. */
 	readonly lease?: WebitelDcctlV1StatusLease;
 	/** Resource name: always `status`. */

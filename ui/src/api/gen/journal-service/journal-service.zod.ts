@@ -227,6 +227,7 @@ export const ListJournalEntriesResponse = zod
 								'PATRONI_REPOINT',
 								'PATRONI_FOLLOW',
 								'PATRONI_SWITCHOVER',
+								'PATRONI_FAILOVER',
 							])
 							.default(
 								listJournalEntriesResponseJournalEntriesItemStepTypeDefault,
@@ -237,6 +238,9 @@ export const ListJournalEntriesResponse = zod
 								'SYSTEM_ACTION_UNSPECIFIED',
 								'FENCE_APPS',
 								'ALIGN_GENERATION',
+								'ALIGN_OPERATION',
+								'LOCK_LOST',
+								'OUTCOME_UNKNOWN',
 							])
 							.default(
 								listJournalEntriesResponseJournalEntriesItemSystemActionDefault,

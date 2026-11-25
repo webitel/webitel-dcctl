@@ -276,13 +276,15 @@ func TestAcquireNothingHeld(t *testing.T) {
 	tests := []struct {
 		name string
 		kvs  func() []coord.KV
+		// metadata is the ErrorInfo metadata of the error.
+		metadata map[string]string
 	}{
 		{name: "warm_standby", kvs: func() []coord.KV {
 			a, b, kvs := twoDCs()
 			a.createErr, b.createErr = unreachable(), unreachable()
 
 			return kvs
-		}},
+		}, metadata: map[string]string{"datacenters": "dc_a,dc_b"}},
 		{name: "stretch_minority", kvs: func() []coord.KV {
 			g := newFakeConsul()
 			g.createErr = unreachable()
@@ -301,7 +303,11 @@ func TestAcquireNothingHeld(t *testing.T) {
 			var none *coord.LockUnavailableError
 			require.ErrorAs(t, err, &none)
 			assert.Len(t, none.Unreachable, len(kvs))
-			assert.Equal(t, codes.Unavailable, status.Code(err))
+
+			st, info := errorInfo(t, err)
+			assert.Equal(t, codes.Unavailable, st.Code())
+			assert.Equal(t, "LOCK_UNAVAILABLE", info.GetReason())
+			assert.Equal(t, tt.metadata, info.GetMetadata())
 		})
 	}
 }

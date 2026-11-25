@@ -218,7 +218,7 @@ service OperationService {
       responses: {
         key: "503"
         value: {
-          description: "The leading instance is unreachable: `dcctl.leader.unavailable`."
+          description: "The leading instance is unreachable (`dcctl.leader.unavailable`), or no Consul KV answered to take dcctl/lock (`dcctl.lock.unavailable`)."
           schema: {
             json_schema: {ref: ".webitel.dcctl.v1.Error"}
           }

@@ -34,7 +34,8 @@ const (
 	JournalEntry_OPERATION JournalEntry_Type = 1
 	// Operation step.
 	JournalEntry_STEP JournalEntry_Type = 2
-	// Action dcctl takes by itself, see SystemAction.
+	// Action dcctl takes by itself, without an operation, or a coordination
+	// event it records; see SystemAction.
 	JournalEntry_SYSTEM JournalEntry_Type = 3
 	// Alarm raised or cleared.
 	JournalEntry_ALARM JournalEntry_Type = 4
@@ -85,7 +86,8 @@ func (JournalEntry_Type) EnumDescriptor() ([]byte, []int) {
 	return file_webitel_dcctl_v1_journal_proto_rawDescGZIP(), []int{0, 0}
 }
 
-// Outcome of the recorded action.
+// Outcome of the recorded action. For SYSTEM events: LOCK_LOST is ERROR,
+// OUTCOME_UNKNOWN is WARNING.
 type JournalEntry_Result int32
 
 const (
@@ -142,7 +144,9 @@ func (JournalEntry_Result) EnumDescriptor() ([]byte, []int) {
 	return file_webitel_dcctl_v1_journal_proto_rawDescGZIP(), []int{0, 1}
 }
 
-// Action dcctl takes by itself, without an operation.
+// Action dcctl takes by itself, without an operation, or a coordination
+// event it records. ALIGN_OPERATION, LOCK_LOST and OUTCOME_UNKNOWN set
+// `operation`.
 type JournalEntry_SystemAction int32
 
 const (
@@ -152,8 +156,18 @@ const (
 	// effective state names another datacenter as active. A Patroni primary
 	// here is left to the DB_SPLIT alarm.
 	JournalEntry_FENCE_APPS JournalEntry_SystemAction = 1
-	// Copy the effective state to a voter with an older generation.
+	// Voter alignment: copy the effective state to a voter with an older
+	// generation.
 	JournalEntry_ALIGN_GENERATION JournalEntry_SystemAction = 2
+	// Copy the final record of an operation to the copies of `dcctl/op`
+	// that still hold it unfinished.
+	JournalEntry_ALIGN_OPERATION JournalEntry_SystemAction = 3
+	// A session of `dcctl/lock` expired, was invalidated or was not renewed
+	// for its TTL; the operation holding the lock is interrupted.
+	JournalEntry_LOCK_LOST JournalEntry_SystemAction = 4
+	// Releasing `dcctl/lock` or writing `dcctl/op` in `datacenter` failed in
+	// a way that may have been applied; `params.key` names the key.
+	JournalEntry_OUTCOME_UNKNOWN JournalEntry_SystemAction = 5
 )
 
 // Enum value maps for JournalEntry_SystemAction.
@@ -162,11 +176,17 @@ var (
 		0: "SYSTEM_ACTION_UNSPECIFIED",
 		1: "FENCE_APPS",
 		2: "ALIGN_GENERATION",
+		3: "ALIGN_OPERATION",
+		4: "LOCK_LOST",
+		5: "OUTCOME_UNKNOWN",
 	}
 	JournalEntry_SystemAction_value = map[string]int32{
 		"SYSTEM_ACTION_UNSPECIFIED": 0,
 		"FENCE_APPS":                1,
 		"ALIGN_GENERATION":          2,
+		"ALIGN_OPERATION":           3,
+		"LOCK_LOST":                 4,
+		"OUTCOME_UNKNOWN":           5,
 	}
 )
 
@@ -428,7 +448,7 @@ var File_webitel_dcctl_v1_journal_proto protoreflect.FileDescriptor
 
 const file_webitel_dcctl_v1_journal_proto_rawDesc = "" +
 	"\n" +
-	"\x1ewebitel/dcctl/v1/journal.proto\x12\x10webitel.dcctl.v1\x1a\x1fgoogle/api/field_behavior.proto\x1a\x19google/api/resource.proto\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1dwebitel/dcctl/v1/common.proto\x1a webitel/dcctl/v1/operation.proto\x1a\x1dwebitel/dcctl/v1/status.proto\"\xad\n" +
+	"\x1ewebitel/dcctl/v1/journal.proto\x12\x10webitel.dcctl.v1\x1a\x1fgoogle/api/field_behavior.proto\x1a\x19google/api/resource.proto\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1dwebitel/dcctl/v1/common.proto\x1a webitel/dcctl/v1/operation.proto\x1a\x1dwebitel/dcctl/v1/status.proto\"\xe7\n" +
 	"\n" +
 	"\fJournalEntry\x12\x18\n" +
 	"\x04name\x18\x01 \x01(\tB\x04\xe2A\x01\bR\x04name\x12A\n" +
@@ -464,12 +484,15 @@ const file_webitel_dcctl_v1_journal_proto_rawDesc = "" +
 	"\x12RESULT_UNSPECIFIED\x10\x00\x12\x06\n" +
 	"\x02OK\x10\x01\x12\v\n" +
 	"\aWARNING\x10\x02\x12\t\n" +
-	"\x05ERROR\x10\x03\"S\n" +
+	"\x05ERROR\x10\x03\"\x8c\x01\n" +
 	"\fSystemAction\x12\x1d\n" +
 	"\x19SYSTEM_ACTION_UNSPECIFIED\x10\x00\x12\x0e\n" +
 	"\n" +
 	"FENCE_APPS\x10\x01\x12\x14\n" +
-	"\x10ALIGN_GENERATION\x10\x02:a\xeaA^\n" +
+	"\x10ALIGN_GENERATION\x10\x02\x12\x13\n" +
+	"\x0fALIGN_OPERATION\x10\x03\x12\r\n" +
+	"\tLOCK_LOST\x10\x04\x12\x13\n" +
+	"\x0fOUTCOME_UNKNOWN\x10\x05:a\xeaA^\n" +
 	"\x1edcctl.webitel.com/JournalEntry\x12\x1ejournalEntries/{journal_entry}*\x0ejournalEntries2\fjournalEntryB\b\n" +
 	"\x06actionB:Z8github.com/webitel/webitel-dcctl/gen/go/dcctl/v1;dcctlv1b\x06proto3"
 

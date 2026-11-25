@@ -195,6 +195,23 @@ func TestRunValidatesRequests(t *testing.T) {
 
 	_, err := client.GetRecord(callCtx(t), &dcctlv1.GetRecordRequest{Name: "records/journal"})
 	requireReason(t, err, codes.InvalidArgument, "REQUEST_INVALID")
+
+	for _, tt := range []struct {
+		name         string
+		etag         string
+		allowMissing bool
+	}{
+		{"leading_zero", "07", false},
+		{"etag_with_allow_missing", "7", true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := client.UpdateRecord(callCtx(t), &dcctlv1.UpdateRecordRequest{
+				Record:       &dcctlv1.Record{Name: "records/state", Value: stateJSON, Etag: tt.etag},
+				AllowMissing: tt.allowMissing,
+			})
+			requireReason(t, err, codes.InvalidArgument, "REQUEST_INVALID")
+		})
+	}
 }
 
 func TestRunRejectsClients(t *testing.T) {

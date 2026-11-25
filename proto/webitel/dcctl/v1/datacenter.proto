@@ -21,8 +21,8 @@ message Datacenter {
     plural: "datacenters"
   };
 
-  // Role of the datacenter in coordination. The first matching value in
-  // this order wins.
+  // Role of the datacenter in coordination. The first matching value in the
+  // order listed here, not by number, wins.
   enum State {
     // Not set.
     STATE_UNSPECIFIED = 0;
@@ -30,6 +30,11 @@ message Datacenter {
     UNREACHABLE = 1;
     // No voter has the dcctl state.
     UNINITIALIZED = 2;
+    // The role cannot be told: the voters give no effective state, as in a
+    // conflict, or voters that do not answer may hold a state the others do
+    // not show. A voter whose Consul has no leader does not count. dcctl
+    // does not guess ACTIVE or STANDBY then.
+    UNDETERMINED = 9;
     // The active datacenter of the effective state.
     ACTIVE = 3;
     // An inactive datacenter runs a managed job that is not stopped.
@@ -106,6 +111,22 @@ message Datacenter {
       TLS = 2;
       // The REST API does not answer.
       UNREACHABLE = 3;
+    }
+
+    // Whether the timeline of the datacenter left the history of the active
+    // one.
+    enum DivergenceState {
+      // Not set.
+      DIVERGENCE_STATE_UNSPECIFIED = 0;
+      // The datacenter did not diverge.
+      NOT_DIVERGED = 1;
+      // The datacenter diverged; see divergence_lsn and divergence_bytes.
+      DIVERGED = 2;
+      // Cannot be told from what was read: no effective state, the Patroni of
+      // this or the active datacenter is unreachable or has no leader, or a
+      // timeline, WAL position or `/history` entry is missing. The
+      // datacenter may have diverged.
+      UNKNOWN = 3;
     }
 
     // WAL positions of a member, in bytes.
@@ -200,11 +221,18 @@ message Datacenter {
     // clusters.
     int64 lag_bytes = 7 [(google.api.field_behavior) = OUTPUT_ONLY];
 
+    // Whether the datacenter diverged from the active leader. Authoritative:
+    // an empty divergence_lsn does not mean NOT_DIVERGED. Not set
+    // (UNSPECIFIED) for the active datacenter and in stretch, where there is
+    // nothing to compare.
+    DivergenceState divergence_state = 11 [(google.api.field_behavior) = OUTPUT_ONLY];
+
     // Point where the timeline diverged from the active leader, as an LSN
-    // like `0/5000060`. Set only when the datacenter diverged.
+    // like `0/5000060`. Set only when divergence_state is DIVERGED.
     string divergence_lsn = 8 [(google.api.field_behavior) = OUTPUT_ONLY];
 
-    // WAL written after the divergence point.
+    // WAL written after the divergence point. Set only when divergence_state
+    // is DIVERGED.
     int64 divergence_bytes = 9 [(google.api.field_behavior) = OUTPUT_ONLY];
 
     // Members. GetDatacenter only.
@@ -215,7 +243,7 @@ message Datacenter {
   message Nomad {
     // Nomad node that does not run managed jobs normally.
     message Node {
-      // Why the node is not ready.
+      // Why the node does not run managed jobs normally.
       enum Reason {
         // Not set.
         REASON_UNSPECIFIED = 0;
@@ -225,12 +253,15 @@ message Datacenter {
         DOWN = 2;
         // The node is ineligible for scheduling.
         INELIGIBLE = 3;
+        // missing_nodes only: the node is ready and eligible but has no
+        // healthy allocation of the job.
+        NO_ALLOCATION = 4;
       }
 
       // Node name.
       string node = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
 
-      // Why the node is not ready.
+      // Why the node does not run managed jobs normally.
       Reason reason = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
     }
 
@@ -371,7 +402,7 @@ message Datacenter {
   // Whether the datacenter works in its role.
   Health health = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
 
-  // Why health is DEGRADED or DOWN.
+  // Why health is DEGRADED, DOWN or UNKNOWN.
   repeated string health_reasons = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
 
   // The datacenter is in needs_recovery of the effective state. Set even
@@ -416,7 +447,7 @@ message Source {
     PATRONI = 3;
   }
 
-  // Why the source is unreachable.
+  // Why the source is unreachable or its answer cannot be used.
   enum Error {
     // Reachable.
     ERROR_UNSPECIFIED = 0;
@@ -434,6 +465,12 @@ message Source {
     HTTP = 6;
     // Response could not be parsed.
     INVALID = 7;
+    // Discovery found no endpoint to ask, such as a service without passing
+    // instances in Consul.
+    NO_ENDPOINTS = 8;
+    // The Consul agent answered, but its cluster has no known leader, so its
+    // reads cannot be trusted. The source counts as unreachable.
+    NO_LEADER = 9;
   }
 
   // System.

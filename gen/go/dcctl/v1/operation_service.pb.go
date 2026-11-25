@@ -383,7 +383,7 @@ const file_webitel_dcctl_v1_operation_service_proto_rawDesc = "" +
 	"\x04name\x18\x01 \x01(\tBM\xe2A\x01\x02\xfaA\x1d\n" +
 	"\x1bdcctl.webitel.com/Operation\xbaH&r$2\"^operations/[A-Za-z0-9._-]{1,128}$R\x04name\x12H\n" +
 	"\fconfirmation\x18\x02 \x01(\v2\x1e.webitel.dcctl.v1.ConfirmationB\x04\xe2A\x01\x01R\fconfirmation\x12)\n" +
-	"\rvalidate_only\x18\x03 \x01(\bB\x04\xe2A\x01\x01R\fvalidateOnly2\xfdA\n" +
+	"\rvalidate_only\x18\x03 \x01(\bB\x04\xe2A\x01\x01R\fvalidateOnly2\xc7B\n" +
 	"\x10OperationService\x12\xb1\x12\n" +
 	"\x0eListOperations\x12'.webitel.dcctl.v1.ListOperationsRequest\x1a(.webitel.dcctl.v1.ListOperationsResponse\"\xcb\x11\x92A\xb1\x11J\xae\x11\n" +
 	"\x03200\x12\xa6\x11\n" +
@@ -405,9 +405,8 @@ const file_webitel_dcctl_v1_operation_service_proto_rawDesc = "" +
 	"\x03404\x12\x92\x02\n" +
 	"/No such operation: `dcctl.operation.not_found`.\x12\x1b\n" +
 	"\x19\x1a\x17.webitel.dcctl.v1.Error\"\xc1\x01\n" +
-	"\x10application/json\x12\xac\x01{\"id\":\"dcctl.operation.not_found\",\"code\":404,\"status\":\"Not Found\",\"detail\":\"operation not found\",\"metadata\":{\"operation\":\"operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10\"}}\x82\xd3\xe4\x93\x02\x1f\x12\x1d/v1/{name=operations/*}:watch0\x01\x12\x99\v\n" +
-	"\x0fResumeOperation\x12(.webitel.dcctl.v1.ResumeOperationRequest\x1a\x1b.webitel.dcctl.v1.Operation\"\xbe\n" +
-	"\x92A\x91\n" +
+	"\x10application/json\x12\xac\x01{\"id\":\"dcctl.operation.not_found\",\"code\":404,\"status\":\"Not Found\",\"detail\":\"operation not found\",\"metadata\":{\"operation\":\"operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10\"}}\x82\xd3\xe4\x93\x02\x1f\x12\x1d/v1/{name=operations/*}:watch0\x01\x12\xe3\v\n" +
+	"\x0fResumeOperation\x12(.webitel.dcctl.v1.ResumeOperationRequest\x1a\x1b.webitel.dcctl.v1.Operation\"\x88\v\x92A\xdb\n" +
 	"J`\n" +
 	"\x03200\x12Y\n" +
 	"WThe resumed operation. With validate_only, the operation with the checks of the resume.J\x8c\x03\n" +
@@ -422,9 +421,9 @@ const file_webitel_dcctl_v1_operation_service_proto_rawDesc = "" +
 	"\x03409\x12\xdd\x01\n" +
 	"\x1cConflict: `dcctl.lock.busy`.\x12\x1b\n" +
 	"\x19\x1a\x17.webitel.dcctl.v1.Error\"\x9f\x01\n" +
-	"\x10application/json\x12\x8a\x01{\"id\":\"dcctl.lock.busy\",\"code\":409,\"status\":\"Conflict\",\"detail\":\"dcctl/lock is held by another instance\",\"metadata\":{\"holder\":\"dcctl-a1\"}}J\x98\x02\n" +
-	"\x03503\x12\x90\x02\n" +
-	"@The leading instance is unreachable: `dcctl.leader.unavailable`.\x12\x1b\n" +
+	"\x10application/json\x12\x8a\x01{\"id\":\"dcctl.lock.busy\",\"code\":409,\"status\":\"Conflict\",\"detail\":\"dcctl/lock is held by another instance\",\"metadata\":{\"holder\":\"dcctl-a1\"}}J\xe2\x02\n" +
+	"\x03503\x12\xda\x02\n" +
+	"\x89\x01The leading instance is unreachable (`dcctl.leader.unavailable`), or no Consul KV answered to take dcctl/lock (`dcctl.lock.unavailable`).\x12\x1b\n" +
 	"\x19\x1a\x17.webitel.dcctl.v1.Error\"\xae\x01\n" +
 	"\x10application/json\x12\x99\x01{\"id\":\"dcctl.leader.unavailable\",\"code\":503,\"status\":\"Service Unavailable\",\"detail\":\"leading instance is unreachable\",\"metadata\":{\"instance\":\"dcctl-b1\"}}\x82\xd3\xe4\x93\x02#:\x01*\"\x1e/v1/{name=operations/*}:resume\x12\xe3\x06\n" +
 	"\x10AbandonOperation\x12).webitel.dcctl.v1.AbandonOperationRequest\x1a\x1b.webitel.dcctl.v1.Operation\"\x86\x06\x92A\xd8\x05Jc\n" +

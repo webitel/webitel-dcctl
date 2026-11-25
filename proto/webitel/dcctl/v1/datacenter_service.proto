@@ -44,7 +44,7 @@ service DatacenterService {
               '{"system":"PATRONI","endpoint":"https://10.2.0.95:8008","reachable":true,'
               '"observe_time":"2026-11-23T10:14:55Z"}],"patroni":{"leader":"pg-b1","role":"STANDBY_LEADER",'
               '"timeline":"5","standby_cluster_host":"10.1.0.95","upstream_datacenter":"datacenters/dc_a",'
-              '"lag_bytes":"0"},"nomad":{"leader":"10.2.0.91:4647","ready_node_count":3,'
+              '"lag_bytes":"0","divergence_state":"NOT_DIVERGED"},"nomad":{"leader":"10.2.0.91:4647","ready_node_count":3,'
               '"job_counts":{"stopped_count":12}}}]}'
           }
         }
@@ -70,7 +70,8 @@ service DatacenterService {
               '"observe_time":"2026-11-23T10:14:55Z"},{"system":"PATRONI","endpoint":"https://10.2.0.95:8008",'
               '"reachable":true,"observe_time":"2026-11-23T10:14:55Z"}],"patroni":{"leader":"pg-b1",'
               '"role":"STANDBY_LEADER","timeline":"5","standby_cluster_host":"10.1.0.95",'
-              '"upstream_datacenter":"datacenters/dc_a","lag_bytes":"0","members":[{"member":"pg-b1",'
+              '"upstream_datacenter":"datacenters/dc_a","lag_bytes":"0","divergence_state":"NOT_DIVERGED",'
+              '"members":[{"member":"pg-b1",'
               '"host":"10.2.0.95","api_uri":"https://10.2.0.95:8008","reachable":true,'
               '"role":"STANDBY_LEADER","patroni_state":"streaming","timeline":"5","replication_state":"streaming",'
               '"xlog":{"received_location":"83886176","replayed_location":"83886176",'
@@ -203,7 +204,7 @@ service DatacenterService {
       responses: {
         key: "503"
         value: {
-          description: "The leading instance is unreachable: `dcctl.leader.unavailable`."
+          description: "The leading instance is unreachable (`dcctl.leader.unavailable`), or no Consul KV answered to take dcctl/lock (`dcctl.lock.unavailable`)."
           schema: {
             json_schema: {ref: ".webitel.dcctl.v1.Error"}
           }
@@ -286,15 +287,15 @@ service DatacenterService {
       responses: {
         key: "503"
         value: {
-          description: "The leading instance is unreachable: `dcctl.leader.unavailable`."
+          description: "The leading instance is unreachable (`dcctl.leader.unavailable`), or no Consul KV answered to take dcctl/lock (`dcctl.lock.unavailable`)."
           schema: {
             json_schema: {ref: ".webitel.dcctl.v1.Error"}
           }
           examples: {
             key: "application/json"
             value:
-              '{"id":"dcctl.leader.unavailable","code":503,"status":"Service Unavailable",'
-              '"detail":"leading instance is unreachable","metadata":{"instance":"dcctl-b1"}}'
+              '{"id":"dcctl.lock.unavailable","code":503,"status":"Service Unavailable",'
+              '"detail":"dcctl/lock not taken: no kv answered (dc_a, dc_b)","metadata":{"datacenters":"dc_a,dc_b"}}'
           }
         }
       }
@@ -364,7 +365,7 @@ service DatacenterService {
       responses: {
         key: "503"
         value: {
-          description: "The leading instance is unreachable: `dcctl.leader.unavailable`."
+          description: "The leading instance is unreachable (`dcctl.leader.unavailable`), or no Consul KV answered to take dcctl/lock (`dcctl.lock.unavailable`)."
           schema: {
             json_schema: {ref: ".webitel.dcctl.v1.Error"}
           }
@@ -460,7 +461,7 @@ service DatacenterService {
       responses: {
         key: "503"
         value: {
-          description: "The leading instance is unreachable: `dcctl.leader.unavailable`."
+          description: "The leading instance is unreachable (`dcctl.leader.unavailable`), or no Consul KV answered to take dcctl/lock (`dcctl.lock.unavailable`)."
           schema: {
             json_schema: {ref: ".webitel.dcctl.v1.Error"}
           }
@@ -542,7 +543,7 @@ service DatacenterService {
       responses: {
         key: "503"
         value: {
-          description: "The leading instance is unreachable: `dcctl.leader.unavailable`."
+          description: "The leading instance is unreachable (`dcctl.leader.unavailable`), or no Consul KV answered to take dcctl/lock (`dcctl.lock.unavailable`)."
           schema: {
             json_schema: {ref: ".webitel.dcctl.v1.Error"}
           }
@@ -625,7 +626,7 @@ service DatacenterService {
       responses: {
         key: "503"
         value: {
-          description: "The leading instance is unreachable: `dcctl.leader.unavailable`."
+          description: "The leading instance is unreachable (`dcctl.leader.unavailable`), or no Consul KV answered to take dcctl/lock (`dcctl.lock.unavailable`)."
           schema: {
             json_schema: {ref: ".webitel.dcctl.v1.Error"}
           }
@@ -752,7 +753,7 @@ service DatacenterService {
       responses: {
         key: "503"
         value: {
-          description: "The leading instance is unreachable: `dcctl.leader.unavailable`."
+          description: "The leading instance is unreachable (`dcctl.leader.unavailable`), or no Consul KV answered to take dcctl/lock (`dcctl.lock.unavailable`)."
           schema: {
             json_schema: {ref: ".webitel.dcctl.v1.Error"}
           }

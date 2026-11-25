@@ -7,7 +7,7 @@
  */
 
 /**
- * ErrorInfo metadata: `operation`, `holder`, `datacenter`, `instance`,
- * `state`.
+ * ErrorInfo metadata: `operation`, `holder`, `datacenter`, `datacenters`,
+ * `instance`, `state`.
  */
 export type WebitelDcctlV1ErrorMetadata = { [key: string]: string };

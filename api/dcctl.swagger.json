@@ -191,7 +191,8 @@
                       "timeline": "5",
                       "standby_cluster_host": "10.1.0.95",
                       "upstream_datacenter": "datacenters/dc_a",
-                      "lag_bytes": "0"
+                      "lag_bytes": "0",
+                      "divergence_state": "NOT_DIVERGED"
                     },
                     "nomad": {
                       "leader": "10.2.0.91:4647",
@@ -305,6 +306,7 @@
                   "standby_cluster_host": "10.1.0.95",
                   "upstream_datacenter": "datacenters/dc_a",
                   "lag_bytes": "0",
+                  "divergence_state": "NOT_DIVERGED",
                   "members": [
                     {
                       "member": "pg-b1",
@@ -572,7 +574,7 @@
             }
           },
           "503": {
-            "description": "The leading instance is unreachable: `dcctl.leader.unavailable`.",
+            "description": "The leading instance is unreachable (`dcctl.leader.unavailable`), or no Consul KV answered to take dcctl/lock (`dcctl.lock.unavailable`).",
             "schema": {
               "$ref": "#/definitions/webitel.dcctl.v1.Error"
             },
@@ -722,18 +724,18 @@
             }
           },
           "503": {
-            "description": "The leading instance is unreachable: `dcctl.leader.unavailable`.",
+            "description": "The leading instance is unreachable (`dcctl.leader.unavailable`), or no Consul KV answered to take dcctl/lock (`dcctl.lock.unavailable`).",
             "schema": {
               "$ref": "#/definitions/webitel.dcctl.v1.Error"
             },
             "examples": {
               "application/json": {
-                "id": "dcctl.leader.unavailable",
+                "id": "dcctl.lock.unavailable",
                 "code": 503,
                 "status": "Service Unavailable",
-                "detail": "leading instance is unreachable",
+                "detail": "dcctl/lock not taken: no kv answered (dc_a, dc_b)",
                 "metadata": {
-                  "instance": "dcctl-b1"
+                  "datacenters": "dc_a,dc_b"
                 }
               }
             }
@@ -870,7 +872,7 @@
             }
           },
           "503": {
-            "description": "The leading instance is unreachable: `dcctl.leader.unavailable`.",
+            "description": "The leading instance is unreachable (`dcctl.leader.unavailable`), or no Consul KV answered to take dcctl/lock (`dcctl.lock.unavailable`).",
             "schema": {
               "$ref": "#/definitions/webitel.dcctl.v1.Error"
             },
@@ -1052,7 +1054,7 @@
             }
           },
           "503": {
-            "description": "The leading instance is unreachable: `dcctl.leader.unavailable`.",
+            "description": "The leading instance is unreachable (`dcctl.leader.unavailable`), or no Consul KV answered to take dcctl/lock (`dcctl.lock.unavailable`).",
             "schema": {
               "$ref": "#/definitions/webitel.dcctl.v1.Error"
             },
@@ -1281,7 +1283,7 @@
             }
           },
           "503": {
-            "description": "The leading instance is unreachable: `dcctl.leader.unavailable`.",
+            "description": "The leading instance is unreachable (`dcctl.leader.unavailable`), or no Consul KV answered to take dcctl/lock (`dcctl.lock.unavailable`).",
             "schema": {
               "$ref": "#/definitions/webitel.dcctl.v1.Error"
             },
@@ -1544,7 +1546,7 @@
             }
           },
           "503": {
-            "description": "The leading instance is unreachable: `dcctl.leader.unavailable`.",
+            "description": "The leading instance is unreachable (`dcctl.leader.unavailable`), or no Consul KV answered to take dcctl/lock (`dcctl.lock.unavailable`).",
             "schema": {
               "$ref": "#/definitions/webitel.dcctl.v1.Error"
             },
@@ -1637,7 +1639,7 @@
             }
           },
           "503": {
-            "description": "The leading instance is unreachable: `dcctl.leader.unavailable`.",
+            "description": "The leading instance is unreachable (`dcctl.leader.unavailable`), or no Consul KV answered to take dcctl/lock (`dcctl.lock.unavailable`).",
             "schema": {
               "$ref": "#/definitions/webitel.dcctl.v1.Error"
             },
@@ -1748,7 +1750,7 @@
                     "detail": "stopped 2 managed jobs: the effective state names dc_b as active"
                   }
                 ],
-                "next_page_token": "MjAyNjExMjMxMDEyNDAwMDAwMDAwMDAtYTkxYzAzZDc"
+                "next_page_token": "MjAyNjExMjIwODA1MTIwMDAwMDAwMDAtZTQwYjcxYzl8ZTNiMGM0NDI5OGZjMWMxNA"
               }
             }
           },
@@ -2328,7 +2330,7 @@
             }
           },
           "503": {
-            "description": "The leading instance is unreachable: `dcctl.leader.unavailable`.",
+            "description": "The leading instance is unreachable (`dcctl.leader.unavailable`), or no Consul KV answered to take dcctl/lock (`dcctl.lock.unavailable`).",
             "schema": {
               "$ref": "#/definitions/webitel.dcctl.v1.Error"
             },
@@ -2552,6 +2554,7 @@
                 },
                 "observe_time": "2026-11-23T10:14:55Z",
                 "cycle_duration": "0.420s",
+                "interval": "5s",
                 "profile": "WARM_STANDBY",
                 "initialized": true,
                 "detected_active_datacenter": "datacenters/dc_a",
@@ -2680,7 +2683,8 @@
                       "timeline": "5",
                       "standby_cluster_host": "10.1.0.95",
                       "upstream_datacenter": "datacenters/dc_a",
-                      "lag_bytes": "0"
+                      "lag_bytes": "0",
+                      "divergence_state": "NOT_DIVERGED"
                     },
                     "nomad": {
                       "leader": "10.2.0.91:4647",
@@ -2923,7 +2927,7 @@
           "items": {
             "type": "string"
           },
-          "description": "Why health is DEGRADED or DOWN.",
+          "description": "Why health is DEGRADED, DOWN or UNKNOWN.",
           "readOnly": true
         },
         "needs_recovery": {
@@ -3225,7 +3229,7 @@
         },
         "reason": {
           "$ref": "#/definitions/webitel.dcctl.v1.Datacenter.Nomad.Node.Reason",
-          "description": "Why the node is not ready.",
+          "description": "Why the node does not run managed jobs normally.",
           "readOnly": true
         }
       },
@@ -3237,10 +3241,11 @@
         "REASON_UNSPECIFIED",
         "DRAINING",
         "DOWN",
-        "INELIGIBLE"
+        "INELIGIBLE",
+        "NO_ALLOCATION"
       ],
       "default": "REASON_UNSPECIFIED",
-      "description": "Why the node is not ready.\n\n - REASON_UNSPECIFIED: Not set.\n - DRAINING: The node is draining.\n - DOWN: The node is down.\n - INELIGIBLE: The node is ineligible for scheduling."
+      "description": "Why the node does not run managed jobs normally.\n\n - REASON_UNSPECIFIED: Not set.\n - DRAINING: The node is draining.\n - DOWN: The node is down.\n - INELIGIBLE: The node is ineligible for scheduling.\n - NO_ALLOCATION: missing_nodes only: the node is ready and eligible but has no\nhealthy allocation of the job."
     },
     "webitel.dcctl.v1.Datacenter.Nomad.Stage": {
       "type": "object",
@@ -3324,15 +3329,20 @@
           "description": "Lag of the datacenter behind the active primary. Approximate between\nclusters.",
           "readOnly": true
         },
+        "divergence_state": {
+          "$ref": "#/definitions/webitel.dcctl.v1.Datacenter.Patroni.DivergenceState",
+          "description": "Whether the datacenter diverged from the active leader. Authoritative:\nan empty divergence_lsn does not mean NOT_DIVERGED. Not set\n(UNSPECIFIED) for the active datacenter and in stretch, where there is\nnothing to compare.",
+          "readOnly": true
+        },
         "divergence_lsn": {
           "type": "string",
-          "description": "Point where the timeline diverged from the active leader, as an LSN\nlike `0/5000060`. Set only when the datacenter diverged.",
+          "description": "Point where the timeline diverged from the active leader, as an LSN\nlike `0/5000060`. Set only when divergence_state is DIVERGED.",
           "readOnly": true
         },
         "divergence_bytes": {
           "type": "string",
           "format": "int64",
-          "description": "WAL written after the divergence point.",
+          "description": "WAL written after the divergence point. Set only when divergence_state\nis DIVERGED.",
           "readOnly": true
         },
         "members": {
@@ -3346,6 +3356,17 @@
         }
       },
       "description": "Patroni cluster of the datacenter (warm_standby) or the part of the\ncluster in it (stretch)."
+    },
+    "webitel.dcctl.v1.Datacenter.Patroni.DivergenceState": {
+      "type": "string",
+      "enum": [
+        "DIVERGENCE_STATE_UNSPECIFIED",
+        "NOT_DIVERGED",
+        "DIVERGED",
+        "UNKNOWN"
+      ],
+      "default": "DIVERGENCE_STATE_UNSPECIFIED",
+      "description": "Whether the timeline of the datacenter left the history of the active\none.\n\n - DIVERGENCE_STATE_UNSPECIFIED: Not set.\n - NOT_DIVERGED: The datacenter did not diverge.\n - DIVERGED: The datacenter diverged; see divergence_lsn and divergence_bytes.\n - UNKNOWN: Cannot be told from what was read: no effective state, the Patroni of\nthis or the active datacenter is unreachable or has no leader, or a\ntimeline, WAL position or `/history` entry is missing. The\ndatacenter may have diverged."
     },
     "webitel.dcctl.v1.Datacenter.Patroni.Member": {
       "type": "object",
@@ -3496,6 +3517,7 @@
         "STATE_UNSPECIFIED",
         "UNREACHABLE",
         "UNINITIALIZED",
+        "UNDETERMINED",
         "ACTIVE",
         "SPLIT_BRAIN",
         "DB_SPLIT",
@@ -3504,7 +3526,7 @@
         "STANDBY"
       ],
       "default": "STATE_UNSPECIFIED",
-      "description": "Role of the datacenter in coordination. The first matching value in\nthis order wins.\n\n - STATE_UNSPECIFIED: Not set.\n - UNREACHABLE: No source of the datacenter is reachable.\n - UNINITIALIZED: No voter has the dcctl state.\n - ACTIVE: The active datacenter of the effective state.\n - SPLIT_BRAIN: An inactive datacenter runs a managed job that is not stopped.\n - DB_SPLIT: warm_standby: the Patroni leader of an inactive datacenter is primary.\n - STALE: The voter of the datacenter has an older generation.\n - NEEDS_RECOVERY: Waits for recovery after a failover.\n - STANDBY: Healthy standby."
+      "description": "Role of the datacenter in coordination. The first matching value in the\norder listed here, not by number, wins.\n\n - STATE_UNSPECIFIED: Not set.\n - UNREACHABLE: No source of the datacenter is reachable.\n - UNINITIALIZED: No voter has the dcctl state.\n - UNDETERMINED: The role cannot be told: the voters give no effective state, as in a\nconflict, or voters that do not answer may hold a state the others do\nnot show. A voter whose Consul has no leader does not count. dcctl\ndoes not guess ACTIVE or STANDBY then.\n - ACTIVE: The active datacenter of the effective state.\n - SPLIT_BRAIN: An inactive datacenter runs a managed job that is not stopped.\n - DB_SPLIT: warm_standby: the Patroni leader of an inactive datacenter is primary.\n - STALE: The voter of the datacenter has an older generation.\n - NEEDS_RECOVERY: Waits for recovery after a failover.\n - STANDBY: Healthy standby."
     },
     "webitel.dcctl.v1.DatacenterService.DemoteDatacenterBody": {
       "type": "object",
@@ -3656,7 +3678,7 @@
           "additionalProperties": {
             "type": "string"
           },
-          "description": "ErrorInfo metadata: `operation`, `holder`, `datacenter`, `instance`,\n`state`.",
+          "description": "ErrorInfo metadata: `operation`, `holder`, `datacenter`, `datacenters`,\n`instance`, `state`.",
           "readOnly": true
         },
         "violations": {
@@ -3884,17 +3906,20 @@
         "ERROR"
       ],
       "default": "RESULT_UNSPECIFIED",
-      "description": "Outcome of the recorded action.\n\n - RESULT_UNSPECIFIED: Not set.\n - OK: Succeeded, or an alarm cleared.\n - WARNING: Succeeded with warnings, or a WARNING alarm raised.\n - ERROR: Failed, or a CRITICAL alarm raised."
+      "description": "Outcome of the recorded action. For SYSTEM events: LOCK_LOST is ERROR,\nOUTCOME_UNKNOWN is WARNING.\n\n - RESULT_UNSPECIFIED: Not set.\n - OK: Succeeded, or an alarm cleared.\n - WARNING: Succeeded with warnings, or a WARNING alarm raised.\n - ERROR: Failed, or a CRITICAL alarm raised."
     },
     "webitel.dcctl.v1.JournalEntry.SystemAction": {
       "type": "string",
       "enum": [
         "SYSTEM_ACTION_UNSPECIFIED",
         "FENCE_APPS",
-        "ALIGN_GENERATION"
+        "ALIGN_GENERATION",
+        "ALIGN_OPERATION",
+        "LOCK_LOST",
+        "OUTCOME_UNKNOWN"
       ],
       "default": "SYSTEM_ACTION_UNSPECIFIED",
-      "description": "Action dcctl takes by itself, without an operation.\n\n - SYSTEM_ACTION_UNSPECIFIED: Not set.\n - FENCE_APPS: Fencing: stop the managed apps of this datacenter because the\neffective state names another datacenter as active. A Patroni primary\nhere is left to the DB_SPLIT alarm.\n - ALIGN_GENERATION: Copy the effective state to a voter with an older generation."
+      "description": "Action dcctl takes by itself, without an operation, or a coordination\nevent it records. ALIGN_OPERATION, LOCK_LOST and OUTCOME_UNKNOWN set\n`operation`.\n\n - SYSTEM_ACTION_UNSPECIFIED: Not set.\n - FENCE_APPS: Fencing: stop the managed apps of this datacenter because the\neffective state names another datacenter as active. A Patroni primary\nhere is left to the DB_SPLIT alarm.\n - ALIGN_GENERATION: Voter alignment: copy the effective state to a voter with an older\ngeneration.\n - ALIGN_OPERATION: Copy the final record of an operation to the copies of `dcctl/op`\nthat still hold it unfinished.\n - LOCK_LOST: A session of `dcctl/lock` expired, was invalidated or was not renewed\nfor its TTL; the operation holding the lock is interrupted.\n - OUTCOME_UNKNOWN: Releasing `dcctl/lock` or writing `dcctl/op` in `datacenter` failed in\na way that may have been applied; `params.key` names the key."
     },
     "webitel.dcctl.v1.JournalEntry.Type": {
       "type": "string",
@@ -3906,7 +3931,7 @@
         "ALARM"
       ],
       "default": "TYPE_UNSPECIFIED",
-      "description": "What the entry records.\n\n - TYPE_UNSPECIFIED: Not set.\n - OPERATION: Operation start or end.\n - STEP: Operation step.\n - SYSTEM: Action dcctl takes by itself, see SystemAction.\n - ALARM: Alarm raised or cleared."
+      "description": "What the entry records.\n\n - TYPE_UNSPECIFIED: Not set.\n - OPERATION: Operation start or end.\n - STEP: Operation step.\n - SYSTEM: Action dcctl takes by itself, without an operation, or a coordination\nevent it records; see SystemAction.\n - ALARM: Alarm raised or cleared."
     },
     "webitel.dcctl.v1.ListDatacentersResponse": {
       "type": "object",
@@ -4264,10 +4289,11 @@
         "PATRONI_PROMOTE",
         "PATRONI_REPOINT",
         "PATRONI_FOLLOW",
-        "PATRONI_SWITCHOVER"
+        "PATRONI_SWITCHOVER",
+        "PATRONI_FAILOVER"
       ],
       "default": "TYPE_UNSPECIFIED",
-      "description": "Step type.\n\n - TYPE_UNSPECIFIED: Not set.\n - APPS_PREFLIGHT: Check the apps of the source and target datacenters.\n - APPS_STOP: Stop the apps of one stage; the stage is in `stage`.\n - APPS_START: Start the apps of one stage; the stage is in `stage`.\n - GENERATION: Write the new generation to the voters.\n - VERIFY: Check the conditions of a completed switch.\n - PATRONI_DEMOTE: Demote the Patroni primary.\n - PATRONI_CATCHUP: Wait for the target to catch up.\n - PATRONI_NO_PRIMARY: Make sure no Patroni primary is left.\n - PATRONI_PROMOTE: Promote the target Patroni cluster.\n - PATRONI_REPOINT: Point a standby cluster at the new primary.\n - PATRONI_FOLLOW: Wait for a standby cluster to follow the new primary.\n - PATRONI_SWITCHOVER: Patroni switchover inside one cluster."
+      "description": "Step type.\n\n - TYPE_UNSPECIFIED: Not set.\n - APPS_PREFLIGHT: Check the apps of the source and target datacenters.\n - APPS_STOP: Stop the apps of one stage; the stage is in `stage`.\n - APPS_START: Start the apps of one stage; the stage is in `stage`.\n - GENERATION: Write the new generation to the voters.\n - VERIFY: Check the conditions of a completed switch.\n - PATRONI_DEMOTE: Demote the Patroni primary.\n - PATRONI_CATCHUP: Wait for the target to catch up.\n - PATRONI_NO_PRIMARY: Make sure no Patroni primary is left.\n - PATRONI_PROMOTE: Promote the target Patroni cluster.\n - PATRONI_REPOINT: Point a standby cluster at the new primary.\n - PATRONI_FOLLOW: Wait for a standby cluster to follow the new primary.\n - PATRONI_SWITCHOVER: Patroni switchover inside one cluster.\n - PATRONI_FAILOVER: Patroni failover inside one cluster without a leader (stretch)."
     },
     "webitel.dcctl.v1.Operation.Type": {
       "type": "string",
@@ -4472,10 +4498,12 @@
         "TLS",
         "AUTH",
         "HTTP",
-        "INVALID"
+        "INVALID",
+        "NO_ENDPOINTS",
+        "NO_LEADER"
       ],
       "default": "ERROR_UNSPECIFIED",
-      "description": "Why the source is unreachable.\n\n - ERROR_UNSPECIFIED: Reachable.\n - TIMEOUT: Request timed out.\n - REFUSED: Connection refused.\n - DNS: Name resolution failed.\n - TLS: TLS handshake or certificate check failed.\n - AUTH: Authentication failed.\n - HTTP: Unexpected HTTP status.\n - INVALID: Response could not be parsed."
+      "description": "Why the source is unreachable or its answer cannot be used.\n\n - ERROR_UNSPECIFIED: Reachable.\n - TIMEOUT: Request timed out.\n - REFUSED: Connection refused.\n - DNS: Name resolution failed.\n - TLS: TLS handshake or certificate check failed.\n - AUTH: Authentication failed.\n - HTTP: Unexpected HTTP status.\n - INVALID: Response could not be parsed.\n - NO_ENDPOINTS: Discovery found no endpoint to ask, such as a service without passing\ninstances in Consul.\n - NO_LEADER: The Consul agent answered, but its cluster has no known leader, so its\nreads cannot be trusted. The source counts as unreachable."
     },
     "webitel.dcctl.v1.Source.System": {
       "type": "string",
@@ -4509,6 +4537,11 @@
         "cycle_duration": {
           "type": "string",
           "description": "Duration of the last collection cycle.",
+          "readOnly": true
+        },
+        "interval": {
+          "type": "string",
+          "description": "Configured pause between the end of one collection cycle and the start\nof the next (`status.interval`). The next cycle finishes about interval\nplus cycle_duration after observe_time.",
           "readOnly": true
         },
         "profile": {
@@ -4786,7 +4819,7 @@
         },
         "datacenter": {
           "type": "string",
-          "description": "Datacenter of a DATACENTER voter.",
+          "description": "Datacenter of a DATACENTER voter. Empty in stretch, where the only\nDATACENTER voter is the cluster-wide Consul.",
           "readOnly": true
         },
         "reachable": {
@@ -4836,7 +4869,7 @@
         "ARBITER"
       ],
       "default": "TYPE_UNSPECIFIED",
-      "description": "Voter kind.\n\n - TYPE_UNSPECIFIED: Not set.\n - DATACENTER: Consul KV of the datacenter in `datacenter`.\n - ARBITER: The arbiter."
+      "description": "Voter kind.\n\n - TYPE_UNSPECIFIED: Not set.\n - DATACENTER: Consul KV of the datacenter in `datacenter`; in stretch, of the\ncluster-wide Consul, with `datacenter` empty.\n - ARBITER: The arbiter."
     },
     "webitel.dcctl.v1.SwitchDatacenterRequest": {
       "type": "object",

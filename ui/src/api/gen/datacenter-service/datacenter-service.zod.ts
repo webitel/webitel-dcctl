@@ -602,6 +602,7 @@ export const InitializeArbiterResponse = zod
 								'PATRONI_REPOINT',
 								'PATRONI_FOLLOW',
 								'PATRONI_SWITCHOVER',
+								'PATRONI_FAILOVER',
 							])
 							.default(initializeArbiterResponseStepsItemTypeDefault)
 							.describe('Step type.'),
@@ -750,6 +751,7 @@ export const listDatacentersResponseDatacentersItemNomadNotReadyNodesItemReasonD
 export const listDatacentersResponseDatacentersItemNomadStagesItemJobsItemMissingNodesItemReasonDefault = `REASON_UNSPECIFIED`;
 export const listDatacentersResponseDatacentersItemNomadStagesItemJobsItemStateDefault = `STATE_UNSPECIFIED`;
 export const listDatacentersResponseDatacentersItemNomadStagesItemJobsItemTypeDefault = `TYPE_UNSPECIFIED`;
+export const listDatacentersResponseDatacentersItemPatroniDivergenceStateDefault = `DIVERGENCE_STATE_UNSPECIFIED`;
 export const listDatacentersResponseDatacentersItemPatroniMembersItemErrorDefault = `ERROR_UNSPECIFIED`;
 export const listDatacentersResponseDatacentersItemPatroniMembersItemRoleDefault = `ROLE_UNSPECIFIED`;
 export const listDatacentersResponseDatacentersItemPatroniMembersItemUnusableReasonDefault = `UNUSABLE_REASON_UNSPECIFIED`;
@@ -799,7 +801,7 @@ export const ListDatacentersResponse = zod
 						health_reasons: zod
 							.array(zod.string())
 							.optional()
-							.describe('Why health is DEGRADED or DOWN.'),
+							.describe('Why health is DEGRADED, DOWN or UNKNOWN.'),
 						info_checks: zod
 							.array(
 								zod
@@ -926,11 +928,14 @@ export const ListDatacentersResponse = zod
 														'DRAINING',
 														'DOWN',
 														'INELIGIBLE',
+														'NO_ALLOCATION',
 													])
 													.default(
 														listDatacentersResponseDatacentersItemNomadNotReadyNodesItemReasonDefault,
 													)
-													.describe('Why the node is not ready.'),
+													.describe(
+														'Why the node does not run managed jobs normally.',
+													),
 											})
 											.describe(
 												'Nomad node that does not run managed jobs normally.',
@@ -1009,12 +1014,13 @@ export const ListDatacentersResponse = zod
 																						'DRAINING',
 																						'DOWN',
 																						'INELIGIBLE',
+																						'NO_ALLOCATION',
 																					])
 																					.default(
 																						listDatacentersResponseDatacentersItemNomadStagesItemJobsItemMissingNodesItemReasonDefault,
 																					)
 																					.describe(
-																						'Why the node is not ready.',
+																						'Why the node does not run managed jobs normally.',
 																					),
 																			})
 																			.describe(
@@ -1121,12 +1127,27 @@ export const ListDatacentersResponse = zod
 								divergence_bytes: zod
 									.string()
 									.optional()
-									.describe('WAL written after the divergence point.'),
+									.describe(
+										'WAL written after the divergence point. Set only when divergence_state\nis DIVERGED.',
+									),
 								divergence_lsn: zod
 									.string()
 									.optional()
 									.describe(
-										'Point where the timeline diverged from the active leader, as an LSN\nlike `0/5000060`. Set only when the datacenter diverged.',
+										'Point where the timeline diverged from the active leader, as an LSN\nlike `0/5000060`. Set only when divergence_state is DIVERGED.',
+									),
+								divergence_state: zod
+									.enum([
+										'DIVERGENCE_STATE_UNSPECIFIED',
+										'NOT_DIVERGED',
+										'DIVERGED',
+										'UNKNOWN',
+									])
+									.default(
+										listDatacentersResponseDatacentersItemPatroniDivergenceStateDefault,
+									)
+									.describe(
+										'Whether the datacenter diverged from the active leader. Authoritative:\nan empty divergence_lsn does not mean NOT_DIVERGED. Not set\n(UNSPECIFIED) for the active datacenter and in stretch, where there is\nnothing to compare.',
 									),
 								lag_bytes: zod
 									.string()
@@ -1160,6 +1181,8 @@ export const ListDatacentersResponse = zod
 														'AUTH',
 														'HTTP',
 														'INVALID',
+														'NO_ENDPOINTS',
+														'NO_LEADER',
 													])
 													.default(
 														listDatacentersResponseDatacentersItemPatroniMembersItemErrorDefault,
@@ -1314,6 +1337,8 @@ export const ListDatacentersResponse = zod
 												'AUTH',
 												'HTTP',
 												'INVALID',
+												'NO_ENDPOINTS',
+												'NO_LEADER',
 											])
 											.default(
 												listDatacentersResponseDatacentersItemSourcesItemErrorDefault,
@@ -1354,6 +1379,7 @@ export const ListDatacentersResponse = zod
 								'STATE_UNSPECIFIED',
 								'UNREACHABLE',
 								'UNINITIALIZED',
+								'UNDETERMINED',
 								'ACTIVE',
 								'SPLIT_BRAIN',
 								'DB_SPLIT',
@@ -1388,6 +1414,7 @@ export const getDatacenterResponseNomadNotReadyNodesItemReasonDefault = `REASON_
 export const getDatacenterResponseNomadStagesItemJobsItemMissingNodesItemReasonDefault = `REASON_UNSPECIFIED`;
 export const getDatacenterResponseNomadStagesItemJobsItemStateDefault = `STATE_UNSPECIFIED`;
 export const getDatacenterResponseNomadStagesItemJobsItemTypeDefault = `TYPE_UNSPECIFIED`;
+export const getDatacenterResponsePatroniDivergenceStateDefault = `DIVERGENCE_STATE_UNSPECIFIED`;
 export const getDatacenterResponsePatroniMembersItemErrorDefault = `ERROR_UNSPECIFIED`;
 export const getDatacenterResponsePatroniMembersItemRoleDefault = `ROLE_UNSPECIFIED`;
 export const getDatacenterResponsePatroniMembersItemUnusableReasonDefault = `UNUSABLE_REASON_UNSPECIFIED`;
@@ -1430,7 +1457,7 @@ export const GetDatacenterResponse = zod
 		health_reasons: zod
 			.array(zod.string())
 			.optional()
-			.describe('Why health is DEGRADED or DOWN.'),
+			.describe('Why health is DEGRADED, DOWN or UNKNOWN.'),
 		info_checks: zod
 			.array(
 				zod
@@ -1526,11 +1553,12 @@ export const GetDatacenterResponse = zod
 										'DRAINING',
 										'DOWN',
 										'INELIGIBLE',
+										'NO_ALLOCATION',
 									])
 									.default(
 										getDatacenterResponseNomadNotReadyNodesItemReasonDefault,
 									)
-									.describe('Why the node is not ready.'),
+									.describe('Why the node does not run managed jobs normally.'),
 							})
 							.describe('Nomad node that does not run managed jobs normally.'),
 					)
@@ -1597,11 +1625,14 @@ export const GetDatacenterResponse = zod
 																		'DRAINING',
 																		'DOWN',
 																		'INELIGIBLE',
+																		'NO_ALLOCATION',
 																	])
 																	.default(
 																		getDatacenterResponseNomadStagesItemJobsItemMissingNodesItemReasonDefault,
 																	)
-																	.describe('Why the node is not ready.'),
+																	.describe(
+																		'Why the node does not run managed jobs normally.',
+																	),
 															})
 															.describe(
 																'Nomad node that does not run managed jobs normally.',
@@ -1707,12 +1738,25 @@ export const GetDatacenterResponse = zod
 				divergence_bytes: zod
 					.string()
 					.optional()
-					.describe('WAL written after the divergence point.'),
+					.describe(
+						'WAL written after the divergence point. Set only when divergence_state\nis DIVERGED.',
+					),
 				divergence_lsn: zod
 					.string()
 					.optional()
 					.describe(
-						'Point where the timeline diverged from the active leader, as an LSN\nlike `0/5000060`. Set only when the datacenter diverged.',
+						'Point where the timeline diverged from the active leader, as an LSN\nlike `0/5000060`. Set only when divergence_state is DIVERGED.',
+					),
+				divergence_state: zod
+					.enum([
+						'DIVERGENCE_STATE_UNSPECIFIED',
+						'NOT_DIVERGED',
+						'DIVERGED',
+						'UNKNOWN',
+					])
+					.default(getDatacenterResponsePatroniDivergenceStateDefault)
+					.describe(
+						'Whether the datacenter diverged from the active leader. Authoritative:\nan empty divergence_lsn does not mean NOT_DIVERGED. Not set\n(UNSPECIFIED) for the active datacenter and in stretch, where there is\nnothing to compare.',
 					),
 				lag_bytes: zod
 					.string()
@@ -1743,6 +1787,8 @@ export const GetDatacenterResponse = zod
 										'AUTH',
 										'HTTP',
 										'INVALID',
+										'NO_ENDPOINTS',
+										'NO_LEADER',
 									])
 									.default(getDatacenterResponsePatroniMembersItemErrorDefault)
 									.describe('Why the REST API does not answer.'),
@@ -1873,6 +1919,8 @@ export const GetDatacenterResponse = zod
 								'AUTH',
 								'HTTP',
 								'INVALID',
+								'NO_ENDPOINTS',
+								'NO_LEADER',
 							])
 							.default(getDatacenterResponseSourcesItemErrorDefault)
 							.describe('Why the last request failed.'),
@@ -1904,6 +1952,7 @@ export const GetDatacenterResponse = zod
 				'STATE_UNSPECIFIED',
 				'UNREACHABLE',
 				'UNINITIALIZED',
+				'UNDETERMINED',
 				'ACTIVE',
 				'SPLIT_BRAIN',
 				'DB_SPLIT',
@@ -2520,6 +2569,7 @@ export const DemoteDatacenterResponse = zod
 								'PATRONI_REPOINT',
 								'PATRONI_FOLLOW',
 								'PATRONI_SWITCHOVER',
+								'PATRONI_FAILOVER',
 							])
 							.default(demoteDatacenterResponseStepsItemTypeDefault)
 							.describe('Step type.'),
@@ -3248,6 +3298,7 @@ export const FailoverDatacenterResponse = zod
 								'PATRONI_REPOINT',
 								'PATRONI_FOLLOW',
 								'PATRONI_SWITCHOVER',
+								'PATRONI_FAILOVER',
 							])
 							.default(failoverDatacenterResponseStepsItemTypeDefault)
 							.describe('Step type.'),
@@ -3974,6 +4025,7 @@ export const MarkDatacenterRecoveredResponse = zod
 								'PATRONI_REPOINT',
 								'PATRONI_FOLLOW',
 								'PATRONI_SWITCHOVER',
+								'PATRONI_FAILOVER',
 							])
 							.default(markDatacenterRecoveredResponseStepsItemTypeDefault)
 							.describe('Step type.'),
@@ -4702,6 +4754,7 @@ export const RepointDatacenterResponse = zod
 								'PATRONI_REPOINT',
 								'PATRONI_FOLLOW',
 								'PATRONI_SWITCHOVER',
+								'PATRONI_FAILOVER',
 							])
 							.default(repointDatacenterResponseStepsItemTypeDefault)
 							.describe('Step type.'),
@@ -5428,6 +5481,7 @@ export const SwitchDatacenterResponse = zod
 								'PATRONI_REPOINT',
 								'PATRONI_FOLLOW',
 								'PATRONI_SWITCHOVER',
+								'PATRONI_FAILOVER',
 							])
 							.default(switchDatacenterResponseStepsItemTypeDefault)
 							.describe('Step type.'),
@@ -6153,6 +6207,7 @@ export const InitializeDatacentersResponse = zod
 								'PATRONI_REPOINT',
 								'PATRONI_FOLLOW',
 								'PATRONI_SWITCHOVER',
+								'PATRONI_FAILOVER',
 							])
 							.default(initializeDatacentersResponseStepsItemTypeDefault)
 							.describe('Step type.'),
@@ -6880,6 +6935,7 @@ export const ResolveConflictResponse = zod
 								'PATRONI_REPOINT',
 								'PATRONI_FOLLOW',
 								'PATRONI_SWITCHOVER',
+								'PATRONI_FAILOVER',
 							])
 							.default(resolveConflictResponseStepsItemTypeDefault)
 							.describe('Step type.'),
@@ -7602,6 +7658,7 @@ export const SyncAppsResponse = zod
 								'PATRONI_REPOINT',
 								'PATRONI_FOLLOW',
 								'PATRONI_SWITCHOVER',
+								'PATRONI_FAILOVER',
 							])
 							.default(syncAppsResponseStepsItemTypeDefault)
 							.describe('Step type.'),

@@ -252,6 +252,8 @@ const (
 	Operation_Step_PATRONI_FOLLOW Operation_Step_Type = 11
 	// Patroni switchover inside one cluster.
 	Operation_Step_PATRONI_SWITCHOVER Operation_Step_Type = 12
+	// Patroni failover inside one cluster without a leader (stretch).
+	Operation_Step_PATRONI_FAILOVER Operation_Step_Type = 13
 )
 
 // Enum value maps for Operation_Step_Type.
@@ -270,6 +272,7 @@ var (
 		10: "PATRONI_REPOINT",
 		11: "PATRONI_FOLLOW",
 		12: "PATRONI_SWITCHOVER",
+		13: "PATRONI_FAILOVER",
 	}
 	Operation_Step_Type_value = map[string]int32{
 		"TYPE_UNSPECIFIED":   0,
@@ -285,6 +288,7 @@ var (
 		"PATRONI_REPOINT":    10,
 		"PATRONI_FOLLOW":     11,
 		"PATRONI_SWITCHOVER": 12,
+		"PATRONI_FAILOVER":   13,
 	}
 )
 
@@ -893,7 +897,7 @@ var File_webitel_dcctl_v1_operation_proto protoreflect.FileDescriptor
 
 const file_webitel_dcctl_v1_operation_proto_rawDesc = "" +
 	"\n" +
-	" webitel/dcctl/v1/operation.proto\x12\x10webitel.dcctl.v1\x1a\x1fgoogle/api/field_behavior.proto\x1a\x1bgoogle/api/field_info.proto\x1a\x19google/api/resource.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1dwebitel/dcctl/v1/action.proto\x1a\x1cwebitel/dcctl/v1/check.proto\x1a\x1dwebitel/dcctl/v1/common.proto\"\x91\x19\n" +
+	" webitel/dcctl/v1/operation.proto\x12\x10webitel.dcctl.v1\x1a\x1fgoogle/api/field_behavior.proto\x1a\x1bgoogle/api/field_info.proto\x1a\x19google/api/resource.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1dwebitel/dcctl/v1/action.proto\x1a\x1cwebitel/dcctl/v1/check.proto\x1a\x1dwebitel/dcctl/v1/common.proto\"\xa7\x19\n" +
 	"\tOperation\x12\x18\n" +
 	"\x04name\x18\x01 \x01(\tB\x04\xe2A\x01\bR\x04name\x12:\n" +
 	"\x04type\x18\x02 \x01(\x0e2 .webitel.dcctl.v1.Operation.TypeB\x04\xe2A\x01\x03R\x04type\x12=\n" +
@@ -926,7 +930,7 @@ const file_webitel_dcctl_v1_operation_proto_rawDesc = "" +
 	"\x10resolve_conflict\x18# \x01(\v2(.webitel.dcctl.v1.ResolveConflictRequestB\x04\xe2A\x01\x03H\x00R\x0fresolveConflict\x12m\n" +
 	"\x16initialize_datacenters\x18$ \x01(\v2..webitel.dcctl.v1.InitializeDatacentersRequestB\x04\xe2A\x01\x03H\x00R\x15initializeDatacenters\x12a\n" +
 	"\x12initialize_arbiter\x18% \x01(\v2*.webitel.dcctl.v1.InitializeArbiterRequestB\x04\xe2A\x01\x03H\x00R\x11initializeArbiter\x12F\n" +
-	"\tsync_apps\x18& \x01(\v2!.webitel.dcctl.v1.SyncAppsRequestB\x04\xe2A\x01\x03H\x00R\bsyncApps\x1a\xe2\x06\n" +
+	"\tsync_apps\x18& \x01(\v2!.webitel.dcctl.v1.SyncAppsRequestB\x04\xe2A\x01\x03H\x00R\bsyncApps\x1a\xf8\x06\n" +
 	"\x04Step\x12\x1a\n" +
 	"\x05index\x18\x01 \x01(\x05B\x04\xe2A\x01\x03R\x05index\x12?\n" +
 	"\x04type\x18\x02 \x01(\x0e2%.webitel.dcctl.v1.Operation.Step.TypeB\x04\xe2A\x01\x03R\x04type\x12\x1a\n" +
@@ -942,7 +946,7 @@ const file_webitel_dcctl_v1_operation_proto_rawDesc = "" +
 	"datacenter\x18\n" +
 	" \x01(\tB%\xe2A\x01\x03\xfaA\x1e\n" +
 	"\x1cdcctl.webitel.com/DatacenterR\n" +
-	"datacenter\"\x82\x02\n" +
+	"datacenter\"\x98\x02\n" +
 	"\x04Type\x12\x14\n" +
 	"\x10TYPE_UNSPECIFIED\x10\x00\x12\x12\n" +
 	"\x0eAPPS_PREFLIGHT\x10\x01\x12\r\n" +
@@ -960,7 +964,8 @@ const file_webitel_dcctl_v1_operation_proto_rawDesc = "" +
 	"\x0fPATRONI_REPOINT\x10\n" +
 	"\x12\x12\n" +
 	"\x0ePATRONI_FOLLOW\x10\v\x12\x16\n" +
-	"\x12PATRONI_SWITCHOVER\x10\f\"`\n" +
+	"\x12PATRONI_SWITCHOVER\x10\f\x12\x14\n" +
+	"\x10PATRONI_FAILOVER\x10\r\"`\n" +
 	"\x05State\x12\x15\n" +
 	"\x11STATE_UNSPECIFIED\x10\x00\x12\v\n" +
 	"\aPENDING\x10\x01\x12\v\n" +

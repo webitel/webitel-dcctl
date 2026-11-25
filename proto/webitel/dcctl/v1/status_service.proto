@@ -31,7 +31,7 @@ service StatusService {
             value:
               '{"name":"status","observer":{"node":"dcctl-a1","datacenter":"datacenters/dc_a",'
               '"address":"10.1.0.81:10023"},"observe_time":"2026-11-23T10:14:55Z","cycle_duration":"0.420s",'
-              '"profile":"WARM_STANDBY","initialized":true,"detected_active_datacenter":"datacenters/dc_a",'
+              '"interval":"5s","profile":"WARM_STANDBY","initialized":true,"detected_active_datacenter":"datacenters/dc_a",'
               '"active_datacenter":"datacenters/dc_a","generation":"7","patroni_timeline":"5",'
               '"update_time":"2026-11-20T16:02:11Z","voters":[{"type":"DATACENTER","datacenter":"datacenters/dc_a",'
               '"reachable":true,"generation":"7","active_datacenter":"datacenters/dc_a",'
@@ -58,7 +58,7 @@ service StatusService {
               '{"system":"PATRONI","endpoint":"https://10.2.0.95:8008","reachable":true,'
               '"observe_time":"2026-11-23T10:14:55Z"}],"patroni":{"leader":"pg-b1","role":"STANDBY_LEADER",'
               '"timeline":"5","standby_cluster_host":"10.1.0.95","upstream_datacenter":"datacenters/dc_a",'
-              '"lag_bytes":"0"},"nomad":{"leader":"10.2.0.91:4647","ready_node_count":3,'
+              '"lag_bytes":"0","divergence_state":"NOT_DIVERGED"},"nomad":{"leader":"10.2.0.91:4647","ready_node_count":3,'
               '"job_counts":{"stopped_count":12}}}]}'
           }
         }

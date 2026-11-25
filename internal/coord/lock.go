@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
 	"github.com/webitel/webitel-go-kit/pkg/logging"
@@ -71,7 +70,9 @@ func (e *LockBusyError) GRPCStatus() *status.Status {
 }
 
 // LockUnavailableError is returned by [Locker.Acquire] when no KV answered,
-// so the lock was taken nowhere. Its gRPC status is Unavailable.
+// so the lock was taken nowhere. Its gRPC status is Unavailable
+// LOCK_UNAVAILABLE with metadata datacenters, the unreachable datacenters
+// comma-separated; stretch has none, its one KV is the cluster-wide Consul.
 type LockUnavailableError struct {
 	Unreachable []Unreachable
 }
@@ -96,7 +97,19 @@ func (e *LockUnavailableError) Unwrap() []error {
 
 // GRPCStatus returns the status the API answers with.
 func (e *LockUnavailableError) GRPCStatus() *status.Status {
-	return status.New(codes.Unavailable, e.Error())
+	dcs := make([]string, 0, len(e.Unreachable))
+	for _, u := range e.Unreachable {
+		if u.Name != StretchName {
+			dcs = append(dcs, u.Name)
+		}
+	}
+
+	var md map[string]string
+	if len(dcs) > 0 {
+		md = map[string]string{"datacenters": strings.Join(dcs, ",")}
+	}
+
+	return apierr.Status(apierr.ReasonLockUnavailable, e.Error(), md)
 }
 
 // Unreachable is a KV where the lock was not taken because it did not answer.

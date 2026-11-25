@@ -194,23 +194,25 @@ const file_webitel_dcctl_v1_datacenter_service_proto_rawDesc = "" +
 	"\x0fnext_page_token\x18\x02 \x01(\tB\x04\xe2A\x01\x03R\rnextPageToken\"y\n" +
 	"\x14GetDatacenterRequest\x12a\n" +
 	"\x04name\x18\x01 \x01(\tBM\xe2A\x01\x02\xfaA\x1e\n" +
-	"\x1cdcctl.webitel.com/Datacenter\xbaH%r#2!^datacenters/[A-Za-z0-9_-]{1,63}$R\x04name2ť\x01\n" +
-	"\x11DatacenterService\x12\xf6\n" +
+	"\x1cdcctl.webitel.com/Datacenter\xbaH%r#2!^datacenters/[A-Za-z0-9_-]{1,63}$R\x04name2\xa3\xaa\x01\n" +
+	"\x11DatacenterService\x12\x98\v\n" +
+	"\x0fListDatacenters\x12(.webitel.dcctl.v1.ListDatacentersRequest\x1a).webitel.dcctl.v1.ListDatacentersResponse\"\xaf\n" +
+	"\x92A\x94\n" +
+	"J\x91\n" +
 	"\n" +
-	"\x0fListDatacenters\x12(.webitel.dcctl.v1.ListDatacentersRequest\x1a).webitel.dcctl.v1.ListDatacentersResponse\"\x8d\n" +
-	"\x92A\xf2\tJ\xef\t\n" +
-	"\x03200\x12\xe7\t\n" +
-	"\x10All datacenters.\"\xd2\t\n" +
-	"\x10application/json\x12\xbd\t{\"datacenters\":[{\"name\":\"datacenters/dc_a\",\"state\":\"ACTIVE\",\"health\":\"OK\",\"sources\":[{\"system\":\"CONSUL\",\"endpoint\":\"10.1.0.89:8500\",\"reachable\":true,\"observe_time\":\"2026-11-23T10:14:55Z\"},{\"system\":\"NOMAD\",\"endpoint\":\"https://10.1.0.91:4646\",\"reachable\":true,\"observe_time\":\"2026-11-23T10:14:55Z\"},{\"system\":\"PATRONI\",\"endpoint\":\"https://10.1.0.95:8008\",\"reachable\":true,\"observe_time\":\"2026-11-23T10:14:55Z\"}],\"patroni\":{\"leader\":\"pg-a1\",\"role\":\"PRIMARY\",\"timeline\":\"5\"},\"nomad\":{\"leader\":\"10.1.0.91:4647\",\"ready_node_count\":3,\"job_counts\":{\"healthy_count\":12}}},{\"name\":\"datacenters/dc_b\",\"state\":\"STANDBY\",\"health\":\"OK\",\"sources\":[{\"system\":\"CONSUL\",\"endpoint\":\"10.2.0.89:8500\",\"reachable\":true,\"observe_time\":\"2026-11-23T10:14:55Z\"},{\"system\":\"NOMAD\",\"endpoint\":\"https://10.2.0.91:4646\",\"reachable\":true,\"observe_time\":\"2026-11-23T10:14:55Z\"},{\"system\":\"PATRONI\",\"endpoint\":\"https://10.2.0.95:8008\",\"reachable\":true,\"observe_time\":\"2026-11-23T10:14:55Z\"}],\"patroni\":{\"leader\":\"pg-b1\",\"role\":\"STANDBY_LEADER\",\"timeline\":\"5\",\"standby_cluster_host\":\"10.1.0.95\",\"upstream_datacenter\":\"datacenters/dc_a\",\"lag_bytes\":\"0\"},\"nomad\":{\"leader\":\"10.2.0.91:4647\",\"ready_node_count\":3,\"job_counts\":{\"stopped_count\":12}}}]}\x82\xd3\xe4\x93\x02\x11\x12\x0f/v1/datacenters\x12\x88\x15\n" +
-	"\rGetDatacenter\x12&.webitel.dcctl.v1.GetDatacenterRequest\x1a\x1c.webitel.dcctl.v1.Datacenter\"\xb0\x14\x92A\x85\x14J\xe9\x11\n" +
-	"\x03200\x12\xe1\x11\n" +
-	"\x13Datacenter details.\"\xc9\x11\n" +
-	"\x10application/json\x12\xb4\x11{\"name\":\"datacenters/dc_b\",\"state\":\"STANDBY\",\"health\":\"OK\",\"sources\":[{\"system\":\"CONSUL\",\"endpoint\":\"10.2.0.89:8500\",\"reachable\":true,\"observe_time\":\"2026-11-23T10:14:55Z\"},{\"system\":\"NOMAD\",\"endpoint\":\"https://10.2.0.91:4646\",\"reachable\":true,\"observe_time\":\"2026-11-23T10:14:55Z\"},{\"system\":\"PATRONI\",\"endpoint\":\"https://10.2.0.95:8008\",\"reachable\":true,\"observe_time\":\"2026-11-23T10:14:55Z\"}],\"patroni\":{\"leader\":\"pg-b1\",\"role\":\"STANDBY_LEADER\",\"timeline\":\"5\",\"standby_cluster_host\":\"10.1.0.95\",\"upstream_datacenter\":\"datacenters/dc_a\",\"lag_bytes\":\"0\",\"members\":[{\"member\":\"pg-b1\",\"host\":\"10.2.0.95\",\"api_uri\":\"https://10.2.0.95:8008\",\"reachable\":true,\"role\":\"STANDBY_LEADER\",\"patroni_state\":\"streaming\",\"timeline\":\"5\",\"replication_state\":\"streaming\",\"xlog\":{\"received_location\":\"83886176\",\"replayed_location\":\"83886176\",\"replay_time\":\"2026-11-23T10:14:54Z\"},\"lag_bytes\":\"0\",\"version\":\"4.1.0\",\"usable\":true},{\"member\":\"pg-b2\",\"host\":\"10.2.0.96\",\"api_uri\":\"https://10.2.0.96:8008\",\"reachable\":true,\"role\":\"REPLICA\",\"patroni_state\":\"streaming\",\"timeline\":\"5\",\"replication_state\":\"streaming\",\"xlog\":{\"received_location\":\"83886176\",\"replayed_location\":\"83886176\",\"replay_time\":\"2026-11-23T10:14:54Z\"},\"lag_bytes\":\"0\",\"version\":\"4.1.0\",\"usable\":true}]},\"nomad\":{\"leader\":\"10.2.0.91:4647\",\"ready_node_count\":3,\"job_counts\":{\"stopped_count\":2},\"stages\":[{\"stage\":1,\"job_counts\":{\"stopped_count\":1},\"jobs\":[{\"job\":\"freeswitch\",\"stage\":1,\"type\":\"SYSTEM\",\"stop\":true,\"state\":\"STOPPED\",\"allocation_counts\":{\"complete\":3},\"modify_index\":\"4182\",\"expected_node_count\":3}]},{\"stage\":3,\"job_counts\":{\"stopped_count\":1},\"jobs\":[{\"job\":\"webitel-core-api\",\"stage\":3,\"type\":\"SERVICE\",\"stop\":true,\"state\":\"STOPPED\",\"allocation_counts\":{\"complete\":2},\"modify_index\":\"4190\"}]}],\"unmanaged_jobs\":[{\"job\":\"node-exporter\",\"nomad_status\":\"running\"}]},\"observer\":{\"node\":\"dcctl-a1\",\"datacenter\":\"datacenters/dc_a\",\"address\":\"10.1.0.81:10023\"},\"observe_time\":\"2026-11-23T10:14:55Z\",\"consul\":{\"servers\":[{\"address\":\"10.2.0.89:8500\",\"reachable\":true,\"consul_datacenter\":\"dc_b\"}]},\"info_checks\":[{\"id\":\"info.rabbitmq\",\"result\":\"PASS\",\"datacenter\":\"datacenters/dc_b\",\"detail\":\"rabbitmq: 3 of 3 passing\",\"facts\":{\"service\":\"rabbitmq\",\"passing\":3,\"total\":3}}]}J\x96\x02\n" +
+	"\x03200\x12\x89\n" +
+	"\n" +
+	"\x10All datacenters.\"\xf4\t\n" +
+	"\x10application/json\x12\xdf\t{\"datacenters\":[{\"name\":\"datacenters/dc_a\",\"state\":\"ACTIVE\",\"health\":\"OK\",\"sources\":[{\"system\":\"CONSUL\",\"endpoint\":\"10.1.0.89:8500\",\"reachable\":true,\"observe_time\":\"2026-11-23T10:14:55Z\"},{\"system\":\"NOMAD\",\"endpoint\":\"https://10.1.0.91:4646\",\"reachable\":true,\"observe_time\":\"2026-11-23T10:14:55Z\"},{\"system\":\"PATRONI\",\"endpoint\":\"https://10.1.0.95:8008\",\"reachable\":true,\"observe_time\":\"2026-11-23T10:14:55Z\"}],\"patroni\":{\"leader\":\"pg-a1\",\"role\":\"PRIMARY\",\"timeline\":\"5\"},\"nomad\":{\"leader\":\"10.1.0.91:4647\",\"ready_node_count\":3,\"job_counts\":{\"healthy_count\":12}}},{\"name\":\"datacenters/dc_b\",\"state\":\"STANDBY\",\"health\":\"OK\",\"sources\":[{\"system\":\"CONSUL\",\"endpoint\":\"10.2.0.89:8500\",\"reachable\":true,\"observe_time\":\"2026-11-23T10:14:55Z\"},{\"system\":\"NOMAD\",\"endpoint\":\"https://10.2.0.91:4646\",\"reachable\":true,\"observe_time\":\"2026-11-23T10:14:55Z\"},{\"system\":\"PATRONI\",\"endpoint\":\"https://10.2.0.95:8008\",\"reachable\":true,\"observe_time\":\"2026-11-23T10:14:55Z\"}],\"patroni\":{\"leader\":\"pg-b1\",\"role\":\"STANDBY_LEADER\",\"timeline\":\"5\",\"standby_cluster_host\":\"10.1.0.95\",\"upstream_datacenter\":\"datacenters/dc_a\",\"lag_bytes\":\"0\",\"divergence_state\":\"NOT_DIVERGED\"},\"nomad\":{\"leader\":\"10.2.0.91:4647\",\"ready_node_count\":3,\"job_counts\":{\"stopped_count\":12}}}]}\x82\xd3\xe4\x93\x02\x11\x12\x0f/v1/datacenters\x12\xaa\x15\n" +
+	"\rGetDatacenter\x12&.webitel.dcctl.v1.GetDatacenterRequest\x1a\x1c.webitel.dcctl.v1.Datacenter\"\xd2\x14\x92A\xa7\x14J\x8b\x12\n" +
+	"\x03200\x12\x83\x12\n" +
+	"\x13Datacenter details.\"\xeb\x11\n" +
+	"\x10application/json\x12\xd6\x11{\"name\":\"datacenters/dc_b\",\"state\":\"STANDBY\",\"health\":\"OK\",\"sources\":[{\"system\":\"CONSUL\",\"endpoint\":\"10.2.0.89:8500\",\"reachable\":true,\"observe_time\":\"2026-11-23T10:14:55Z\"},{\"system\":\"NOMAD\",\"endpoint\":\"https://10.2.0.91:4646\",\"reachable\":true,\"observe_time\":\"2026-11-23T10:14:55Z\"},{\"system\":\"PATRONI\",\"endpoint\":\"https://10.2.0.95:8008\",\"reachable\":true,\"observe_time\":\"2026-11-23T10:14:55Z\"}],\"patroni\":{\"leader\":\"pg-b1\",\"role\":\"STANDBY_LEADER\",\"timeline\":\"5\",\"standby_cluster_host\":\"10.1.0.95\",\"upstream_datacenter\":\"datacenters/dc_a\",\"lag_bytes\":\"0\",\"divergence_state\":\"NOT_DIVERGED\",\"members\":[{\"member\":\"pg-b1\",\"host\":\"10.2.0.95\",\"api_uri\":\"https://10.2.0.95:8008\",\"reachable\":true,\"role\":\"STANDBY_LEADER\",\"patroni_state\":\"streaming\",\"timeline\":\"5\",\"replication_state\":\"streaming\",\"xlog\":{\"received_location\":\"83886176\",\"replayed_location\":\"83886176\",\"replay_time\":\"2026-11-23T10:14:54Z\"},\"lag_bytes\":\"0\",\"version\":\"4.1.0\",\"usable\":true},{\"member\":\"pg-b2\",\"host\":\"10.2.0.96\",\"api_uri\":\"https://10.2.0.96:8008\",\"reachable\":true,\"role\":\"REPLICA\",\"patroni_state\":\"streaming\",\"timeline\":\"5\",\"replication_state\":\"streaming\",\"xlog\":{\"received_location\":\"83886176\",\"replayed_location\":\"83886176\",\"replay_time\":\"2026-11-23T10:14:54Z\"},\"lag_bytes\":\"0\",\"version\":\"4.1.0\",\"usable\":true}]},\"nomad\":{\"leader\":\"10.2.0.91:4647\",\"ready_node_count\":3,\"job_counts\":{\"stopped_count\":2},\"stages\":[{\"stage\":1,\"job_counts\":{\"stopped_count\":1},\"jobs\":[{\"job\":\"freeswitch\",\"stage\":1,\"type\":\"SYSTEM\",\"stop\":true,\"state\":\"STOPPED\",\"allocation_counts\":{\"complete\":3},\"modify_index\":\"4182\",\"expected_node_count\":3}]},{\"stage\":3,\"job_counts\":{\"stopped_count\":1},\"jobs\":[{\"job\":\"webitel-core-api\",\"stage\":3,\"type\":\"SERVICE\",\"stop\":true,\"state\":\"STOPPED\",\"allocation_counts\":{\"complete\":2},\"modify_index\":\"4190\"}]}],\"unmanaged_jobs\":[{\"job\":\"node-exporter\",\"nomad_status\":\"running\"}]},\"observer\":{\"node\":\"dcctl-a1\",\"datacenter\":\"datacenters/dc_a\",\"address\":\"10.1.0.81:10023\"},\"observe_time\":\"2026-11-23T10:14:55Z\",\"consul\":{\"servers\":[{\"address\":\"10.2.0.89:8500\",\"reachable\":true,\"consul_datacenter\":\"dc_b\"}]},\"info_checks\":[{\"id\":\"info.rabbitmq\",\"result\":\"PASS\",\"datacenter\":\"datacenters/dc_b\",\"detail\":\"rabbitmq: 3 of 3 passing\",\"facts\":{\"service\":\"rabbitmq\",\"passing\":3,\"total\":3}}]}J\x96\x02\n" +
 	"\x03404\x12\x8e\x02\n" +
 	"BThe datacenter is not in the config: `dcctl.datacenter.not_found`.\x12\x1b\n" +
 	"\x19\x1a\x17.webitel.dcctl.v1.Error\"\xaa\x01\n" +
-	"\x10application/json\x12\x95\x01{\"id\":\"dcctl.datacenter.not_found\",\"code\":404,\"status\":\"Not Found\",\"detail\":\"datacenter dc_c not found\",\"metadata\":{\"datacenter\":\"datacenters/dc_c\"}}\xdaA\x04name\x82\xd3\xe4\x93\x02\x1a\x12\x18/v1/{name=datacenters/*}\x12\xcd\x1a\n" +
-	"\x10SwitchDatacenter\x12).webitel.dcctl.v1.SwitchDatacenterRequest\x1a\x1b.webitel.dcctl.v1.Operation\"\xf0\x19\x92A\xc2\x19J\xc5\f\n" +
+	"\x10application/json\x12\x95\x01{\"id\":\"dcctl.datacenter.not_found\",\"code\":404,\"status\":\"Not Found\",\"detail\":\"datacenter dc_c not found\",\"metadata\":{\"datacenter\":\"datacenters/dc_c\"}}\xdaA\x04name\x82\xd3\xe4\x93\x02\x1a\x12\x18/v1/{name=datacenters/*}\x12\x97\x1b\n" +
+	"\x10SwitchDatacenter\x12).webitel.dcctl.v1.SwitchDatacenterRequest\x1a\x1b.webitel.dcctl.v1.Operation\"\xba\x1a\x92A\x8c\x1aJ\xc5\f\n" +
 	"\x03200\x12\xbd\f\n" +
 	"\xa7\x01The operation: started, or the existing one for the same request_id. With validate_only, the checks and the plan of the operation that would start, with an empty name.\"\x90\v\n" +
 	"\x10application/json\x12\xfb\n" +
@@ -226,12 +228,12 @@ const file_webitel_dcctl_v1_datacenter_service_proto_rawDesc = "" +
 	"\x03409\x12\xfa\x01\n" +
 	"9Conflict: `dcctl.lock.busy`, `dcctl.request_id.mismatch`.\x12\x1b\n" +
 	"\x19\x1a\x17.webitel.dcctl.v1.Error\"\x9f\x01\n" +
-	"\x10application/json\x12\x8a\x01{\"id\":\"dcctl.lock.busy\",\"code\":409,\"status\":\"Conflict\",\"detail\":\"dcctl/lock is held by another instance\",\"metadata\":{\"holder\":\"dcctl-a1\"}}J\x98\x02\n" +
-	"\x03503\x12\x90\x02\n" +
-	"@The leading instance is unreachable: `dcctl.leader.unavailable`.\x12\x1b\n" +
+	"\x10application/json\x12\x8a\x01{\"id\":\"dcctl.lock.busy\",\"code\":409,\"status\":\"Conflict\",\"detail\":\"dcctl/lock is held by another instance\",\"metadata\":{\"holder\":\"dcctl-a1\"}}J\xe2\x02\n" +
+	"\x03503\x12\xda\x02\n" +
+	"\x89\x01The leading instance is unreachable (`dcctl.leader.unavailable`), or no Consul KV answered to take dcctl/lock (`dcctl.lock.unavailable`).\x12\x1b\n" +
 	"\x19\x1a\x17.webitel.dcctl.v1.Error\"\xae\x01\n" +
-	"\x10application/json\x12\x99\x01{\"id\":\"dcctl.leader.unavailable\",\"code\":503,\"status\":\"Service Unavailable\",\"detail\":\"leading instance is unreachable\",\"metadata\":{\"instance\":\"dcctl-b1\"}}\x82\xd3\xe4\x93\x02$:\x01*\"\x1f/v1/{name=datacenters/*}:switch\x12\x96\x10\n" +
-	"\x12FailoverDatacenter\x12+.webitel.dcctl.v1.FailoverDatacenterRequest\x1a\x1b.webitel.dcctl.v1.Operation\"\xb5\x0f\x92A\x85\x0fJ\xb2\x01\n" +
+	"\x10application/json\x12\x99\x01{\"id\":\"dcctl.leader.unavailable\",\"code\":503,\"status\":\"Service Unavailable\",\"detail\":\"leading instance is unreachable\",\"metadata\":{\"instance\":\"dcctl-b1\"}}\x82\xd3\xe4\x93\x02$:\x01*\"\x1f/v1/{name=datacenters/*}:switch\x12\xf4\x10\n" +
+	"\x12FailoverDatacenter\x12+.webitel.dcctl.v1.FailoverDatacenterRequest\x1a\x1b.webitel.dcctl.v1.Operation\"\x93\x10\x92A\xe3\x0fJ\xb2\x01\n" +
 	"\x03200\x12\xaa\x01\n" +
 	"\xa7\x01The operation: started, or the existing one for the same request_id. With validate_only, the checks and the plan of the operation that would start, with an empty name.J\xd6\x06\n" +
 	"\x03400\x12\xce\x06\n" +
@@ -245,13 +247,12 @@ const file_webitel_dcctl_v1_datacenter_service_proto_rawDesc = "" +
 	"\x03409\x12\xad\x02\n" +
 	"9Conflict: `dcctl.lock.busy`, `dcctl.request_id.mismatch`.\x12\x1b\n" +
 	"\x19\x1a\x17.webitel.dcctl.v1.Error\"\xd2\x01\n" +
-	"\x10application/json\x12\xbd\x01{\"id\":\"dcctl.request_id.mismatch\",\"code\":409,\"status\":\"Conflict\",\"detail\":\"request_id was used with another body\",\"metadata\":{\"operation\":\"operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10\"}}J\x98\x02\n" +
-	"\x03503\x12\x90\x02\n" +
-	"@The leading instance is unreachable: `dcctl.leader.unavailable`.\x12\x1b\n" +
-	"\x19\x1a\x17.webitel.dcctl.v1.Error\"\xae\x01\n" +
-	"\x10application/json\x12\x99\x01{\"id\":\"dcctl.leader.unavailable\",\"code\":503,\"status\":\"Service Unavailable\",\"detail\":\"leading instance is unreachable\",\"metadata\":{\"instance\":\"dcctl-b1\"}}\x82\xd3\xe4\x93\x02&:\x01*\"!/v1/{name=datacenters/*}:failover\x12\xf1\v\n" +
-	"\x10DemoteDatacenter\x12).webitel.dcctl.v1.DemoteDatacenterRequest\x1a\x1b.webitel.dcctl.v1.Operation\"\x94\v\x92A\xe6\n" +
-	"J\xb2\x01\n" +
+	"\x10application/json\x12\xbd\x01{\"id\":\"dcctl.request_id.mismatch\",\"code\":409,\"status\":\"Conflict\",\"detail\":\"request_id was used with another body\",\"metadata\":{\"operation\":\"operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10\"}}J\xf6\x02\n" +
+	"\x03503\x12\xee\x02\n" +
+	"\x89\x01The leading instance is unreachable (`dcctl.leader.unavailable`), or no Consul KV answered to take dcctl/lock (`dcctl.lock.unavailable`).\x12\x1b\n" +
+	"\x19\x1a\x17.webitel.dcctl.v1.Error\"\xc2\x01\n" +
+	"\x10application/json\x12\xad\x01{\"id\":\"dcctl.lock.unavailable\",\"code\":503,\"status\":\"Service Unavailable\",\"detail\":\"dcctl/lock not taken: no kv answered (dc_a, dc_b)\",\"metadata\":{\"datacenters\":\"dc_a,dc_b\"}}\x82\xd3\xe4\x93\x02&:\x01*\"!/v1/{name=datacenters/*}:failover\x12\xbb\f\n" +
+	"\x10DemoteDatacenter\x12).webitel.dcctl.v1.DemoteDatacenterRequest\x1a\x1b.webitel.dcctl.v1.Operation\"\xde\v\x92A\xb0\vJ\xb2\x01\n" +
 	"\x03200\x12\xaa\x01\n" +
 	"\xa7\x01The operation: started, or the existing one for the same request_id. With validate_only, the checks and the plan of the operation that would start, with an empty name.J\xea\x02\n" +
 	"\x03400\x12\xe2\x02\n" +
@@ -265,12 +266,12 @@ const file_webitel_dcctl_v1_datacenter_service_proto_rawDesc = "" +
 	"\x03409\x12\xfa\x01\n" +
 	"9Conflict: `dcctl.lock.busy`, `dcctl.request_id.mismatch`.\x12\x1b\n" +
 	"\x19\x1a\x17.webitel.dcctl.v1.Error\"\x9f\x01\n" +
-	"\x10application/json\x12\x8a\x01{\"id\":\"dcctl.lock.busy\",\"code\":409,\"status\":\"Conflict\",\"detail\":\"dcctl/lock is held by another instance\",\"metadata\":{\"holder\":\"dcctl-a1\"}}J\x98\x02\n" +
-	"\x03503\x12\x90\x02\n" +
-	"@The leading instance is unreachable: `dcctl.leader.unavailable`.\x12\x1b\n" +
+	"\x10application/json\x12\x8a\x01{\"id\":\"dcctl.lock.busy\",\"code\":409,\"status\":\"Conflict\",\"detail\":\"dcctl/lock is held by another instance\",\"metadata\":{\"holder\":\"dcctl-a1\"}}J\xe2\x02\n" +
+	"\x03503\x12\xda\x02\n" +
+	"\x89\x01The leading instance is unreachable (`dcctl.leader.unavailable`), or no Consul KV answered to take dcctl/lock (`dcctl.lock.unavailable`).\x12\x1b\n" +
 	"\x19\x1a\x17.webitel.dcctl.v1.Error\"\xae\x01\n" +
-	"\x10application/json\x12\x99\x01{\"id\":\"dcctl.leader.unavailable\",\"code\":503,\"status\":\"Service Unavailable\",\"detail\":\"leading instance is unreachable\",\"metadata\":{\"instance\":\"dcctl-b1\"}}\x82\xd3\xe4\x93\x02$:\x01*\"\x1f/v1/{name=datacenters/*}:demote\x12\xe5\x13\n" +
-	"\x11RepointDatacenter\x12*.webitel.dcctl.v1.RepointDatacenterRequest\x1a\x1b.webitel.dcctl.v1.Operation\"\x86\x13\x92A\xd7\x12J\xe2\x05\n" +
+	"\x10application/json\x12\x99\x01{\"id\":\"dcctl.leader.unavailable\",\"code\":503,\"status\":\"Service Unavailable\",\"detail\":\"leading instance is unreachable\",\"metadata\":{\"instance\":\"dcctl-b1\"}}\x82\xd3\xe4\x93\x02$:\x01*\"\x1f/v1/{name=datacenters/*}:demote\x12\xaf\x14\n" +
+	"\x11RepointDatacenter\x12*.webitel.dcctl.v1.RepointDatacenterRequest\x1a\x1b.webitel.dcctl.v1.Operation\"\xd0\x13\x92A\xa1\x13J\xe2\x05\n" +
 	"\x03200\x12\xda\x05\n" +
 	"\xa7\x01The operation: started, or the existing one for the same request_id. With validate_only, the checks and the plan of the operation that would start, with an empty name.\"\xad\x04\n" +
 	"\x10application/json\x12\x98\x04{\"type\":\"REPOINT\",\"target\":\"datacenters/dc_b\",\"mode\":\"QUORUM\",\"checks\":[{\"id\":\"coord.lock_free\",\"result\":\"PASS\",\"effect\":\"BLOCK\",\"detail\":\"dcctl/lock is free in every reachable datacenter\"},{\"id\":\"patroni.divergence\",\"result\":\"PASS\",\"effect\":\"CONFIRM\",\"confirmation\":\"max_discard_bytes\",\"datacenter\":\"datacenters/dc_b\",\"detail\":\"dc_b did not diverge\"}],\"steps\":[{\"index\":0,\"type\":\"PATRONI_REPOINT\",\"datacenter\":\"datacenters/dc_b\",\"state\":\"PENDING\"},{\"index\":1,\"type\":\"PATRONI_FOLLOW\",\"datacenter\":\"datacenters/dc_b\",\"state\":\"PENDING\"}]}J\xab\x06\n" +
@@ -285,12 +286,12 @@ const file_webitel_dcctl_v1_datacenter_service_proto_rawDesc = "" +
 	"\x03409\x12\xfa\x01\n" +
 	"9Conflict: `dcctl.lock.busy`, `dcctl.request_id.mismatch`.\x12\x1b\n" +
 	"\x19\x1a\x17.webitel.dcctl.v1.Error\"\x9f\x01\n" +
-	"\x10application/json\x12\x8a\x01{\"id\":\"dcctl.lock.busy\",\"code\":409,\"status\":\"Conflict\",\"detail\":\"dcctl/lock is held by another instance\",\"metadata\":{\"holder\":\"dcctl-a1\"}}J\x98\x02\n" +
-	"\x03503\x12\x90\x02\n" +
-	"@The leading instance is unreachable: `dcctl.leader.unavailable`.\x12\x1b\n" +
+	"\x10application/json\x12\x8a\x01{\"id\":\"dcctl.lock.busy\",\"code\":409,\"status\":\"Conflict\",\"detail\":\"dcctl/lock is held by another instance\",\"metadata\":{\"holder\":\"dcctl-a1\"}}J\xe2\x02\n" +
+	"\x03503\x12\xda\x02\n" +
+	"\x89\x01The leading instance is unreachable (`dcctl.leader.unavailable`), or no Consul KV answered to take dcctl/lock (`dcctl.lock.unavailable`).\x12\x1b\n" +
 	"\x19\x1a\x17.webitel.dcctl.v1.Error\"\xae\x01\n" +
-	"\x10application/json\x12\x99\x01{\"id\":\"dcctl.leader.unavailable\",\"code\":503,\"status\":\"Service Unavailable\",\"detail\":\"leading instance is unreachable\",\"metadata\":{\"instance\":\"dcctl-b1\"}}\x82\xd3\xe4\x93\x02%:\x01*\" /v1/{name=datacenters/*}:repoint\x12\xb0\x0f\n" +
-	"\x17MarkDatacenterRecovered\x120.webitel.dcctl.v1.MarkDatacenterRecoveredRequest\x1a\x1b.webitel.dcctl.v1.Operation\"\xc5\x0e\x92A\x90\x0eJ\xb2\x01\n" +
+	"\x10application/json\x12\x99\x01{\"id\":\"dcctl.leader.unavailable\",\"code\":503,\"status\":\"Service Unavailable\",\"detail\":\"leading instance is unreachable\",\"metadata\":{\"instance\":\"dcctl-b1\"}}\x82\xd3\xe4\x93\x02%:\x01*\" /v1/{name=datacenters/*}:repoint\x12\xfa\x0f\n" +
+	"\x17MarkDatacenterRecovered\x120.webitel.dcctl.v1.MarkDatacenterRecoveredRequest\x1a\x1b.webitel.dcctl.v1.Operation\"\x8f\x0f\x92A\xda\x0eJ\xb2\x01\n" +
 	"\x03200\x12\xaa\x01\n" +
 	"\xa7\x01The operation: started, or the existing one for the same request_id. With validate_only, the checks and the plan of the operation that would start, with an empty name.J\x94\x06\n" +
 	"\x03400\x12\x8c\x06\n" +
@@ -304,12 +305,12 @@ const file_webitel_dcctl_v1_datacenter_service_proto_rawDesc = "" +
 	"\x03409\x12\xfa\x01\n" +
 	"9Conflict: `dcctl.lock.busy`, `dcctl.request_id.mismatch`.\x12\x1b\n" +
 	"\x19\x1a\x17.webitel.dcctl.v1.Error\"\x9f\x01\n" +
-	"\x10application/json\x12\x8a\x01{\"id\":\"dcctl.lock.busy\",\"code\":409,\"status\":\"Conflict\",\"detail\":\"dcctl/lock is held by another instance\",\"metadata\":{\"holder\":\"dcctl-a1\"}}J\x98\x02\n" +
-	"\x03503\x12\x90\x02\n" +
-	"@The leading instance is unreachable: `dcctl.leader.unavailable`.\x12\x1b\n" +
+	"\x10application/json\x12\x8a\x01{\"id\":\"dcctl.lock.busy\",\"code\":409,\"status\":\"Conflict\",\"detail\":\"dcctl/lock is held by another instance\",\"metadata\":{\"holder\":\"dcctl-a1\"}}J\xe2\x02\n" +
+	"\x03503\x12\xda\x02\n" +
+	"\x89\x01The leading instance is unreachable (`dcctl.leader.unavailable`), or no Consul KV answered to take dcctl/lock (`dcctl.lock.unavailable`).\x12\x1b\n" +
 	"\x19\x1a\x17.webitel.dcctl.v1.Error\"\xae\x01\n" +
-	"\x10application/json\x12\x99\x01{\"id\":\"dcctl.leader.unavailable\",\"code\":503,\"status\":\"Service Unavailable\",\"detail\":\"leading instance is unreachable\",\"metadata\":{\"instance\":\"dcctl-b1\"}}\x82\xd3\xe4\x93\x02+:\x01*\"&/v1/{name=datacenters/*}:markRecovered\x12\xdb\x0f\n" +
-	"\x0fResolveConflict\x12(.webitel.dcctl.v1.ResolveConflictRequest\x1a\x1b.webitel.dcctl.v1.Operation\"\x80\x0f\x92A\xd2\x0eJ\xb2\x01\n" +
+	"\x10application/json\x12\x99\x01{\"id\":\"dcctl.leader.unavailable\",\"code\":503,\"status\":\"Service Unavailable\",\"detail\":\"leading instance is unreachable\",\"metadata\":{\"instance\":\"dcctl-b1\"}}\x82\xd3\xe4\x93\x02+:\x01*\"&/v1/{name=datacenters/*}:markRecovered\x12\xa5\x10\n" +
+	"\x0fResolveConflict\x12(.webitel.dcctl.v1.ResolveConflictRequest\x1a\x1b.webitel.dcctl.v1.Operation\"\xca\x0f\x92A\x9c\x0fJ\xb2\x01\n" +
 	"\x03200\x12\xaa\x01\n" +
 	"\xa7\x01The operation: started, or the existing one for the same request_id. With validate_only, the checks and the plan of the operation that would start, with an empty name.J\xd6\x06\n" +
 	"\x03400\x12\xce\x06\n" +
@@ -323,9 +324,9 @@ const file_webitel_dcctl_v1_datacenter_service_proto_rawDesc = "" +
 	"\x03409\x12\xfa\x01\n" +
 	"9Conflict: `dcctl.lock.busy`, `dcctl.request_id.mismatch`.\x12\x1b\n" +
 	"\x19\x1a\x17.webitel.dcctl.v1.Error\"\x9f\x01\n" +
-	"\x10application/json\x12\x8a\x01{\"id\":\"dcctl.lock.busy\",\"code\":409,\"status\":\"Conflict\",\"detail\":\"dcctl/lock is held by another instance\",\"metadata\":{\"holder\":\"dcctl-a1\"}}J\x98\x02\n" +
-	"\x03503\x12\x90\x02\n" +
-	"@The leading instance is unreachable: `dcctl.leader.unavailable`.\x12\x1b\n" +
+	"\x10application/json\x12\x8a\x01{\"id\":\"dcctl.lock.busy\",\"code\":409,\"status\":\"Conflict\",\"detail\":\"dcctl/lock is held by another instance\",\"metadata\":{\"holder\":\"dcctl-a1\"}}J\xe2\x02\n" +
+	"\x03503\x12\xda\x02\n" +
+	"\x89\x01The leading instance is unreachable (`dcctl.leader.unavailable`), or no Consul KV answered to take dcctl/lock (`dcctl.lock.unavailable`).\x12\x1b\n" +
 	"\x19\x1a\x17.webitel.dcctl.v1.Error\"\xae\x01\n" +
 	"\x10application/json\x12\x99\x01{\"id\":\"dcctl.leader.unavailable\",\"code\":503,\"status\":\"Service Unavailable\",\"detail\":\"leading instance is unreachable\",\"metadata\":{\"instance\":\"dcctl-b1\"}}\x82\xd3\xe4\x93\x02$:\x01*\"\x1f/v1/datacenters:resolveConflict\x12\x8c\v\n" +
 	"\x15InitializeDatacenters\x12..webitel.dcctl.v1.InitializeDatacentersRequest\x1a\x1b.webitel.dcctl.v1.Operation\"\xa5\n" +
@@ -343,8 +344,8 @@ const file_webitel_dcctl_v1_datacenter_service_proto_rawDesc = "" +
 	"\x03409\x12\x9a\x02\n" +
 	"&Conflict: `dcctl.request_id.mismatch`.\x12\x1b\n" +
 	"\x19\x1a\x17.webitel.dcctl.v1.Error\"\xd2\x01\n" +
-	"\x10application/json\x12\xbd\x01{\"id\":\"dcctl.request_id.mismatch\",\"code\":409,\"status\":\"Conflict\",\"detail\":\"request_id was used with another body\",\"metadata\":{\"operation\":\"operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10\"}}\x82\xd3\xe4\x93\x02\x1f:\x01*\"\x1a/v1/datacenters:initialize\x12\x97\t\n" +
-	"\bSyncApps\x12!.webitel.dcctl.v1.SyncAppsRequest\x1a\x1b.webitel.dcctl.v1.Operation\"\xca\b\x92A\xa3\bJ\xb2\x01\n" +
+	"\x10application/json\x12\xbd\x01{\"id\":\"dcctl.request_id.mismatch\",\"code\":409,\"status\":\"Conflict\",\"detail\":\"request_id was used with another body\",\"metadata\":{\"operation\":\"operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10\"}}\x82\xd3\xe4\x93\x02\x1f:\x01*\"\x1a/v1/datacenters:initialize\x12\xe1\t\n" +
+	"\bSyncApps\x12!.webitel.dcctl.v1.SyncAppsRequest\x1a\x1b.webitel.dcctl.v1.Operation\"\x94\t\x92A\xed\bJ\xb2\x01\n" +
 	"\x03200\x12\xaa\x01\n" +
 	"\xa7\x01The operation: started, or the existing one for the same request_id. With validate_only, the checks and the plan of the operation that would start, with an empty name.J\xcb\x02\n" +
 	"\x03400\x12\xc3\x02\n" +
@@ -354,9 +355,9 @@ const file_webitel_dcctl_v1_datacenter_service_proto_rawDesc = "" +
 	"\x03409\x12\xfa\x01\n" +
 	"9Conflict: `dcctl.lock.busy`, `dcctl.request_id.mismatch`.\x12\x1b\n" +
 	"\x19\x1a\x17.webitel.dcctl.v1.Error\"\x9f\x01\n" +
-	"\x10application/json\x12\x8a\x01{\"id\":\"dcctl.lock.busy\",\"code\":409,\"status\":\"Conflict\",\"detail\":\"dcctl/lock is held by another instance\",\"metadata\":{\"holder\":\"dcctl-a1\"}}J\x98\x02\n" +
-	"\x03503\x12\x90\x02\n" +
-	"@The leading instance is unreachable: `dcctl.leader.unavailable`.\x12\x1b\n" +
+	"\x10application/json\x12\x8a\x01{\"id\":\"dcctl.lock.busy\",\"code\":409,\"status\":\"Conflict\",\"detail\":\"dcctl/lock is held by another instance\",\"metadata\":{\"holder\":\"dcctl-a1\"}}J\xe2\x02\n" +
+	"\x03503\x12\xda\x02\n" +
+	"\x89\x01The leading instance is unreachable (`dcctl.leader.unavailable`), or no Consul KV answered to take dcctl/lock (`dcctl.lock.unavailable`).\x12\x1b\n" +
 	"\x19\x1a\x17.webitel.dcctl.v1.Error\"\xae\x01\n" +
 	"\x10application/json\x12\x99\x01{\"id\":\"dcctl.leader.unavailable\",\"code\":503,\"status\":\"Service Unavailable\",\"detail\":\"leading instance is unreachable\",\"metadata\":{\"instance\":\"dcctl-b1\"}}\x82\xd3\xe4\x93\x02\x1d:\x01*\"\x18/v1/datacenters:syncApps\x12\xac\a\n" +
 	"\x11InitializeArbiter\x12*.webitel.dcctl.v1.InitializeArbiterRequest\x1a\x1b.webitel.dcctl.v1.Operation\"\xcd\x06\x92A\xa8\x06J\xb2\x01\n" +
