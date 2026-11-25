@@ -7,6 +7,7 @@ import {
 	isStaleAge,
 	STALE_AFTER_SECONDS,
 	STATUS_INTERVAL_SECONDS,
+	staleAfterSeconds,
 } from './dataAge';
 
 const T = '2026-11-23T10:00:00Z';
@@ -39,6 +40,43 @@ describe('isStaleAge', () => {
 
 	it('treats unknown age as stale', () => {
 		expect(isStaleAge(null)).toBe(true);
+	});
+
+	it('takes the threshold of the status when given', () => {
+		expect(isStaleAge(20, 30)).toBe(false);
+		expect(isStaleAge(30, 30)).toBe(false);
+		expect(isStaleAge(31, 30)).toBe(true);
+		expect(isStaleAge(null, 30)).toBe(true);
+	});
+});
+
+describe('staleAfterSeconds', () => {
+	it('is 3 x (interval + cycle_duration) of the status', () => {
+		expect(staleAfterSeconds({ interval: '10s', cycle_duration: '2s' })).toBe(
+			36,
+		);
+		expect(staleAfterSeconds({ interval: '5s', cycle_duration: '0.5s' })).toBe(
+			16.5,
+		);
+	});
+
+	it('counts a missing cycle_duration as 0', () => {
+		expect(staleAfterSeconds({ interval: '10s' })).toBe(30);
+	});
+
+	it('falls back to the default without an interval', () => {
+		expect(staleAfterSeconds({ cycle_duration: '2s' })).toBe(
+			STALE_AFTER_SECONDS,
+		);
+		expect(staleAfterSeconds({})).toBe(STALE_AFTER_SECONDS);
+		expect(staleAfterSeconds(undefined)).toBe(STALE_AFTER_SECONDS);
+		expect(staleAfterSeconds({ interval: 'soon' })).toBe(STALE_AFTER_SECONDS);
+	});
+
+	it('marks the boundary: fresh at the threshold, stale one second past', () => {
+		const limit = staleAfterSeconds({ interval: '10s', cycle_duration: '2s' });
+		expect(isStaleAge(limit, limit)).toBe(false);
+		expect(isStaleAge(limit + 1, limit)).toBe(true);
 	});
 });
 

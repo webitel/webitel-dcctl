@@ -1,0 +1,36 @@
+.dc-tab {
+	display: flex;
+	flex-direction: column;
+	gap: var(--spacing-sm);
+}
+
+.dc-facts {
+	display: grid;
+	grid-template-columns: max-content 1fr;
+	gap: var(--spacing-xs) var(--spacing-md);
+	margin: 0;
+}
+
+.dc-facts dt {
+	font-weight: 600;
+}
+
+.dc-facts dd {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--spacing-xs);
+	margin: 0;
+}
+
+.dc-cell {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--spacing-xs);
+}
+
+/* A row whose data is old: grey, like the age in the header. */
+.dc-row--stale {
+	color: var(--text-disabled-color);
+}

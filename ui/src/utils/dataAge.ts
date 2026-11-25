@@ -1,12 +1,10 @@
 /**
- * `status.interval` default (seconds). `GetStatus` does not return the
- * interval yet, so the UI assumes the default; a collector configured with a
- * longer interval makes the data look stale too early. This is the only place
- * that knows the interval: the threshold will come from the API.
+ * Fallback for a status without `interval` (an older server): the default
+ * `status.interval` in seconds.
  */
 export const STATUS_INTERVAL_SECONDS = 5;
 
-/** Data older than `3 x status.interval` is shown as stale. */
+/** Stale threshold used while the status has not told the interval. */
 export const STALE_AFTER_SECONDS = 3 * STATUS_INTERVAL_SECONDS;
 
 /**
@@ -22,9 +20,11 @@ export const ageSeconds = (
 	return Math.max(0, Math.floor((nowMs - observed) / 1000));
 };
 
-/** Unknown age counts as stale: nothing proves the data is fresh. */
-export const isStaleAge = (age: number | null): boolean =>
-	age === null || age > STALE_AFTER_SECONDS;
+/** Unknown age counts as stale: nothing proves the data is fresh. `staleAfter` comes from `staleAfterSeconds`. */
+export const isStaleAge = (
+	age: number | null,
+	staleAfter: number = STALE_AFTER_SECONDS,
+): boolean => age === null || age > staleAfter;
 
 export interface AgeParts {
 	unit: 's' | 'm' | 'h';
@@ -37,8 +37,27 @@ export const formatAge = (seconds: number): AgeParts => {
 	return { unit: 'h', value: Math.floor(seconds / 3600) };
 };
 
+/** Seconds of a protobuf duration such as `4.100s`; `null` when missing or malformed. */
+const parseDuration = (value: string | undefined): number | null => {
+	const match = /^(\d+(?:\.\d+)?)s$/.exec(value ?? '');
+	return match ? Number(match[1]) : null;
+};
+
 /** Whole seconds of a protobuf duration such as `4.100s`; `null` when missing or malformed. */
 export const durationSeconds = (value: string | undefined): number | null => {
-	const match = /^(\d+(?:\.\d+)?)s$/.exec(value ?? '');
-	return match ? Math.floor(Number(match[1])) : null;
+	const seconds = parseDuration(value);
+	return seconds === null ? null : Math.floor(seconds);
+};
+
+/**
+ * Data older than `3 x (interval + cycle_duration)` is stale: the next cycle
+ * ends about that long after `observe_time`. Without `interval` the default
+ * applies; a missing `cycle_duration` counts as 0.
+ */
+export const staleAfterSeconds = (
+	status: { interval?: string; cycle_duration?: string } | undefined,
+): number => {
+	const interval = parseDuration(status?.interval);
+	if (interval === null) return STALE_AFTER_SECONDS;
+	return 3 * (interval + (parseDuration(status?.cycle_duration) ?? 0));
 };

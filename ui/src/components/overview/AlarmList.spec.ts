@@ -64,7 +64,7 @@ describe('AlarmList', () => {
 		expect(chips[1].classes()).toContain('p-chip-warning');
 	});
 
-	it('links a datacenter alarm to the datacenter page', async () => {
+	it('links a datacenter alarm to the tab of the datacenter page that shows the cause', async () => {
 		const wrapper = await mountAlarms({
 			alarms: [
 				{
@@ -76,7 +76,7 @@ describe('AlarmList', () => {
 		});
 
 		expect(wrapper.find('[data-test="alarm"] a').attributes('href')).toBe(
-			'/dcctl/datacenters/dc_b',
+			'/dcctl/datacenters/dc_b?tab=patroni',
 		);
 	});
 

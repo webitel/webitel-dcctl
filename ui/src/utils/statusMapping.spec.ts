@@ -40,6 +40,7 @@ describe('stateColor', () => {
 		['UNINITIALIZED', 'gray'],
 		['STALE', 'yellow'],
 		['NEEDS_RECOVERY', 'yellow'],
+		['UNDETERMINED', 'yellow'],
 		['SPLIT_BRAIN', 'red'],
 		['DB_SPLIT', 'red'],
 		['STATE_UNSPECIFIED', 'gray'],

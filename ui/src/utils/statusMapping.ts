@@ -51,6 +51,7 @@ export const stateColor = (
 			return 'red';
 		case 'STALE':
 		case 'NEEDS_RECOVERY':
+		case 'UNDETERMINED':
 			return 'yellow';
 		case 'UNREACHABLE':
 			return isActive ? 'red' : 'gray';

@@ -34,7 +34,29 @@ describe('alarmTarget', () => {
 				voter_type: 'DATACENTER',
 				datacenter: 'datacenters/dc_a',
 			} as never),
-		).toEqual({ name: 'datacenter', params: { dc: 'dc_a' } });
+		).toEqual({
+			name: 'datacenter',
+			params: { dc: 'dc_a' },
+			query: { tab: 'sources' },
+		});
+	});
+
+	it.each([
+		['DB_SPLIT', 'patroni'],
+		['DB_PRIMARY_MISSING', 'patroni'],
+		['DB_DEGRADED', 'patroni'],
+		['STANDBY_NOT_FOLLOWING', 'patroni'],
+		['APPS_DEGRADED', 'apps'],
+		['SPLIT_BRAIN', 'apps'],
+		['DATACENTER_UNREACHABLE', 'sources'],
+	])('%s opens the %s tab of the datacenter', (type, tab) => {
+		expect(
+			alarmTarget({ type, datacenter: 'datacenters/dc_b' } as never),
+		).toEqual({
+			name: 'datacenter',
+			params: { dc: 'dc_b' },
+			query: { tab },
+		});
 	});
 
 	it.each(['QUORUM_LOST', 'LEASE_LOST', 'ARBITER_UNINITIALIZED'])(

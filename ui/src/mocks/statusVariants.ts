@@ -15,6 +15,7 @@ export const STATUS_VARIANTS = [
 	'unreachable',
 	'stale',
 	'unavailable',
+	'stretch',
 ] as const;
 
 export type StatusVariant = (typeof STATUS_VARIANTS)[number];
@@ -157,10 +158,22 @@ const stale = (now: number): Status => ({
 	observe_time: ago(now, 600),
 });
 
+/** One Patroni cluster across both datacenters: only the active one has the leader. */
+const stretch = (now: number): Status => {
+	const base = normal(now);
+	return {
+		...base,
+		profile: 'STRETCH',
+		datacenters: markDatacenter(base, 'datacenters/dc_b', {
+			patroni: { timeline: '5', lag_bytes: '2048' },
+		}),
+	};
+};
+
 const BUILDERS: Record<
 	Exclude<StatusVariant, 'unavailable'>,
 	(now: number) => Status
-> = { normal, alarm, operation, unreachable, stale };
+> = { normal, alarm, operation, unreachable, stale, stretch };
 
 /** A `GetStatus` body for a variant, with times relative to `now`. */
 export const buildStatus = (
@@ -169,6 +182,8 @@ export const buildStatus = (
 ): Status => BUILDERS[variant](now);
 
 let selected: StatusVariant = 'normal';
+
+export const getStatusVariant = (): StatusVariant => selected;
 
 export const setStatusVariant = (variant: StatusVariant) => {
 	selected = variant;
