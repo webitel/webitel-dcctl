@@ -30,6 +30,7 @@ type Serve struct {
 	Status       Status        `yaml:"status"`
 	Journal      Journal       `yaml:"journal"`
 	Arbiter      ArbiterClient `yaml:"arbiter"`
+	UI           UI            `yaml:"ui"`
 }
 
 // ServeListen holds the listener addresses of serve.
@@ -159,6 +160,14 @@ type Journal struct {
 // ArbiterClient is the arbiter serve connects to; empty Address means no arbiter.
 type ArbiterClient struct {
 	Address string `yaml:"address"`
+}
+
+// UI is where serve takes the UI build from.
+type UI struct {
+	// Dir is an optional directory of the UI build, an override of the build
+	// embedded in the binary. While the binary embeds none, empty serves no
+	// UI.
+	Dir string `yaml:"dir"`
 }
 
 func defaultServe() Serve {

@@ -32,6 +32,7 @@ func TestServeValidate_valid(t *testing.T) {
 		{name: "rabbitmq_service_template", mutate: func(c *Serve) { c.Status.RabbitMQService = "rabbitmq-{datacenter}" }},
 		{name: "no_info_services", mutate: func(c *Serve) { c.Status.InfoServices = nil }},
 		{name: "no_arbiter", mutate: func(c *Serve) { c.Arbiter.Address = "" }},
+		{name: "ui_dir", mutate: func(c *Serve) { c.UI.Dir = "/usr/share/webitel-dcctl/ui" }},
 		{name: "consul_server_hostname", mutate: func(c *Serve) { c.Consul.Servers[1].Address = "consul.dc-b.example:8500" }},
 		{name: "patroni_endpoints_on_stretch", mutate: func(c *Serve) {
 			c.Profile, c.Arbiter.Address = ProfileStretch, ""
@@ -171,6 +172,7 @@ func TestServeValidate_invalid(t *testing.T) {
 		{"status_info_services_blank", func(c *Serve) { c.Status.InfoServices = []string{"engine", ""} }, "status.info_services[1]: must not be empty"},
 
 		{"journal_max_entries_zero", func(c *Serve) { c.Journal.MaxEntries = 0 }, "journal.max_entries: must be positive"},
+		{"ui_dir_relative", func(c *Serve) { c.UI.Dir = "ui/dist" }, `ui.dir: "ui/dist" is not an absolute path`},
 
 		{"arbiter_address_on_stretch", func(c *Serve) { c.Profile = ProfileStretch }, "arbiter.address: must be empty for profile stretch"},
 		{"arbiter_address_no_port", func(c *Serve) { c.Arbiter.Address = "10.9.0.10" }, `arbiter.address: "10.9.0.10" is not a host:port address`},

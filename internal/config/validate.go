@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strconv"
@@ -67,6 +68,10 @@ func (c *Serve) Validate() error {
 		}
 
 		v.hostPort("arbiter.address", c.Arbiter.Address)
+	}
+
+	if c.UI.Dir != "" && !filepath.IsAbs(c.UI.Dir) {
+		v.add("ui.dir", "%q is not an absolute path", c.UI.Dir)
 	}
 
 	return errors.Join(v...)
