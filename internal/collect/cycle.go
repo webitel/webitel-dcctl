@@ -26,21 +26,35 @@ const (
 	allocsParallelism = 8
 )
 
-// cycle reads every source once, all at the same time and none for longer than
-// Status.RequestTimeout, and builds the next snapshot on top of prev, which may be nil.
-// It reports false when parent was canceled before the cycle finished.
+// cycle reads every source once on top of prev, which may be nil, numbers the snapshot
+// and logs the sources that stopped or started answering. It reports false when parent
+// was canceled before the cycle finished.
 func (c *Collector) cycle(parent context.Context, prev *Snapshot) (*Snapshot, bool) {
+	if prev == nil {
+		prev = c.empty()
+	}
+
+	next, ok := c.read(parent, prev)
+	if !ok {
+		return nil, false
+	}
+
+	next.Seq = prev.Seq + 1
+	c.logChanges(parent, prev, next)
+
+	return next, true
+}
+
+// read reads every source once, all at the same time and none for longer than
+// Status.RequestTimeout, and builds a snapshot in which a source that fails keeps its
+// data of prev. It reports false when parent was canceled before the reads finished.
+func (c *Collector) read(parent context.Context, prev *Snapshot) (*Snapshot, bool) {
 	begin := time.Now()
 
 	ctx, cancel := context.WithTimeout(parent, c.cfg.Status.RequestTimeout)
 	defer cancel()
 
-	if prev == nil {
-		prev = c.empty()
-	}
-
 	next := c.empty()
-	next.Seq = prev.Seq + 1
 
 	// Every goroutine writes only its own source of next.
 	var wg sync.WaitGroup
@@ -98,8 +112,6 @@ func (c *Collector) cycle(parent context.Context, prev *Snapshot) (*Snapshot, bo
 
 	next.ObserveTime = time.Now()
 	next.CycleDuration = next.ObserveTime.Sub(begin)
-
-	c.logChanges(parent, prev, next)
 
 	return next, true
 }

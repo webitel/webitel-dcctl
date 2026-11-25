@@ -18,14 +18,26 @@ import (
 // members) in turn, and one endpoint that never answers must not take the whole wait.
 const attemptsPerRequest = 3
 
-// FromConfig builds the collector of serve. It reads through clients of its own, which
-// only read: Consul with stale reads, Nomad, and Patroni without credentials, each attempt
+// Reads is how current the reads of a collector are.
+type Reads int
+
+const (
+	// ReadsConsistent asks the Consul and Nomad leaders, for a snapshot an action is
+	// decided on: a server cut off from its leader may show a lock free or a job stopped.
+	ReadsConsistent Reads = iota
+	// ReadsStale lets any server answer, also one without a leader, as the status shows
+	// what the minority side of a partition sees.
+	ReadsStale
+)
+
+// FromConfig builds a collector of serve. It reads through clients of its own, which
+// only read: Consul and Nomad as reads tells, and Patroni without credentials, each attempt
 // against one endpoint bounded by a third of status.request_timeout. arb is the arbiter of
 // serve, nil when none is configured.
 //
 // In warm_standby every datacenter has its own Patroni cluster; in stretch one cluster
 // spans all of them and its members are found in the whole Consul catalog.
-func FromConfig(cfg *config.Serve, instance Instance, arb *arbiter.Client, log *logging.Logger) (*Collector, error) {
+func FromConfig(cfg *config.Serve, instance Instance, arb *arbiter.Client, reads Reads, log *logging.Logger) (*Collector, error) {
 	attempt := cfg.Status.RequestTimeout / attemptsPerRequest
 
 	clients, err := consul.New(consul.Options{
@@ -35,7 +47,7 @@ func FromConfig(cfg *config.Serve, instance Instance, arb *arbiter.Client, log *
 		SessionTTL:  cfg.Coordination.SessionTTL,
 		LockDelay:   cfg.Coordination.LockDelay,
 		Timeout:     attempt,
-		AllowStale:  true,
+		AllowStale:  reads == ReadsStale,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("consul: %w", err)
@@ -70,13 +82,14 @@ func FromConfig(cfg *config.Serve, instance Instance, arb *arbiter.Client, log *
 		}
 
 		nc, err := nomad.New(nomad.Options{
-			Datacenter:     dc,
-			Service:        nomad.ServiceName(cfg.Profile, dc),
-			CAFile:         cfg.TLS.CA,
-			CertFile:       cfg.TLS.Cert,
-			KeyFile:        cfg.TLS.Key,
-			Resolver:       clients,
-			RequestTimeout: attempt,
+			Datacenter:      dc,
+			Service:         nomad.ServiceName(cfg.Profile, dc),
+			CAFile:          cfg.TLS.CA,
+			CertFile:        cfg.TLS.Cert,
+			KeyFile:         cfg.TLS.Key,
+			Resolver:        clients,
+			RequestTimeout:  attempt,
+			ConsistentReads: reads == ReadsConsistent,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("nomad of %s: %w", dc, err)

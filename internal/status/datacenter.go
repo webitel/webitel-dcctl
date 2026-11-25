@@ -4,6 +4,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/webitel/webitel-dcctl/internal/check"
 	"github.com/webitel/webitel-dcctl/internal/collect"
 	"github.com/webitel/webitel-dcctl/internal/coord"
 	"github.com/webitel/webitel-dcctl/internal/source"
@@ -82,7 +83,19 @@ type Datacenter struct {
 	Patroni Patroni
 	// Nomad is built from the last data read, see the Nomad source for its age.
 	Nomad      Nomad
-	InfoChecks []Check
+	InfoChecks []check.Check
+}
+
+// Source returns the source of the datacenter of system sys; a system it does not
+// have is unreachable.
+func (d *Datacenter) Source(sys System) Source {
+	for _, s := range d.Sources {
+		if s.System == sys {
+			return s
+		}
+	}
+
+	return Source{System: sys}
 }
 
 // dcFacts is what the state and health of a datacenter are derived from.

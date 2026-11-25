@@ -1,7 +1,7 @@
 // Package collect is the collection loop of dcctl: on every cycle it reads the Consul KV,
 // catalog, Nomad and Patroni of every datacenter, and the arbiter, and publishes what it
 // read as an immutable [Snapshot]. Status, metrics, health and fencing read the snapshot
-// and never the sources.
+// and never the sources; preflight reads a snapshot of its own with [Collector.Collect].
 package collect
 
 import (
@@ -75,6 +75,19 @@ func (c *Collector) Run(ctx context.Context) {
 		case <-t.C:
 		}
 	}
+}
+
+// Collect reads every source once, as a cycle does, and returns what it read without
+// publishing it. Nothing of earlier cycles is kept: a source that does not answer has
+// no data, so whoever decides on the snapshot cannot take last known data for current.
+// Its Seq is zero. It fails only when ctx ends before the reads do.
+func (c *Collector) Collect(ctx context.Context) (*Snapshot, error) {
+	snap, ok := c.read(ctx, c.empty())
+	if !ok {
+		return nil, ctx.Err()
+	}
+
+	return snap, nil
 }
 
 // Snapshot returns the last snapshot, or nil before the first cycle finished.

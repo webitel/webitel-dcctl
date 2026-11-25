@@ -338,3 +338,19 @@ func TestBuild_undeterminedNeverGuesses(t *testing.T) {
 		})
 	}
 }
+
+func TestDatacenter_source(t *testing.T) {
+	s := warm()
+	allSourcesDown(s, dcB)
+	st := status.Build(s, testConfig(), now)
+
+	a := datacenter(t, st, dcA)
+	assert.True(t, a.Source(status.SystemNomad).Reachable)
+	assert.Equal(t, status.SystemPatroni, a.Source(status.SystemPatroni).System)
+
+	b := datacenter(t, st, dcB)
+	assert.False(t, b.Source(status.SystemConsul).Reachable)
+
+	none := status.Datacenter{}
+	assert.Equal(t, status.Source{System: status.SystemNomad}, none.Source(status.SystemNomad), "a missing source does not answer")
+}
