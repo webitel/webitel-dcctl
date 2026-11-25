@@ -6,7 +6,6 @@ import (
 	nomadapi "github.com/hashicorp/nomad/api"
 
 	dcctlv1 "github.com/webitel/webitel-dcctl/gen/go/dcctl/v1"
-	"github.com/webitel/webitel-dcctl/internal/check"
 	"github.com/webitel/webitel-dcctl/internal/config"
 	"github.com/webitel/webitel-dcctl/internal/jobstate"
 	"github.com/webitel/webitel-dcctl/internal/source"
@@ -203,35 +202,6 @@ func jobTypeOf(t string) dcctlv1.Datacenter_Nomad_Job_Type {
 	}
 
 	return dcctlv1.Datacenter_Nomad_Job_TYPE_UNSPECIFIED
-}
-
-func checkResultOf(r check.Result) dcctlv1.Check_Result {
-	switch r {
-	case check.Pass:
-		return dcctlv1.Check_PASS
-	case check.Fail:
-		return dcctlv1.Check_FAIL
-	case check.Warn:
-		return dcctlv1.Check_WARN
-	case check.Skip:
-		return dcctlv1.Check_SKIP
-	}
-
-	return dcctlv1.Check_RESULT_UNSPECIFIED
-}
-
-func checkEffectOf(e check.Effect) dcctlv1.Check_Effect {
-	switch e {
-	case check.Block:
-		return dcctlv1.Check_BLOCK
-	case check.WarnOnly:
-		return dcctlv1.Check_WARN_ONLY
-	case check.Confirm:
-		return dcctlv1.Check_CONFIRM
-	case check.EffectNone:
-	}
-
-	return dcctlv1.Check_EFFECT_UNSPECIFIED
 }
 
 // formatLSN writes a WAL position the way PostgreSQL shows pg_lsn, like
