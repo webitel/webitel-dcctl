@@ -12,25 +12,33 @@ import type {
 	WebitelDcctlV1VerifyStatusResponse,
 } from '../_models';
 
+type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
+
 export const getStatusService = () => {
 	/**
 	 * @summary Returns the summary state as seen by the instance that answers.
 	 */
-	const getStatus = () => {
-		return dcctlAxios<WebitelDcctlV1Status>({
-			url: `/v1/status`,
-			method: 'GET',
-		});
+	const getStatus = (
+		options?: SecondParameter<typeof dcctlAxios<WebitelDcctlV1Status>>,
+	) => {
+		return dcctlAxios<WebitelDcctlV1Status>(
+			{ url: `/v1/status`, method: 'GET' },
+			options,
+		);
 	};
 	/**
  * @summary Checks the conditions of a completed switch for the current active
 datacenter without changing anything.
  */
-	const verifyStatus = () => {
-		return dcctlAxios<WebitelDcctlV1VerifyStatusResponse>({
-			url: `/v1/status:verify`,
-			method: 'GET',
-		});
+	const verifyStatus = (
+		options?: SecondParameter<
+			typeof dcctlAxios<WebitelDcctlV1VerifyStatusResponse>
+		>,
+	) => {
+		return dcctlAxios<WebitelDcctlV1VerifyStatusResponse>(
+			{ url: `/v1/status:verify`, method: 'GET' },
+			options,
+		);
 	};
 	return { getStatus, verifyStatus };
 };

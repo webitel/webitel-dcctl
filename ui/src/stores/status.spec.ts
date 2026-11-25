@@ -2,6 +2,7 @@ import { AxiosError } from 'axios';
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { recordServerDate, resetServerClock } from '@/api/client/serverClock';
 import type { WebitelDcctlV1Status as Status } from '@/api/gen/_models';
 import { POLL_INTERVAL_MS, useStatusStore } from './status';
 
@@ -228,6 +229,53 @@ describe('failed poll', () => {
 	});
 });
 
+describe('hung request', () => {
+	// Stands in for axios: rejects after `options.timeout` like a real timeout.
+	const hangUntilTimeout = (options?: { timeout?: number }) =>
+		new Promise<Status>((_resolve, reject) => {
+			setTimeout(
+				() => reject(new AxiosError('timeout', 'ECONNABORTED')),
+				options?.timeout,
+			);
+		});
+
+	it('asks for a timeout of two poll intervals and gives an abort signal', async () => {
+		store.start();
+		await vi.advanceTimersByTimeAsync(0);
+
+		const options = getStatus.mock.calls[0][0];
+		expect(options.timeout).toBe(2 * POLL_INTERVAL_MS);
+		expect(options.signal).toBeInstanceOf(AbortSignal);
+	});
+
+	it('records the error after the timeout and polls again', async () => {
+		getStatus.mockImplementationOnce((options) => hangUntilTimeout(options));
+		store.start();
+		await vi.advanceTimersByTimeAsync(2 * POLL_INTERVAL_MS - 1);
+		expect(store.error).toBeNull();
+		expect(getStatus).toHaveBeenCalledTimes(1);
+
+		await vi.advanceTimersByTimeAsync(1);
+		expect(store.error).toBeTruthy();
+
+		await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
+		expect(getStatus).toHaveBeenCalledTimes(2);
+		expect(store.error).toBeNull();
+	});
+
+	it('aborts the request in flight on stop()', async () => {
+		getStatus.mockReturnValueOnce(new Promise(() => {}));
+		store.start();
+		await vi.advanceTimersByTimeAsync(0);
+		const { signal } = getStatus.mock.calls[0][0];
+		expect(signal.aborted).toBe(false);
+
+		store.stop();
+
+		expect(signal.aborted).toBe(true);
+	});
+});
+
 describe('stop', () => {
 	it('stops polling and ignores an answer that arrives later', async () => {
 		const slow = deferred<Status>();
@@ -253,6 +301,60 @@ describe('stop', () => {
 
 		expect(getStatus).toHaveBeenCalledTimes(2);
 		expect(store.status).toBeDefined();
+	});
+});
+
+describe('data age with a skewed browser clock', () => {
+	const FIVE_MIN = 5 * 60 * 1000;
+
+	afterEach(() => resetServerClock());
+
+	// observe_time is 3 s before the server's "now"; the browser is `skew` ms away from the server.
+	const pollWithSkew = async (skew: number, observedAgo: number) => {
+		const serverNowMs = NOW - skew;
+		recordServerDate(new Date(serverNowMs).toUTCString());
+		getStatus.mockResolvedValue(
+			snapshot({
+				observe_time: new Date(serverNowMs - observedAgo * 1000).toISOString(),
+			}),
+		);
+		await store.refresh();
+	};
+
+	it.each([
+		['behind', -FIVE_MIN],
+		['ahead of', FIVE_MIN],
+	])(
+		'fresh data is fresh when the browser is 5 min %s the server',
+		async (_n, skew) => {
+			await pollWithSkew(skew, 3);
+
+			expect(store.age).toBe(3);
+			expect(store.isStale).toBe(false);
+		},
+	);
+
+	it.each([
+		['behind', -FIVE_MIN],
+		['ahead of', FIVE_MIN],
+	])(
+		'stale data is stale when the browser is 5 min %s the server',
+		async (_n, skew) => {
+			await pollWithSkew(skew, 60);
+
+			expect(store.age).toBe(60);
+			expect(store.isStale).toBe(true);
+		},
+	);
+
+	it('keeps the browser clock when the server sent no Date header', async () => {
+		resetServerClock();
+		getStatus.mockResolvedValue(
+			snapshot({ observe_time: new Date(NOW - 7000).toISOString() }),
+		);
+		await store.refresh();
+
+		expect(store.age).toBe(7);
 	});
 });
 

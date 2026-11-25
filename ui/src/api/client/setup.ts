@@ -2,6 +2,7 @@ import { useAuthStore } from '@/stores/auth';
 
 import { apiClient } from './apiClient';
 import { installAuthInterceptors } from './interceptors';
+import { installServerClock } from './serverClock';
 
 let installed = false;
 
@@ -9,6 +10,7 @@ let installed = false;
 export const setupApiClient = (): void => {
 	if (installed) return;
 	installed = true;
+	installServerClock(apiClient);
 	installAuthInterceptors(apiClient, {
 		getAuthorization: () => useAuthStore().authorization,
 		onUnauthorized: () => useAuthStore().clear(),

@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 
 import { isUnauthorized } from '@/api/client/apiError';
+import { serverOffsetMs } from '@/api/client/serverClock';
 import type { WebitelDcctlV1Status as Status } from '@/api/gen/_models';
 import { getStatusService } from '@/api/gen/status-service/status-service';
 import { ageSeconds, isStaleAge } from '@/utils/dataAge';
@@ -10,6 +11,8 @@ import { sortAlarms, sortDatacenters } from '@/utils/ordering';
 
 export const POLL_INTERVAL_MS = 5000;
 const CLOCK_TICK_MS = 1000;
+/** A request that hangs must not stop the polling: give up after two intervals. */
+const REQUEST_TIMEOUT_MS = 2 * POLL_INTERVAL_MS;
 
 const isTabVisible = () => document.visibilityState === 'visible';
 
@@ -24,6 +27,7 @@ export const useStatusStore = defineStore('status', () => {
 	// Bumped by stop(): a request that finishes after it belongs to a dead session.
 	let epoch = 0;
 	let inFlight: Promise<void> | null = null;
+	let abort: AbortController | null = null;
 	let pollTimer: ReturnType<typeof setTimeout> | undefined;
 	let clockTimer: ReturnType<typeof setInterval> | undefined;
 
@@ -44,9 +48,14 @@ export const useStatusStore = defineStore('status', () => {
 		if (inFlight) return inFlight;
 		clearPollTimer();
 		const requestEpoch = epoch;
+		const controller = new AbortController();
+		abort = controller;
 		const request = (async () => {
 			try {
-				const result = await getStatusService().getStatus();
+				const result = await getStatusService().getStatus({
+					timeout: REQUEST_TIMEOUT_MS,
+					signal: controller.signal,
+				});
 				if (requestEpoch !== epoch) return;
 				status.value = result;
 				error.value = null;
@@ -91,6 +100,8 @@ export const useStatusStore = defineStore('status', () => {
 		started = false;
 		epoch++;
 		inFlight = null;
+		abort?.abort();
+		abort = null;
 		clearPollTimer();
 		clearInterval(clockTimer);
 		clockTimer = undefined;
@@ -113,7 +124,9 @@ export const useStatusStore = defineStore('status', () => {
 	);
 	/** Seconds since the last finished collection cycle; `null` before the first answer. */
 	const age = computed(() =>
-		status.value ? ageSeconds(status.value.observe_time, now.value) : null,
+		status.value
+			? ageSeconds(status.value.observe_time, now.value + serverOffsetMs())
+			: null,
 	);
 	const isStale = computed(() => isStaleAge(age.value));
 

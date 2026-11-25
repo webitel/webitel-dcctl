@@ -23,38 +23,51 @@ import type {
 	WebitelDcctlV1SyncAppsRequest,
 } from '../_models';
 
+type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
+
 export const getDatacenterService = () => {
 	/**
 	 * @summary Copies the dcctl state to an empty arbiter.
 	 */
 	const initializeArbiter = (
 		webitelDcctlV1InitializeArbiterRequest: WebitelDcctlV1InitializeArbiterRequest,
+		options?: SecondParameter<typeof dcctlAxios<WebitelDcctlV1Operation>>,
 	) => {
-		return dcctlAxios<WebitelDcctlV1Operation>({
-			url: `/v1/arbiter:initialize`,
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			data: webitelDcctlV1InitializeArbiterRequest,
-		});
+		return dcctlAxios<WebitelDcctlV1Operation>(
+			{
+				url: `/v1/arbiter:initialize`,
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				data: webitelDcctlV1InitializeArbiterRequest,
+			},
+			options,
+		);
 	};
 	/**
 	 * @summary Lists all datacenters in one page.
 	 */
-	const listDatacenters = (params?: ListDatacentersParams) => {
-		return dcctlAxios<WebitelDcctlV1ListDatacentersResponse>({
-			url: `/v1/datacenters`,
-			method: 'GET',
-			params,
-		});
+	const listDatacenters = (
+		params?: ListDatacentersParams,
+		options?: SecondParameter<
+			typeof dcctlAxios<WebitelDcctlV1ListDatacentersResponse>
+		>,
+	) => {
+		return dcctlAxios<WebitelDcctlV1ListDatacentersResponse>(
+			{ url: `/v1/datacenters`, method: 'GET', params },
+			options,
+		);
 	};
 	/**
 	 * @summary Returns the datacenter details as seen by the instance that answers.
 	 */
-	const getDatacenter = (datacenter: string) => {
-		return dcctlAxios<WebitelDcctlV1Datacenter>({
-			url: `/v1/datacenters/${datacenter}`,
-			method: 'GET',
-		});
+	const getDatacenter = (
+		datacenter: string,
+		options?: SecondParameter<typeof dcctlAxios<WebitelDcctlV1Datacenter>>,
+	) => {
+		return dcctlAxios<WebitelDcctlV1Datacenter>(
+			{ url: `/v1/datacenters/${datacenter}`, method: 'GET' },
+			options,
+		);
 	};
 	/**
  * @summary Demotes the old primary of this datacenter and points it at the active
@@ -63,13 +76,17 @@ one. Clears the db_split alarm.
 	const demoteDatacenter = (
 		datacenter: string,
 		webitelDcctlV1DatacenterServiceDemoteDatacenterBody: WebitelDcctlV1DatacenterServiceDemoteDatacenterBody,
+		options?: SecondParameter<typeof dcctlAxios<WebitelDcctlV1Operation>>,
 	) => {
-		return dcctlAxios<WebitelDcctlV1Operation>({
-			url: `/v1/datacenters/${datacenter}:demote`,
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			data: webitelDcctlV1DatacenterServiceDemoteDatacenterBody,
-		});
+		return dcctlAxios<WebitelDcctlV1Operation>(
+			{
+				url: `/v1/datacenters/${datacenter}:demote`,
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				data: webitelDcctlV1DatacenterServiceDemoteDatacenterBody,
+			},
+			options,
+		);
 	};
 	/**
 	 * @summary Failover to this datacenter when the active one is lost.
@@ -77,13 +94,17 @@ one. Clears the db_split alarm.
 	const failoverDatacenter = (
 		datacenter: string,
 		webitelDcctlV1DatacenterServiceFailoverDatacenterBody: WebitelDcctlV1DatacenterServiceFailoverDatacenterBody,
+		options?: SecondParameter<typeof dcctlAxios<WebitelDcctlV1Operation>>,
 	) => {
-		return dcctlAxios<WebitelDcctlV1Operation>({
-			url: `/v1/datacenters/${datacenter}:failover`,
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			data: webitelDcctlV1DatacenterServiceFailoverDatacenterBody,
-		});
+		return dcctlAxios<WebitelDcctlV1Operation>(
+			{
+				url: `/v1/datacenters/${datacenter}:failover`,
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				data: webitelDcctlV1DatacenterServiceFailoverDatacenterBody,
+			},
+			options,
+		);
 	};
 	/**
 	 * @summary Removes this datacenter from needs_recovery.
@@ -91,13 +112,17 @@ one. Clears the db_split alarm.
 	const markDatacenterRecovered = (
 		datacenter: string,
 		webitelDcctlV1DatacenterServiceMarkDatacenterRecoveredBody: WebitelDcctlV1DatacenterServiceMarkDatacenterRecoveredBody,
+		options?: SecondParameter<typeof dcctlAxios<WebitelDcctlV1Operation>>,
 	) => {
-		return dcctlAxios<WebitelDcctlV1Operation>({
-			url: `/v1/datacenters/${datacenter}:markRecovered`,
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			data: webitelDcctlV1DatacenterServiceMarkDatacenterRecoveredBody,
-		});
+		return dcctlAxios<WebitelDcctlV1Operation>(
+			{
+				url: `/v1/datacenters/${datacenter}:markRecovered`,
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				data: webitelDcctlV1DatacenterServiceMarkDatacenterRecoveredBody,
+			},
+			options,
+		);
 	};
 	/**
 	 * @summary Points this standby datacenter at the active one.
@@ -105,13 +130,17 @@ one. Clears the db_split alarm.
 	const repointDatacenter = (
 		datacenter: string,
 		webitelDcctlV1DatacenterServiceRepointDatacenterBody: WebitelDcctlV1DatacenterServiceRepointDatacenterBody,
+		options?: SecondParameter<typeof dcctlAxios<WebitelDcctlV1Operation>>,
 	) => {
-		return dcctlAxios<WebitelDcctlV1Operation>({
-			url: `/v1/datacenters/${datacenter}:repoint`,
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			data: webitelDcctlV1DatacenterServiceRepointDatacenterBody,
-		});
+		return dcctlAxios<WebitelDcctlV1Operation>(
+			{
+				url: `/v1/datacenters/${datacenter}:repoint`,
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				data: webitelDcctlV1DatacenterServiceRepointDatacenterBody,
+			},
+			options,
+		);
 	};
 	/**
 	 * @summary Planned switch of the active datacenter to this one.
@@ -119,52 +148,68 @@ one. Clears the db_split alarm.
 	const switchDatacenter = (
 		datacenter: string,
 		webitelDcctlV1DatacenterServiceSwitchDatacenterBody: WebitelDcctlV1DatacenterServiceSwitchDatacenterBody,
+		options?: SecondParameter<typeof dcctlAxios<WebitelDcctlV1Operation>>,
 	) => {
-		return dcctlAxios<WebitelDcctlV1Operation>({
-			url: `/v1/datacenters/${datacenter}:switch`,
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			data: webitelDcctlV1DatacenterServiceSwitchDatacenterBody,
-		});
+		return dcctlAxios<WebitelDcctlV1Operation>(
+			{
+				url: `/v1/datacenters/${datacenter}:switch`,
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				data: webitelDcctlV1DatacenterServiceSwitchDatacenterBody,
+			},
+			options,
+		);
 	};
 	/**
 	 * @summary Creates the initial dcctl state in every datacenter.
 	 */
 	const initializeDatacenters = (
 		webitelDcctlV1InitializeDatacentersRequest: WebitelDcctlV1InitializeDatacentersRequest,
+		options?: SecondParameter<typeof dcctlAxios<WebitelDcctlV1Operation>>,
 	) => {
-		return dcctlAxios<WebitelDcctlV1Operation>({
-			url: `/v1/datacenters:initialize`,
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			data: webitelDcctlV1InitializeDatacentersRequest,
-		});
+		return dcctlAxios<WebitelDcctlV1Operation>(
+			{
+				url: `/v1/datacenters:initialize`,
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				data: webitelDcctlV1InitializeDatacentersRequest,
+			},
+			options,
+		);
 	};
 	/**
 	 * @summary Resolves a generation conflict in favor of the winner.
 	 */
 	const resolveConflict = (
 		webitelDcctlV1ResolveConflictRequest: WebitelDcctlV1ResolveConflictRequest,
+		options?: SecondParameter<typeof dcctlAxios<WebitelDcctlV1Operation>>,
 	) => {
-		return dcctlAxios<WebitelDcctlV1Operation>({
-			url: `/v1/datacenters:resolveConflict`,
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			data: webitelDcctlV1ResolveConflictRequest,
-		});
+		return dcctlAxios<WebitelDcctlV1Operation>(
+			{
+				url: `/v1/datacenters:resolveConflict`,
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				data: webitelDcctlV1ResolveConflictRequest,
+			},
+			options,
+		);
 	};
 	/**
 	 * @summary Brings the managed apps of the active datacenter to the desired state.
 	 */
 	const syncApps = (
 		webitelDcctlV1SyncAppsRequest: WebitelDcctlV1SyncAppsRequest,
+		options?: SecondParameter<typeof dcctlAxios<WebitelDcctlV1Operation>>,
 	) => {
-		return dcctlAxios<WebitelDcctlV1Operation>({
-			url: `/v1/datacenters:syncApps`,
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			data: webitelDcctlV1SyncAppsRequest,
-		});
+		return dcctlAxios<WebitelDcctlV1Operation>(
+			{
+				url: `/v1/datacenters:syncApps`,
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				data: webitelDcctlV1SyncAppsRequest,
+			},
+			options,
+		);
 	};
 	return {
 		initializeArbiter,

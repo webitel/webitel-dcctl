@@ -12,16 +12,22 @@ import type {
 	WebitelDcctlV1ListJournalEntriesResponse,
 } from '../_models';
 
+type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
+
 export const getJournalService = () => {
 	/**
 	 * @summary Lists journal entries from newest to oldest.
 	 */
-	const listJournalEntries = (params?: ListJournalEntriesParams) => {
-		return dcctlAxios<WebitelDcctlV1ListJournalEntriesResponse>({
-			url: `/v1/journalEntries`,
-			method: 'GET',
-			params,
-		});
+	const listJournalEntries = (
+		params?: ListJournalEntriesParams,
+		options?: SecondParameter<
+			typeof dcctlAxios<WebitelDcctlV1ListJournalEntriesResponse>
+		>,
+	) => {
+		return dcctlAxios<WebitelDcctlV1ListJournalEntriesResponse>(
+			{ url: `/v1/journalEntries`, method: 'GET', params },
+			options,
+		);
 	};
 	return { listJournalEntries };
 };
