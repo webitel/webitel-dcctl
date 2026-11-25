@@ -1,10 +1,10 @@
 import { HttpResponse, http } from 'msw';
 import { getListDatacentersMockHandler } from '@/api/gen/datacenter-service/datacenter-service.msw';
-import { getListJournalEntriesMockHandler } from '@/api/gen/journal-service/journal-service.msw';
 import { getVerifyStatusMockHandler } from '@/api/gen/status-service/status-service.msw';
 import { encodeBasicToken } from '@/utils/basicAuth';
 import { currentDatacenterResponse } from './datacenterVariants';
 import { example } from './example';
+import { currentJournalResponse } from './journalVariants';
 import {
 	currentOperationResponse,
 	currentOperationsResponse,
@@ -51,5 +51,7 @@ export const handlers = [
 	http.get('*/v1/operations/:operation', ({ params }) =>
 		currentOperationResponse(String(params.operation)),
 	),
-	getListJournalEntriesMockHandler(example('/v1/journalEntries', 'get')),
+	http.get('*/v1/journalEntries', ({ request }) =>
+		currentJournalResponse(new URL(request.url)),
+	),
 ];
