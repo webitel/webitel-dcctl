@@ -183,7 +183,7 @@ func (h harness) logged(text string) bool {
 		}
 
 		for _, kv := range r.Attributes() {
-			if strings.Contains(kv.Value.Emit(), text) {
+			if strings.Contains(kv.Value.String(), text) {
 				return true
 			}
 		}

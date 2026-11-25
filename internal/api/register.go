@@ -42,10 +42,14 @@ func Register(ctx context.Context, rt *runtime.Runtime, opts Options) error {
 	rt.RegisterService(&dcctlv1.StatusService_ServiceDesc,
 		NewStatusServer(opts.Status, opts.Address, opts.Alarms, opts.Verifier, opts.Log))
 	rt.RegisterService(&dcctlv1.DatacenterService_ServiceDesc, NewDatacenterServer(opts.Status, opts.Address, opts.Log))
+	rt.RegisterService(&dcctlv1.OperationService_ServiceDesc, NewOperationServer(opts.Operations, opts.Log))
+	rt.RegisterService(&dcctlv1.JournalService_ServiceDesc, NewJournalServer(opts.Journal, opts.Log))
 
 	for _, h := range []runtime.GatewayHandler{
 		dcctlv1.RegisterStatusServiceHandler,
 		dcctlv1.RegisterDatacenterServiceHandler,
+		dcctlv1.RegisterOperationServiceHandler,
+		dcctlv1.RegisterJournalServiceHandler,
 	} {
 		if err := rt.RegisterGateway(ctx, h); err != nil {
 			return fmt.Errorf("api: %w", err)
