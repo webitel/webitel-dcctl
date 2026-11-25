@@ -329,7 +329,7 @@ func (in *Input) isolated() []string {
 func (in *Input) isolationFacts(dc string) map[string]any {
 	f := map[string]any{"datacenter": dc, "patroni_reachable": false}
 
-	if d, ok := in.datacenter(dc); ok && d.Sources[2].Reachable {
+	if d, ok := in.datacenter(dc); ok && d.Source(status.SystemPatroni).Reachable {
 		f["patroni_reachable"] = true
 		f["role"] = string(d.Patroni.Role)
 	}

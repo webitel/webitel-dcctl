@@ -132,7 +132,7 @@ func (in *Input) resolveWinner() check.Check {
 
 	for _, r := range cf {
 		dc := r.State.ActiveDatacenter
-		if d, ok := in.datacenter(dc); ok && d.Sources[2].Reachable {
+		if d, ok := in.datacenter(dc); ok && d.Source(status.SystemPatroni).Reachable {
 			roles[dc] = string(d.Patroni.Role)
 		} else {
 			roles[dc] = "unknown"

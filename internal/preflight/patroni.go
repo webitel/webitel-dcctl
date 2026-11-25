@@ -50,7 +50,7 @@ func (in *Input) pgDatacenter(dc string) pgScope {
 		return s
 	}
 
-	s.src = d.Sources[2]
+	s.src = d.Source(status.SystemPatroni)
 	s.members = d.Patroni.Members
 	s.leader = memberOf(s.members, d.Patroni.Leader)
 
@@ -293,7 +293,7 @@ func (in *Input) singlePrimary() check.Check {
 	var primaries, unreachable []any
 
 	for _, d := range in.Status.Datacenters {
-		if !d.Sources[2].Reachable {
+		if !d.Source(status.SystemPatroni).Reachable {
 			unreachable = append(unreachable, d.Name)
 
 			continue

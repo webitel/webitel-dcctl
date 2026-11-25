@@ -77,8 +77,8 @@ func (in *Input) verifyJobs() []check.Check {
 	for _, d := range in.Status.Datacenters {
 		c := info(check.VerifyJobs, d.Name)
 
-		if !d.Sources[1].Reachable {
-			out = append(out, c.warn("Nomad of "+d.Name+" does not answer: "+string(d.Sources[1].Reason), nil))
+		if !d.Source(status.SystemNomad).Reachable {
+			out = append(out, c.warn("Nomad of "+d.Name+" does not answer: "+string(d.Source(status.SystemNomad).Reason), nil))
 
 			continue
 		}

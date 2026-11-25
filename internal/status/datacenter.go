@@ -86,6 +86,18 @@ type Datacenter struct {
 	InfoChecks []check.Check
 }
 
+// Source returns the source of the datacenter of system sys; a system it does not
+// have is unreachable.
+func (d *Datacenter) Source(sys System) Source {
+	for _, s := range d.Sources {
+		if s.System == sys {
+			return s
+		}
+	}
+
+	return Source{System: sys}
+}
+
 // dcFacts is what the state and health of a datacenter are derived from.
 type dcFacts struct {
 	name     string

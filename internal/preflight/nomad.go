@@ -17,7 +17,7 @@ func (in *Input) nomadOf(dc string) (status.Nomad, status.Source, bool) {
 		return status.Nomad{}, status.Source{System: status.SystemNomad}, false
 	}
 
-	src := d.Sources[1]
+	src := d.Source(status.SystemNomad)
 
 	return d.Nomad, src, src.Reachable
 }
