@@ -130,7 +130,11 @@ holder. The role does not read the lock.
 
 `<time>` is the entry creation time in UTC as 23 digits: `yyyymmddhhmmss` and nanoseconds, for
 example `20261123153000000000005`. Keys sort in creation order. `<time>-<id>` is also the ID in the
-entry name `journalEntries/<time>-<id>`.
+entry name `journalEntries/<time>-<id>`. `<id>` is 8 lowercase hex characters, random per entry.
+
+An entry is written create-only to every reachable datacenter, and copied to the ones that miss it
+under the same key. At most `journal.max_entries` entries are kept per datacenter; the oldest are
+deleted.
 
 The role does not read the journal.
 
