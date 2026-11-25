@@ -172,6 +172,9 @@ func (c *Clients) Voters() []*Client { return slices.Clone(c.voters) }
 // Datacenter returns the name of the datacenter of the client.
 func (c *Client) Datacenter() string { return c.dc }
 
+// AllowStale reports whether the reads of the client may be stale, see [Options].
+func (c *Client) AllowStale() bool { return c.allowStale }
+
 func (c *Client) queryOptions(ctx context.Context) *api.QueryOptions {
 	opts := new(api.QueryOptions).WithContext(ctx)
 	opts.AllowStale = c.allowStale
