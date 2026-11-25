@@ -1,6 +1,7 @@
 import type { RouteLocationRaw } from 'vue-router';
 
 import type { WebitelDcctlV1StatusAlarm as Alarm } from '@/api/gen/_models';
+import type { DatacenterTab } from './datacenterDetail';
 import { resourceId } from './datacenterSummary';
 
 const COORDINATION: RouteLocationRaw = {
@@ -12,9 +13,14 @@ const DATACENTER_TABLE: RouteLocationRaw = {
 	hash: '#datacenters',
 };
 
-const datacenterPage = (datacenter: string): RouteLocationRaw => ({
+/** The page of a datacenter, on the tab that shows the cause when there is one. */
+const datacenterPage = (
+	datacenter: string,
+	tab?: DatacenterTab,
+): RouteLocationRaw => ({
 	name: 'datacenter',
 	params: { dc: resourceId(datacenter) },
+	...(tab && { query: { tab } }),
 });
 
 /**
@@ -43,17 +49,26 @@ export const alarmTarget = (
 			return DATACENTER_TABLE;
 		case 'VOTER_UNREACHABLE':
 			if (alarm.voter_type === 'DATACENTER' && alarm.datacenter) {
-				return datacenterPage(alarm.datacenter);
+				return datacenterPage(alarm.datacenter, 'sources');
 			}
 			return COORDINATION;
-		case 'STALE':
-		case 'SPLIT_BRAIN':
 		case 'DB_SPLIT':
 		case 'DB_PRIMARY_MISSING':
-		case 'DATACENTER_UNREACHABLE':
-		case 'APPS_DEGRADED':
 		case 'DB_DEGRADED':
 		case 'STANDBY_NOT_FOLLOWING':
+			return alarm.datacenter
+				? datacenterPage(alarm.datacenter, 'patroni')
+				: DATACENTER_TABLE;
+		case 'SPLIT_BRAIN':
+		case 'APPS_DEGRADED':
+			return alarm.datacenter
+				? datacenterPage(alarm.datacenter, 'apps')
+				: DATACENTER_TABLE;
+		case 'DATACENTER_UNREACHABLE':
+			return alarm.datacenter
+				? datacenterPage(alarm.datacenter, 'sources')
+				: DATACENTER_TABLE;
+		case 'STALE':
 			return alarm.datacenter
 				? datacenterPage(alarm.datacenter)
 				: DATACENTER_TABLE;
