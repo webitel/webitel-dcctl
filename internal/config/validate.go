@@ -55,6 +55,7 @@ func (c *Serve) Validate() error {
 
 	v.status(c.Status)
 	v.lockTimings(c.Coordination, c.Status.RequestTimeout)
+	v.leaseTimings(c.Coordination, c.Status.RequestTimeout)
 
 	if c.Journal.MaxEntries <= 0 {
 		v.add("journal.max_entries", "must be positive")
@@ -259,6 +260,23 @@ func (v *violations) lockTimings(c Coordination, requestTimeout time.Duration) {
 	if c.LockDelay <= renewal+requestTimeout {
 		v.add("coordination.lock_delay", "must be greater than coordination.session_ttl/%d + status.request_timeout (%s)",
 			RenewalsPerSessionTTL, renewal+requestTimeout)
+	}
+}
+
+// leaseRoundRequests is how many voter requests, each bounded by status.request_timeout,
+// one lease renewal must fit: reading the state, reading the lease and a write that may be
+// retried after a re-read.
+const leaseRoundRequests = 3
+
+// leaseTimings checks that one lease renewal round fits within the renewal interval.
+func (v *violations) leaseTimings(c Coordination, requestTimeout time.Duration) {
+	if c.LeasePeriod <= 0 || requestTimeout <= 0 {
+		return
+	}
+
+	if c.LeasePeriod/LeaseRenewalsPerPeriod < leaseRoundRequests*requestTimeout {
+		v.add("coordination.lease_period", "must be at least %d × %d × status.request_timeout (%s)",
+			LeaseRenewalsPerPeriod, leaseRoundRequests, LeaseRenewalsPerPeriod*leaseRoundRequests*requestTimeout)
 	}
 }
 

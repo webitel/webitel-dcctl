@@ -155,6 +155,7 @@ func TestServeValidate_invalid(t *testing.T) {
 		}, "status.request_timeout: must be less than coordination.session_ttl/3 (5s)"},
 		{"coordination_lease_period", func(c *Serve) { c.Coordination.LeasePeriod = 0 }, "coordination.lease_period: must be positive"},
 		{"coordination_lease_acquire_after", func(c *Serve) { c.Coordination.LeaseAcquireAfter = 0 }, "coordination.lease_acquire_after: must be positive"},
+		{"coordination_lease_period_below_renewal_round", func(c *Serve) { c.Coordination.LeasePeriod = 26 * time.Second }, "coordination.lease_period: must be at least 3 × 3 × status.request_timeout (27s)"},
 
 		{"apps_stop_timeout", func(c *Serve) { c.Apps.StopTimeout = 0 }, "apps.stop_timeout: must be positive"},
 		{"apps_stage_start_timeout", func(c *Serve) { c.Apps.StageStartTimeout = 0 }, "apps.stage_start_timeout: must be positive"},
