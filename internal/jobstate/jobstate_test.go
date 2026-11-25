@@ -53,6 +53,33 @@ func TestStopped(t *testing.T) {
 	}
 }
 
+func TestUnknownLeft(t *testing.T) {
+	tests := []struct {
+		name   string
+		stop   bool
+		status []string
+		want   bool
+	}{
+		{"stop_set_only_unknown", true, []string{"complete", "unknown"}, true},
+		{"not_stopped_unknown", false, []string{"unknown"}, false},
+		{"stop_set_unknown_and_running", true, []string{"unknown", "running"}, false},
+		{"stop_set_unknown_and_pending", true, []string{"pending", "unknown"}, false},
+		{"stop_set_no_active", true, []string{"complete"}, false},
+		{"stop_set_no_allocs", true, nil, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var allocs []nomad.Alloc
+			for _, s := range tt.status {
+				allocs = append(allocs, nomad.Alloc{ClientStatus: s})
+			}
+
+			assert.Equal(t, tt.want, jobstate.UnknownLeft(nomad.Job{ID: "engine", Stop: tt.stop}, allocs))
+		})
+	}
+}
+
 func TestServiceHealth(t *testing.T) {
 	tests := []struct {
 		name   string

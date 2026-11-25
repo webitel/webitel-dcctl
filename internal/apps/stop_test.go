@@ -127,6 +127,47 @@ func TestStopDatacenter_activeAllocsAreNotDone(t *testing.T) {
 	})
 }
 
+// unknownAfterStop registers opensips (stage 3), whose node stops answering once it
+// is stopped, and engine (stage 2).
+func unknownAfterStop() *fakeNomad {
+	f := newFake()
+	f.addJob("opensips", "service", 3, true)
+	f.addJob("engine", "service", 2, true)
+	f.stopDelays["opensips"] = never
+	f.allocs["opensips"][0].ClientStatus = "unknown"
+
+	return f
+}
+
+func TestStopDatacenter_unknownAllocsHoldTheStage(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f := unknownAfterStop()
+
+		res, err := newApps(t).StopDatacenter(t.Context(), f.dc(), apps.Options{Guard: allow})
+		require.ErrorIs(t, err, apps.ErrTimeout)
+
+		require.Equal(t, []int{3}, stageNumbers(res))
+		assert.Equal(t, apps.JobStopping, jobOf(t, res.Stages[0], "opensips").State)
+		assert.Empty(t, f.callsOf("stop", "engine"))
+	})
+}
+
+func TestStopDatacenter_tolerateUnknownGoesOn(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f := unknownAfterStop()
+
+		res, err := newApps(t).StopDatacenter(t.Context(), f.dc(), apps.Options{Guard: allow, TolerateUnknown: true})
+		require.NoError(t, err)
+
+		require.Equal(t, []int{3, 2}, stageNumbers(res))
+
+		job := jobOf(t, res.Stages[0], "opensips")
+		assert.Equal(t, apps.JobStopped, job.State)
+		assert.Equal(t, []string{"opensips: 1 allocations unknown, their nodes do not answer"}, res.Stages[0].Warnings())
+		assert.Len(t, f.callsOf("stop", "engine"), 1)
+	})
+}
+
 func TestStopDatacenterFailover_givesUpAfterFailoverTimeout(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		f := newFake()
