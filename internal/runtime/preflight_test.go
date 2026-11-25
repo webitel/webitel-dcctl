@@ -147,3 +147,46 @@ func TestRefusalBody_lockBusy(t *testing.T) {
 	assert.Equal(t, want["status"], got["status"])
 	assert.Equal(t, map[string]any{"holder": "dcctl-a1", "datacenter": "datacenters/dc_a", "operation": "operations/op-9"}, got["metadata"])
 }
+
+// TestRefusalBody_reasons compares the reasons whose examples carry only metadata; the
+// detail is the one of the check.
+func TestRefusalBody_reasons(t *testing.T) {
+	const op = "operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10"
+
+	tests := []struct {
+		name       string
+		failed     check.Check
+		path, code string
+	}{
+		{
+			name: "operation_running",
+			failed: check.Check{
+				ID: check.CoordNoOperation, Result: check.Fail, Effect: check.Block,
+				Detail: "operation " + op + " is running", Facts: map[string]any{"op_id": op, "status": "running"},
+			},
+			path: "/v1/datacenters/{datacenter}:demote", code: "400",
+		},
+		{
+			name: "leader_unavailable",
+			failed: check.Check{
+				ID: check.CoordLeaderReachable, Result: check.Fail, Effect: check.Block,
+				Detail: "the leading instance is critical in Consul", Facts: map[string]any{"instance": "dcctl-b1"},
+			},
+			path: switchPath, code: "503",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			code, got := refusalBody(t, []check.Check{tt.failed}, check.Confirmations{}, nil, dcctlv1.Operation_MODE_UNSPECIFIED)
+
+			want := swaggerExample(t, tt.path, tt.code)
+
+			assert.EqualValues(t, want["code"], code)
+
+			for _, key := range []string{"id", "code", "status", "metadata"} {
+				assert.Equal(t, want[key], got[key], key)
+			}
+		})
+	}
+}
