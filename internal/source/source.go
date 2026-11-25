@@ -33,6 +33,10 @@ const (
 	// ReasonNoEndpoints is a source with no endpoint to ask, such as a service without
 	// passing instances in Consul.
 	ReasonNoEndpoints Reason = "no_endpoints"
+	// ReasonNoLeader is a Consul that answered a stale read without knowing its leader,
+	// as the minority side of a partition does: what it gives may be outdated, and a
+	// consistent read would fail there.
+	ReasonNoLeader Reason = "no_leader"
 )
 
 var (

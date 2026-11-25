@@ -64,6 +64,8 @@ type View struct {
 	// Majority is the number of voters a record needs to be valid, out of
 	// all configured voters, reachable or not.
 	Majority int
+	// Voting counts the voters that answered and can take a write.
+	Voting int
 	// Quorum is set when the voters that answered and can take a write are
 	// a majority. A KV without the key counts, although it accepts a CAS
 	// from the current generation only once it is aligned; an
@@ -161,6 +163,7 @@ func Evaluate(voters []VoterState) View {
 		g.forced = g.forced || vs.State.Forced
 	}
 
+	v.Voting = voting
 	v.Quorum = voting >= v.Majority
 
 	valid := func(g *group) bool { return len(g.members) >= v.Majority || g.forced }

@@ -14,6 +14,7 @@ import (
 	"github.com/webitel/webitel-go-kit/pkg/logging"
 
 	"github.com/webitel/webitel-dcctl/internal/config"
+	"github.com/webitel/webitel-dcctl/internal/jobstate"
 	"github.com/webitel/webitel-dcctl/internal/source/nomad"
 )
 
@@ -263,7 +264,7 @@ func (r *run) observe(ctx context.Context, jobs []nomad.Job) (obs observation, o
 }
 
 func (r *run) needsNodes(jobs []nomad.Job) bool {
-	return r.action == ActionStart && slices.ContainsFunc(jobs, func(j nomad.Job) bool { return j.Type == jobTypeSystem })
+	return r.action == ActionStart && slices.ContainsFunc(jobs, func(j nomad.Job) bool { return j.Type == jobstate.TypeSystem })
 }
 
 // apply judges every job of the stage by the observation. It returns the indexes of the
@@ -324,7 +325,7 @@ func (r *run) judge(job nomad.Job, i int, obs observation, reached bool) (JobSta
 	// A job read without its allocations is unknown, yet one listed as not stopped, or
 	// not started, still gets its stop or start.
 	readErr := obs.allocErrs[i]
-	if r.action == ActionStart && job.Type == jobTypeSystem {
+	if r.action == ActionStart && job.Type == jobstate.TypeSystem {
 		readErr = cmp.Or(readErr, obs.nodesErr)
 	}
 
@@ -343,7 +344,7 @@ func (r *run) judge(job nomad.Job, i int, obs observation, reached bool) (JobSta
 
 func judgeStop(s JobStatus, cur nomad.Job, listed bool, allocs []nomad.Alloc, reached bool) (JobStatus, bool) {
 	if !listed {
-		if n := activeAllocs(allocs); n > 0 {
+		if n := jobstate.ActiveAllocs(allocs); n > 0 {
 			s.State, s.Detail = JobStopping, fmt.Sprintf("job is no longer registered, %d allocations active", n)
 
 			return s, false
@@ -354,7 +355,7 @@ func judgeStop(s JobStatus, cur nomad.Job, listed bool, allocs []nomad.Alloc, re
 		return s, false
 	}
 
-	ok, detail := stopped(cur, allocs)
+	ok, detail := jobstate.Stopped(cur, allocs)
 	if ok {
 		s.State = JobStopped
 
@@ -394,10 +395,11 @@ func (r *run) judgeStart(
 
 	var ok bool
 
-	if cur.Type == jobTypeSystem {
-		ok, s.Detail, s.Warnings = systemHealth(cur.ID, allocs, obs.nodes, obs.at, r.cfg.MinHealthyTime)
+	if cur.Type == jobstate.TypeSystem {
+		sys := jobstate.SystemHealth(cur.ID, allocs, obs.nodes, obs.at, r.cfg.MinHealthyTime)
+		ok, s.Detail, s.Warnings = sys.Healthy, sys.Detail, sys.Warnings()
 	} else {
-		ok, s.Detail = serviceHealth(allocs, obs.at, r.cfg.MinHealthyTime)
+		ok, s.Detail = jobstate.ServiceHealth(allocs, obs.at, r.cfg.MinHealthyTime)
 	}
 
 	s.State = notYet

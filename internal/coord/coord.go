@@ -118,13 +118,22 @@ func (c *Coordinator) readState(ctx context.Context, v Voter) VoterState {
 		vs.Status, vs.Err = StatusUnreachable, err
 		vs.Reason, _ = source.ReasonOf(err)
 	default:
-		vs.Raw, vs.Version = e.Value, e.Version
+		return PresentState(vs.Name, vs.Kind, e.Value, e.Version)
+	}
 
-		if err := decodeState(e.Value, &vs.State); err != nil {
-			vs.Status, vs.Reason, vs.Err = StatusInvalid, source.ReasonInvalid, err
-		} else {
-			vs.Status = StatusPresent
-		}
+	return vs
+}
+
+// PresentState returns the state of a voter that holds dcctl/state as value at
+// version: [StatusPresent], or [StatusInvalid] when the record cannot be decoded.
+// It is for a record read without [Coordinator.Read].
+func PresentState(name string, kind Kind, value []byte, version Version) VoterState {
+	vs := VoterState{Name: name, Kind: kind, Raw: value, Version: version}
+
+	if err := decodeState(value, &vs.State); err != nil {
+		vs.Status, vs.Reason, vs.Err = StatusInvalid, source.ReasonInvalid, err
+	} else {
+		vs.Status = StatusPresent
 	}
 
 	return vs
