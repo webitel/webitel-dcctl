@@ -58,14 +58,36 @@ describe('sourcesSummary', () => {
 });
 
 describe('unreachableSources', () => {
-	it('lists the systems that do not answer', () => {
+	const now = Date.parse('2026-11-23T10:15:00Z');
+
+	it('lists the systems that do not answer with the age of their last data', () => {
 		expect(
-			unreachableSources({
-				sources: [
-					{ system: 'CONSUL', reachable: true },
-					{ system: 'NOMAD', reachable: false },
-				],
-			}),
-		).toEqual(['NOMAD']);
+			unreachableSources(
+				{
+					sources: [
+						{
+							system: 'CONSUL',
+							reachable: true,
+							observe_time: '2026-11-23T10:14:59Z',
+						},
+						{
+							system: 'NOMAD',
+							reachable: false,
+							observe_time: '2026-11-23T10:12:00Z',
+						},
+					],
+				},
+				now,
+			),
+		).toEqual([{ system: 'NOMAD', age: 180 }]);
+	});
+
+	it('has no age for a source that was never read', () => {
+		expect(
+			unreachableSources(
+				{ sources: [{ system: 'PATRONI', reachable: false }] },
+				now,
+			),
+		).toEqual([{ system: 'PATRONI', age: null }]);
 	});
 });

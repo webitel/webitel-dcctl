@@ -5,6 +5,7 @@
   >
     <template #header>
       <wt-app-header>
+        <status-header />
         <span class="typo-body-1">{{ auth.userName }}</span>
         <wt-button
           color="secondary"
@@ -15,6 +16,7 @@
         </wt-button>
       </wt-app-header>
     </template>
+    <operation-line />
     <wt-layout>
       <wt-content-wrapper align="stretch">
         <router-view />
@@ -24,13 +26,17 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, onBeforeUnmount, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 
+import OperationLine from '@/components/status/OperationLine.vue';
+import StatusHeader from '@/components/status/StatusHeader.vue';
 import { useAuthStore } from '@/stores/auth';
+import { useStatusStore } from '@/stores/status';
 
 const auth = useAuthStore();
+const statusStore = useStatusStore();
 const route = useRoute();
 const router = useRouter();
 const { t } = useI18n();
@@ -45,7 +51,13 @@ const SECTIONS = [
 const topItems = computed(() =>
 	SECTIONS.map(({ id, icon }) => ({ id, icon, label: t(`dcctl.nav.${id}`) })),
 );
-const activeItemId = computed(() => String(route.name ?? ''));
+// Nested pages (a datacenter, an operation) keep their section highlighted.
+const activeItemId = computed(() =>
+	String(route.meta.section ?? route.name ?? ''),
+);
+
+onMounted(() => statusStore.start());
+onBeforeUnmount(() => statusStore.stop());
 
 const onSelect = ({ id }: { id: string }) => router.push({ name: id });
 </script>

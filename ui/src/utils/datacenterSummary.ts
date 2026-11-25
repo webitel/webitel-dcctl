@@ -1,4 +1,5 @@
 import type { WebitelDcctlV1Datacenter as Datacenter } from '@/api/gen/_models';
+import { ageSeconds } from './dataAge';
 
 /** `datacenters/dc_b` -> `dc_b`; the last path segment of a resource name. */
 export const resourceId = (name: string | undefined): string =>
@@ -31,7 +32,14 @@ export const sourcesSummary = (
 	};
 };
 
-export const unreachableSources = (dc: Pick<Datacenter, 'sources'>) =>
+/** Sources that do not answer, each with the age of the last data read from it. */
+export const unreachableSources = (
+	dc: Pick<Datacenter, 'sources'>,
+	nowMs: number,
+) =>
 	(dc.sources ?? [])
 		.filter((source) => !source.reachable)
-		.map((source) => source.system);
+		.map((source) => ({
+			system: source.system,
+			age: ageSeconds(source.observe_time, nowMs),
+		}));

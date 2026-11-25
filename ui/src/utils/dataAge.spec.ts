@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
 	ageSeconds,
+	durationSeconds,
 	formatAge,
 	isStaleAge,
 	STALE_AFTER_SECONDS,
@@ -51,5 +52,17 @@ describe('formatAge', () => {
 		[90000, { unit: 'h', value: 25 }],
 	])('%i s', (seconds, expected) => {
 		expect(formatAge(seconds)).toEqual(expected);
+	});
+});
+
+describe('durationSeconds', () => {
+	it('reads a protobuf duration', () => {
+		expect(durationSeconds('4.100s')).toBe(4);
+		expect(durationSeconds('120s')).toBe(120);
+	});
+
+	it('is null for a missing or malformed duration', () => {
+		expect(durationSeconds(undefined)).toBeNull();
+		expect(durationSeconds('soon')).toBeNull();
 	});
 });

@@ -35,3 +35,9 @@ export const formatAge = (seconds: number): AgeParts => {
 	if (seconds < 3600) return { unit: 'm', value: Math.floor(seconds / 60) };
 	return { unit: 'h', value: Math.floor(seconds / 3600) };
 };
+
+/** Whole seconds of a protobuf duration such as `4.100s`; `null` when missing or malformed. */
+export const durationSeconds = (value: string | undefined): number | null => {
+	const match = /^(\d+(?:\.\d+)?)s$/.exec(value ?? '');
+	return match ? Math.floor(Number(match[1])) : null;
+};
