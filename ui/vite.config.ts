@@ -8,7 +8,8 @@ const BASE = '/dcctl/';
 
 export default defineConfig(({ mode, command }) => {
 	const env = loadEnv(mode, process.cwd(), '');
-	// `npm run dev:backend` proxies /api to a running dcctl; the default dev mode runs on the mock.
+	// `npm run dev:backend` proxies /dcctl/api to a running dcctl, cutting the /dcctl prefix
+	// as nginx does; the default dev mode runs on the mock.
 	const apiProxy =
 		mode === 'backend'
 			? (env.VITE_API_PROXY ?? 'http://127.0.0.1:10022')
@@ -27,12 +28,20 @@ export default defineConfig(({ mode, command }) => {
 		server: {
 			fs: { allow: ['..'] },
 			proxy: apiProxy
-				? { '/api': { target: apiProxy, changeOrigin: true } }
+				? {
+						[`${BASE}api`]: {
+							target: apiProxy,
+							changeOrigin: true,
+							rewrite: (path) => path.slice(BASE.length - 1),
+						},
+					}
 				: undefined,
 		},
 		test: {
 			environment: 'jsdom',
 			globals: false,
+			// Vitest serves from `/`; the app is served under BASE, and the API base is derived from it.
+			env: { BASE_URL: BASE },
 			include: ['src/**/*.spec.ts'],
 			setupFiles: ['src/tests/setup.ts'],
 			server: { deps: { inline: [/@webitel\//, /primevue/] } },
