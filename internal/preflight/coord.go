@@ -244,15 +244,17 @@ func (in *Input) noUncommitted() check.Check {
 }
 
 // noSplit fails on a datacenter in split_brain or db_split, except, for demote, the one
-// demoted. A datacenter whose state is not known for lack of a source is a warning: it
-// is not the one the action changes, whose own checks fail on its sources.
+// demoted. A standby whose state is not known for lack of a source is a warning: it is
+// not the one the action changes, whose own checks fail on its sources. The active
+// datacenter is never split.
 func (in *Input) noSplit(except string) check.Check {
 	s := block(check.CoordNoSplit, "")
+	active, _ := in.active()
 
 	var split, unknown []any
 
 	for _, d := range in.Status.Datacenters {
-		if d.Name == except {
+		if d.Name == except || d.Name == active {
 			continue
 		}
 
