@@ -40,6 +40,9 @@ type pgScope struct {
 	// raw are the members as read, for what the model does not keep.
 	raw     []collect.Member
 	cluster *collect.Cluster
+	// model is the datacenter of a scope of one datacenter, nil otherwise or when it is
+	// not configured; never nil when src is reachable.
+	model *status.Datacenter
 }
 
 func (in *Input) pgDatacenter(dc string) pgScope {
@@ -50,6 +53,7 @@ func (in *Input) pgDatacenter(dc string) pgScope {
 		return s
 	}
 
+	s.model = d
 	s.src = d.Source(status.SystemPatroni)
 	s.members = d.Patroni.Members
 	s.leader = memberOf(s.members, d.Patroni.Leader)
@@ -391,8 +395,7 @@ func (in *Input) follows(dc, a string) ([]string, map[string]any) {
 		return []string{a + " has no leader"}, facts
 	}
 
-	d, _ := in.datacenter(dc)
-	ad, _ := in.datacenter(a)
+	d, ad := sd.model, sa.model
 	l := sd.leader
 
 	facts["replication_state"] = l.ReplicationState
@@ -579,8 +582,7 @@ func (in *Input) targetNotStreaming() check.Check {
 		return c.fail("the leader of "+b+" does not answer, whether it streams is not known", nil)
 	}
 
-	d, _ := in.datacenter(b)
-	facts := map[string]any{"replication_state": s.leader.ReplicationState, "host": d.Patroni.StandbyClusterHost}
+	facts := map[string]any{"replication_state": s.leader.ReplicationState, "host": s.model.Patroni.StandbyClusterHost}
 
 	if s.leader.ReplicationState == stateStreaming {
 		return c.fail("the leader of "+b+" still streams from its upstream", facts)
@@ -589,12 +591,23 @@ func (in *Input) targetNotStreaming() check.Check {
 	return c.pass("the leader of "+b+" does not stream", facts)
 }
 
+// received returns the WAL the leader of s received, nil when it is not known, and the
+// facts about it.
 func received(s pgScope) (*int64, map[string]any) {
-	if s.leader == nil || !s.leader.Reachable {
-		return nil, map[string]any{"datacenter": s.dc, "reachable": false}
+	f := map[string]any{"datacenter": s.dc, "reachable": s.src.Reachable}
+
+	if s.leader == nil {
+		return nil, f
 	}
 
-	f := map[string]any{"datacenter": s.dc, "replayed_timestamp": s.leader.Xlog.ReplayedTimestamp}
+	f["leader"] = s.leader.Name
+	f["leader_reachable"] = s.leader.Reachable
+
+	if !s.leader.Reachable {
+		return nil, f
+	}
+
+	f["replayed_timestamp"] = s.leader.Xlog.ReplayedTimestamp
 	if r := s.leader.Xlog.ReceivedLocation; r != nil {
 		f["received_location"] = *r
 	}
@@ -602,8 +615,9 @@ func received(s pgScope) (*int64, map[string]any) {
 	return s.leader.Xlog.ReceivedLocation, f
 }
 
-// targetMaxLSN needs a confirmation when another standby that answers received more WAL
-// than the target, or when what the target received is not known.
+// targetMaxLSN needs a confirmation when another standby received more WAL than the
+// target, or when what the target or a standby whose Patroni answers received is not
+// known. A standby whose Patroni does not answer is not compared.
 func (in *Input) targetMaxLSN() check.Check {
 	b := in.Params.Datacenter
 	c := confirm(check.PatroniTargetMaxLSN, check.ConfirmNotMaxLSN, b)
@@ -617,15 +631,20 @@ func (in *Input) targetMaxLSN() check.Check {
 	facts := map[string]any{"target": fb}
 
 	var (
-		more   []string
-		others []any
+		more, unknown []string
+		others        []any
 	)
 
 	for _, dc := range cs {
-		r, f := received(in.pgDatacenter(dc))
+		sc := in.pgDatacenter(dc)
+		r, f := received(sc)
 		others = append(others, f)
 
-		if rb != nil && r != nil && *r > *rb {
+		switch {
+		case !sc.src.Reachable:
+		case r == nil:
+			unknown = append(unknown, dc)
+		case rb != nil && *r > *rb:
 			more = append(more, dc)
 		}
 	}
@@ -635,6 +654,8 @@ func (in *Input) targetMaxLSN() check.Check {
 	switch {
 	case rb == nil:
 		return c.fail("the WAL "+b+" received is not known", facts)
+	case len(unknown) > 0:
+		return c.fail("the WAL received is not known of "+strings.Join(unknown, ", "), facts)
 	case len(more) > 0:
 		return c.fail("received more WAL than "+b+": "+strings.Join(more, ", "), facts)
 	}
@@ -642,37 +663,57 @@ func (in *Input) targetMaxLSN() check.Check {
 	return c.pass(b+" received the most WAL of the standbys that answer", facts)
 }
 
-// candidate is a member of dc that Patroni may promote: it answers over verified TLS
-// with a supported version and has neither nofailover nor failover_priority 0. Of
-// them the one with the highest failover_priority wins, then the one with the least
-// known lag.
-func candidates(s pgScope, dc string) []status.Member {
+// Candidates returns the members of dc that Patroni may promote, best first, in the
+// order Patroni itself picks: the most WAL first, the highest failover_priority among
+// those with equal WAL. A candidate answers over verified TLS with a supported version,
+// has no nofailover and a failover_priority above 0, and lags no more than maxLag when
+// maxLag is set; a lag that is not known is then too much. A member whose WAL position
+// is not known comes last. The stretch failover promotes the first one.
+func Candidates(members []status.Member, dc string, maxLag *int64) []status.Member {
 	var out []status.Member
 
-	for _, m := range s.members {
-		if m.Datacenter == dc && m.Usable && !m.NoFailover && m.FailoverPriority > 0 {
-			out = append(out, m)
+	for _, m := range members {
+		if m.Datacenter != dc || !m.Usable || m.NoFailover || m.FailoverPriority <= 0 {
+			continue
 		}
+
+		if maxLag != nil && (m.LagBytes == nil || *m.LagBytes > *maxLag) {
+			continue
+		}
+
+		out = append(out, m)
 	}
 
 	slices.SortStableFunc(out, func(x, y status.Member) int {
-		if c := cmp.Compare(y.FailoverPriority, x.FailoverPriority); c != 0 {
-			return c
-		}
+		px, py := walPosition(x), walPosition(y)
 
 		switch {
-		case x.LagBytes == nil && y.LagBytes == nil:
-			return 0
-		case x.LagBytes == nil:
+		case px == nil && py != nil:
 			return 1
-		case y.LagBytes == nil:
+		case px != nil && py == nil:
 			return -1
+		case px != nil && *px != *py:
+			return cmp.Compare(*py, *px)
 		}
 
-		return cmp.Compare(*x.LagBytes, *y.LagBytes)
+		return cmp.Compare(y.FailoverPriority, x.FailoverPriority)
 	})
 
 	return out
+}
+
+// walPosition is the furthest WAL a replica received or replayed; nil when not known.
+func walPosition(m status.Member) *int64 {
+	r, p := m.Xlog.ReceivedLocation, m.Xlog.ReplayedLocation
+
+	switch {
+	case r == nil:
+		return p
+	case p == nil || *r >= *p:
+		return r
+	}
+
+	return p
 }
 
 func memberStreams(m status.Member) bool {
@@ -715,11 +756,11 @@ func (in *Input) targetCandidate() check.Check {
 		return c.fail("maximum_lag_on_failover is not known, the config of the leader does not answer", nil)
 	}
 
-	all := candidates(s, b)
+	all := Candidates(s.members, b, &limit)
 	facts := map[string]any{"maximum_lag_bytes": limit, "members": membersFacts(all)}
 
 	for _, m := range all {
-		if !memberStreams(m) || m.LagBytes == nil || *m.LagBytes > limit {
+		if !memberStreams(m) {
 			continue
 		}
 
@@ -745,8 +786,7 @@ func (in *Input) targetLeader() check.Check {
 		return c.unreachable(s.what(), s.src.Reason)
 	}
 
-	all := candidates(s, b)
-	facts := map[string]any{"candidates": membersFacts(all)}
+	facts := make(map[string]any)
 
 	if s.leader != nil {
 		facts["leader"] = memberFacts(*s.leader)
@@ -762,8 +802,17 @@ func (in *Input) targetLeader() check.Check {
 		return c.fail("the datacenter of the leader is not known", facts)
 	}
 
+	limit, ok := maximumLagOnFailover(s.cluster)
+	if !ok {
+		return c.fail("maximum_lag_on_failover is not known, the config does not answer", facts)
+	}
+
+	all := Candidates(s.members, b, &limit)
+	facts["maximum_lag_bytes"] = limit
+	facts["candidates"] = membersFacts(all)
+
 	if len(all) == 0 {
-		return c.fail("there is no leader and no candidate in "+b, facts)
+		return c.fail(fmt.Sprintf("there is no leader and no candidate in %s within %d bytes of lag", b, limit), facts)
 	}
 
 	return c.pass("there is no leader, "+all[0].Name+" is the candidate", facts)
@@ -781,7 +830,7 @@ func (in *Input) candidateLoss() check.Check {
 	s := in.pgCluster()
 
 	if !s.src.Reachable {
-		return c.fail(s.what()+" does not answer, the loss is not known",
+		return c.fail(s.what()+" does not answer, the amount is not known",
 			map[string]any{"reachable": false, "reason": string(s.src.Reason)})
 	}
 
@@ -789,19 +838,20 @@ func (in *Input) candidateLoss() check.Check {
 		return c.skip("the cluster has a leader")
 	}
 
-	all := candidates(s, b)
-	facts := map[string]any{"candidates": membersFacts(all)}
+	limit, ok := maximumLagOnFailover(s.cluster)
+	if !ok {
+		return c.fail("maximum_lag_on_failover is not known, the amount is not known", nil)
+	}
+
+	all := Candidates(s.members, b, &limit)
+	facts := map[string]any{"maximum_lag_bytes": limit, "candidates": membersFacts(all)}
 
 	if len(all) == 0 {
-		return c.fail("there is no candidate in "+b+", the loss is not known", facts)
+		return c.fail("there is no candidate in "+b+", the amount is not known", facts)
 	}
 
 	m := all[0]
 	facts["candidate"] = m.Name
-
-	if m.LagBytes == nil {
-		return c.fail("the lag of the candidate "+m.Name+" is not known", facts)
-	}
 
 	facts["lag_bytes"] = *m.LagBytes
 
@@ -875,14 +925,20 @@ func (in *Input) divergence() check.Check {
 		facts["timeline"] = *d.Patroni.Timeline
 	}
 
+	if l := memberOf(d.Patroni.Members, d.Patroni.Leader); l != nil {
+		if pos := cmp.Or(l.Xlog.Location, l.Xlog.ReceivedLocation); pos != nil {
+			facts["xlog_location"] = formatLSN(*pos)
+		}
+	}
+
 	switch {
 	case !div.Known:
-		return c.fail("whether "+dc+" diverged from the active datacenter is not known", facts)
+		return c.fail("whether "+dc+" diverged from the active datacenter is not known, the amount is not known", facts)
 	case !div.Diverged:
 		return c.pass(dc+" did not diverge from the active datacenter", facts)
 	}
 
-	facts["divergence_lsn"] = div.LSN
+	facts["divergence_lsn"] = formatLSN(div.LSN)
 	facts["divergence_bytes"] = div.Bytes
 
 	return c.discard(fmt.Sprintf("%s diverged, a rewind discards %d bytes", dc, div.Bytes), facts, div.Bytes)
@@ -907,8 +963,9 @@ func (in *Input) dcRecovered() check.Check {
 	var timeline *int64
 
 	if in.warm() {
-		ad, _ := in.datacenter(a)
-		timeline = ad.Patroni.Timeline
+		if ad, ok := in.datacenter(a); ok {
+			timeline = ad.Patroni.Timeline
+		}
 	} else if l := in.pgCluster().leader; l != nil {
 		timeline = l.Timeline
 	}
@@ -928,7 +985,7 @@ func (in *Input) dcRecovered() check.Check {
 	}
 
 	if in.warm() {
-		if d, _ := in.datacenter(dc); d.Patroni.UpstreamDatacenter != a || s.leader == nil || s.leader.Role != status.RoleStandbyLeader {
+		if s.model.Patroni.UpstreamDatacenter != a || s.leader == nil || s.leader.Role != status.RoleStandbyLeader {
 			why = append(why, "the leader is not a standby leader of "+a)
 		}
 	}
@@ -955,4 +1012,13 @@ func whole(v any, upTo int64) (int64, bool) {
 	}
 
 	return int64(f), true
+}
+
+// formatLSN writes a WAL position as PostgreSQL does, like 0/5000060.
+func formatLSN(v int64) string {
+	if v < 0 {
+		return ""
+	}
+
+	return fmt.Sprintf("%X/%X", v>>32, v&0xFFFFFFFF)
 }

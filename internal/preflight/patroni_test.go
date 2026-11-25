@@ -9,6 +9,7 @@ import (
 	"github.com/webitel/webitel-dcctl/internal/check"
 	"github.com/webitel/webitel-dcctl/internal/collect"
 	"github.com/webitel/webitel-dcctl/internal/source/patroni"
+	"github.com/webitel/webitel-dcctl/internal/status"
 )
 
 func stretchSnap(fn func(s *collect.Snapshot)) func(t *testing.T) *collect.Snapshot {
@@ -313,7 +314,7 @@ func TestTargetCandidate(t *testing.T) {
 	})
 
 	c := newInput(stretch(), Switch, Params{Datacenter: dcB}).targetCandidate()
-	assert.Equal(t, "pg-4", c.Facts["candidate"], "the highest failover_priority wins over the least lag")
+	assert.Equal(t, "pg-3", c.Facts["candidate"], "the most WAL wins over a higher failover_priority")
 }
 
 func noLeader(s *collect.Snapshot) {
@@ -348,7 +349,7 @@ func TestCandidateLoss(t *testing.T) {
 	lag := func(n int64) func(t *testing.T) *collect.Snapshot {
 		return stretchSnap(func(s *collect.Snapshot) {
 			noLeader(s)
-			editPatroni(s, dcA, func(p *collect.Patroni) { memberNamed(p, "pg-4").Lag = i64(n) })
+			editPatroni(s, dcA, func(p *collect.Patroni) { memberNamed(p, "pg-3").Lag = i64(n) })
 		})
 	}
 
@@ -358,7 +359,10 @@ func TestCandidateLoss(t *testing.T) {
 		{name: "lag", snap: lag(300), action: Failover, want: check.Fail},
 		{name: "lag_unknown", snap: stretchSnap(func(s *collect.Snapshot) {
 			noLeader(s)
-			editPatroni(s, dcA, func(p *collect.Patroni) { memberNamed(p, "pg-4").Lag = nil })
+			editPatroni(s, dcA, func(p *collect.Patroni) {
+				memberNamed(p, "pg-3").Lag = nil
+				memberNamed(p, "pg-4").Lag = nil
+			})
 		}), action: Failover, want: check.Fail},
 		{name: "unreachable", snap: stretchSnap(func(s *collect.Snapshot) { cutPatroni(s, dcA) }), action: Failover, want: check.Fail},
 	})
@@ -371,7 +375,10 @@ func TestCandidateLoss(t *testing.T) {
 
 	c = newInput(stretchSnap(func(s *collect.Snapshot) {
 		noLeader(s)
-		editPatroni(s, dcA, func(p *collect.Patroni) { memberNamed(p, "pg-4").Lag = nil })
+		editPatroni(s, dcA, func(p *collect.Patroni) {
+			memberNamed(p, "pg-3").Lag = nil
+			memberNamed(p, "pg-4").Lag = nil
+		})
 	})(t), Failover, Params{Datacenter: dcB}).candidateLoss()
 	assert.Nil(t, c.DiscardBytes, "an unknown lag has no amount to confirm")
 }
@@ -449,4 +456,82 @@ func TestDCRecovered(t *testing.T) {
 		{name: "unreachable", snap: snap(func(s *collect.Snapshot) { cutPatroni(s, dcB) }), action: MarkRecovered, want: check.Fail},
 		{name: "active_unreachable", snap: snap(func(s *collect.Snapshot) { cutPatroni(s, dcA) }), action: MarkRecovered, want: check.Fail},
 	})
+}
+
+func TestCandidates(t *testing.T) {
+	m := func(name string, recv *int64, priority int, lag *int64) status.Member {
+		return status.Member{
+			Name: name, Datacenter: dcB, Usable: true, FailoverPriority: priority, LagBytes: lag,
+			Xlog: status.Xlog{ReceivedLocation: recv},
+		}
+	}
+
+	names := func(ms []status.Member) []string {
+		out := make([]string, len(ms))
+		for i, x := range ms {
+			out[i] = x.Name
+		}
+
+		return out
+	}
+
+	unusable := m("unusable", i64(900), 1, i64(0))
+	unusable.Usable = false
+	noFailover := m("nofailover", i64(900), 1, i64(0))
+	noFailover.NoFailover = true
+	elsewhere := m("elsewhere", i64(900), 1, i64(0))
+	elsewhere.Datacenter = dcA
+
+	members := []status.Member{
+		m("low_wal", i64(100), 9, i64(800)),
+		m("unknown_wal", nil, 9, i64(0)),
+		m("high_wal_low_priority", i64(500), 1, i64(400)),
+		m("high_wal_high_priority", i64(500), 2, i64(400)),
+		m("priority_zero", i64(900), 0, i64(0)),
+		unusable, noFailover, elsewhere,
+	}
+
+	assert.Equal(t, []string{"high_wal_high_priority", "high_wal_low_priority", "low_wal", "unknown_wal"},
+		names(Candidates(members, dcB, nil)), "WAL first, failover_priority on equal WAL")
+
+	assert.Equal(t, []string{"high_wal_high_priority", "high_wal_low_priority", "unknown_wal"},
+		names(Candidates(members, dcB, i64(400))), "lag over the limit is not a candidate")
+
+	members[1].LagBytes = nil
+	assert.NotContains(t, names(Candidates(members, dcB, i64(400))), "unknown_wal", "an unknown lag is over any limit")
+}
+
+func TestTargetMaxLSN_reachableStandbyWithoutData(t *testing.T) {
+	noReceived := func(s *collect.Snapshot) {
+		for _, name := range []string{"pg-dc_c-1", "pg-dc_c-2"} {
+			editProbe(s, dcC, name, func(p *patroni.State) { p.Xlog.ReceivedLocation = nil })
+		}
+	}
+
+	runCases(t, (*Input).targetMaxLSN, []caseOf{
+		{name: "received_not_reported", snap: withC3(9999, noReceived), action: Failover, want: check.Fail},
+		{name: "leader_down", snap: withC3(9999, func(s *collect.Snapshot) { memberDown(s, dcC, "pg-dc_c-1") }), action: Failover, want: check.Fail},
+		{name: "no_leader", snap: withC3(9999, func(s *collect.Snapshot) {
+			editPatroni(s, dcC, func(p *collect.Patroni) { memberNamed(p, "pg-dc_c-1").Role = patroni.ClusterRoleReplica })
+		}), action: Failover, want: check.Fail},
+	})
+
+	c := newInput(withC3(4800, nil)(t), Failover, Params{Datacenter: dcB}).targetMaxLSN()
+	others := c.Facts["others"].([]any)
+	require.Len(t, others, 1)
+	assert.Equal(t, true, others[0].(map[string]any)["reachable"], "Patroni of the standby answered")
+}
+
+func TestDivergence_facts(t *testing.T) {
+	c := newInput(snap(diverged)(t), Demote, Params{Datacenter: dcB}).divergence()
+
+	assert.Equal(t, int64(400), c.Facts["divergence_bytes"])
+	assert.Equal(t, "0/1194", c.Facts["divergence_lsn"])
+	assert.Equal(t, "0/1324", c.Facts["xlog_location"])
+}
+
+func TestFormatLSN(t *testing.T) {
+	assert.Equal(t, "0/5000060", formatLSN(0x5000060))
+	assert.Equal(t, "1/0", formatLSN(1<<32))
+	assert.Empty(t, formatLSN(-1))
 }
