@@ -111,3 +111,20 @@ func TestNew(t *testing.T) {
 	require.True(t, ok, "second detail is %T", details[1])
 	assert.Equal(t, "name", got.GetFieldViolations()[0].GetField())
 }
+
+func TestStatusMetadata(t *testing.T) {
+	t.Parallel()
+
+	st := apierr.Status(apierr.ReasonLockBusy, "lock is busy", map[string]string{"holder": "node-b"})
+
+	assert.Equal(t, codes.Aborted, st.Code())
+	assert.Equal(t, "lock is busy", st.Message())
+
+	details := st.Details()
+	require.Len(t, details, 1)
+
+	info, ok := details[0].(*errdetails.ErrorInfo)
+	require.True(t, ok, "detail is %T", details[0])
+	assert.Equal(t, "LOCK_BUSY", info.GetReason())
+	assert.Equal(t, map[string]string{"holder": "node-b"}, info.GetMetadata())
+}
