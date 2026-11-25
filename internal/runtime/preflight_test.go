@@ -1,0 +1,149 @@
+package runtime_test
+
+import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	dcctlv1 "github.com/webitel/webitel-dcctl/gen/go/dcctl/v1"
+	"github.com/webitel/webitel-dcctl/internal/check"
+	"github.com/webitel/webitel-dcctl/internal/preflight/answer"
+	"github.com/webitel/webitel-dcctl/internal/runtime"
+)
+
+const (
+	switchPath   = "/v1/datacenters/{datacenter}:switch"
+	failoverPath = "/v1/datacenters/{datacenter}:failover"
+)
+
+// swaggerExample returns the JSON example of the POST response code of path.
+func swaggerExample(t *testing.T, path, code string) map[string]any {
+	t.Helper()
+
+	raw, err := os.ReadFile("../../api/dcctl.swagger.json")
+	require.NoError(t, err)
+
+	var doc struct {
+		Paths map[string]map[string]struct {
+			Responses map[string]struct {
+				Examples map[string]json.RawMessage `json:"examples"`
+			} `json:"responses"`
+		} `json:"paths"`
+	}
+	require.NoError(t, json.Unmarshal(raw, &doc))
+
+	ex, ok := doc.Paths[path]["post"].Responses[code].Examples["application/json"]
+	require.True(t, ok, "example %s of POST %s", code, path)
+
+	var out map[string]any
+	require.NoError(t, json.Unmarshal(ex, &out))
+
+	// The examples show "index":0 of the first step, which the gateway leaves out as a
+	// zero value.
+	if pf, ok := out["preflight"].(map[string]any); ok {
+		steps, _ := pf["steps"].([]any)
+		for _, s := range steps {
+			if step, ok := s.(map[string]any); ok && step["index"] == float64(0) {
+				delete(step, "index")
+			}
+		}
+	}
+
+	return out
+}
+
+// refusalBody returns the body the gateway answers the refusal of checks with.
+func refusalBody(t *testing.T, checks []check.Check, given check.Confirmations, plan []*dcctlv1.Operation_Step, mode dcctlv1.Operation_Mode) (int, map[string]any) {
+	t.Helper()
+
+	err := answer.Refusal(check.Decide(checks, given), plan, mode)
+	require.Error(t, err)
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api"+switchPath, nil)
+	runtime.WriteError(w, r, err)
+
+	var body map[string]any
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+
+	return w.Code, body
+}
+
+func TestRefusalBody_preflightFailed(t *testing.T) {
+	checks := []check.Check{
+		{ID: check.CoordLockFree, Result: check.Pass, Effect: check.Block, Detail: "dcctl/lock is free in every reachable datacenter"},
+		{
+			ID: check.PatroniTargetLag, Result: check.Fail, Effect: check.Block, Datacenter: "dc_b",
+			Detail: "lag 52428800 B exceeds 1048576 B", Facts: map[string]any{"lag_bytes": 52428800, "limit_bytes": 1048576},
+		},
+	}
+	plan := []*dcctlv1.Operation_Step{{Type: dcctlv1.Operation_Step_APPS_PREFLIGHT}}
+
+	code, got := refusalBody(t, checks, check.Confirmations{}, plan, dcctlv1.Operation_QUORUM)
+
+	assert.Equal(t, http.StatusBadRequest, code)
+	assert.Equal(t, swaggerExample(t, switchPath, "400"), got)
+}
+
+func TestRefusalBody_confirmationRequired(t *testing.T) {
+	checks := []check.Check{{
+		ID: check.CoordIsolation, Result: check.Fail, Effect: check.Confirm, Confirmation: check.ConfirmIsolation,
+		Detail: "dc_a is unreachable since 2026-11-23T10:02:00Z",
+		Facts:  map[string]any{"mode": "FORCED", "last_seen_role": "primary", "last_seen_time": "2026-11-23T10:01:58Z"},
+	}}
+	plan := []*dcctlv1.Operation_Step{
+		{Type: dcctlv1.Operation_Step_GENERATION, PointOfNoReturn: true},
+		{Type: dcctlv1.Operation_Step_PATRONI_PROMOTE, Datacenter: "datacenters/dc_b"},
+	}
+
+	code, got := refusalBody(t, checks, check.Confirmations{}, plan, dcctlv1.Operation_FORCED)
+
+	// The description of a missing confirmation is the detail of the checks that need
+	// it; the example words it as a prompt.
+	want := swaggerExample(t, failoverPath, "400")
+	want["violations"].([]any)[0].(map[string]any)["description"] = checks[0].Detail
+
+	assert.Equal(t, http.StatusBadRequest, code)
+	assert.Equal(t, want, got)
+}
+
+func TestRefusalBody_lockUnavailable(t *testing.T) {
+	checks := []check.Check{{
+		ID: check.CoordLockFree, Result: check.Fail, Effect: check.Block,
+		Detail: "no Consul KV answers, the lock may be held",
+		Facts:  map[string]any{"reachable": false, "unreachable": []any{"dc_a", "dc_b"}},
+	}}
+
+	code, got := refusalBody(t, checks, check.Confirmations{}, nil, dcctlv1.Operation_MODE_UNSPECIFIED)
+
+	assert.Equal(t, http.StatusServiceUnavailable, code)
+	assert.NotEmpty(t, got["violations"])
+	assert.NotEmpty(t, got["preflight"])
+
+	delete(got, "violations")
+	delete(got, "preflight")
+	assert.Equal(t, swaggerExample(t, failoverPath, "503"), got)
+}
+
+func TestRefusalBody_lockBusy(t *testing.T) {
+	checks := []check.Check{{
+		ID: check.CoordLockFree, Result: check.Fail, Effect: check.Block,
+		Detail: `dcctl/lock in dc_a is held by "dcctl-a1" of dc_a`,
+		Facts:  map[string]any{"kv": "dc_a", "holder": "dcctl-a1", "datacenter": "dc_a", "operation": "op-9"},
+	}}
+
+	code, got := refusalBody(t, checks, check.Confirmations{}, nil, dcctlv1.Operation_MODE_UNSPECIFIED)
+
+	want := swaggerExample(t, switchPath, "409")
+
+	assert.Equal(t, http.StatusConflict, code)
+	assert.Equal(t, want["id"], got["id"])
+	assert.Equal(t, want["code"], got["code"])
+	assert.Equal(t, want["status"], got["status"])
+	assert.Equal(t, map[string]any{"holder": "dcctl-a1", "datacenter": "dc_a", "operation": "operations/op-9"}, got["metadata"])
+}
