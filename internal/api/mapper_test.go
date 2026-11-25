@@ -212,6 +212,19 @@ func TestMapCheck(t *testing.T) {
 	assert.InDelta(t, 4096, got[0].GetFacts().GetFields()["lag_bytes"].GetNumberValue(), 0)
 }
 
+func TestMapCheck_factsStructCannotHold(t *testing.T) {
+	st := exampleStatus()
+	dc := status.Datacenter{Name: "dc_b", InfoChecks: []check.Check{{
+		ID: check.InfoAPI, Result: check.Pass, Facts: map[string]any{"ch": make(chan int)},
+	}}}
+
+	m := newMapper(&st, observerAddress)
+	m.datacenter(&dc, true)
+
+	require.Error(t, m.err)
+	assert.Contains(t, m.err.Error(), "info.api")
+}
+
 func TestMapMissingNodes(t *testing.T) {
 	st := exampleStatus()
 	dc := exampleDCB()

@@ -42,10 +42,13 @@ func datacenterID(name string) string {
 	return strings.TrimPrefix(name, "datacenters/")
 }
 
+// opInterrupted fails unless the operation is interrupted. Its facts name the operation
+// and its state, the enum name; found is false only when every KV answered without it.
 func (in *Input) opInterrupted() check.Check {
 	c := block(check.OpInterrupted, "")
 
-	if ok, unreachable := in.kvAnswers(); !ok {
+	ok, unreachable := in.kvAnswers()
+	if !ok {
 		return c.fail("no Consul KV answers", map[string]any{"unreachable": unreachable})
 	}
 
@@ -53,17 +56,24 @@ func (in *Input) opInterrupted() check.Check {
 
 	for _, cp := range status.Operations(in.Snapshot).Copies {
 		if cp.Status == coord.StatusPresent && cp.Operation.GetName() == name && finished(cp.Operation.GetState()) {
-			return c.fail(name+" is "+stateName(cp.Operation.GetState()),
-				map[string]any{"status": stateName(cp.Operation.GetState()), "kv": cp.Name})
+			st := cp.Operation.GetState()
+
+			return c.fail(name+" is "+stateName(st),
+				map[string]any{"operation": name, "state": st.String(), "kv": cp.Name})
 		}
 	}
 
 	op := in.operation()
 	if op == nil {
-		return c.fail(name+" is not found", nil)
+		if len(unreachable) > 0 {
+			return c.fail(name+" is not found in the Consul KVs that answer",
+				map[string]any{"operation": name, "unreachable": unreachable})
+		}
+
+		return c.fail(name+" is not found", map[string]any{"operation": name, "found": false})
 	}
 
-	facts := map[string]any{"status": stateName(op.GetState())}
+	facts := map[string]any{"operation": name, "state": op.GetState().String()}
 
 	if op.GetState() != dcctlv1.Operation_INTERRUPTED {
 		return c.fail(name+" is "+stateName(op.GetState()), facts)

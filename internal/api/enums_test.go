@@ -7,7 +7,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	dcctlv1 "github.com/webitel/webitel-dcctl/gen/go/dcctl/v1"
-	"github.com/webitel/webitel-dcctl/internal/check"
 	"github.com/webitel/webitel-dcctl/internal/config"
 	"github.com/webitel/webitel-dcctl/internal/jobstate"
 	"github.com/webitel/webitel-dcctl/internal/source"
@@ -146,27 +145,6 @@ func TestJobTypeOf(t *testing.T) {
 		nomadapi.JobTypeBatch:    dcctlv1.Datacenter_Nomad_Job_BATCH,
 		nomadapi.JobTypeSysbatch: dcctlv1.Datacenter_Nomad_Job_SYSBATCH,
 		"":                       dcctlv1.Datacenter_Nomad_Job_TYPE_UNSPECIFIED,
-	})
-}
-
-func TestCheckResultOf(t *testing.T) {
-	assertEnum(t, checkResultOf, map[check.Result]dcctlv1.Check_Result{
-		check.Pass: dcctlv1.Check_PASS,
-		check.Fail: dcctlv1.Check_FAIL,
-		check.Warn: dcctlv1.Check_WARN,
-		check.Skip: dcctlv1.Check_SKIP,
-		"":         dcctlv1.Check_RESULT_UNSPECIFIED,
-		"other":    dcctlv1.Check_RESULT_UNSPECIFIED,
-	})
-}
-
-func TestCheckEffectOf(t *testing.T) {
-	assertEnum(t, checkEffectOf, map[check.Effect]dcctlv1.Check_Effect{
-		check.EffectNone: dcctlv1.Check_EFFECT_UNSPECIFIED,
-		check.Block:      dcctlv1.Check_BLOCK,
-		check.WarnOnly:   dcctlv1.Check_WARN_ONLY,
-		check.Confirm:    dcctlv1.Check_CONFIRM,
-		"other":          dcctlv1.Check_EFFECT_UNSPECIFIED,
 	})
 }
 

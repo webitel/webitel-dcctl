@@ -50,6 +50,51 @@ func TestOpInterrupted(t *testing.T) {
 	})
 }
 
+func TestOpInterrupted_facts(t *testing.T) {
+	p := Params{Operation: "op-2"}
+
+	tests := []struct {
+		name string
+		snap func(t *testing.T) *collect.Snapshot
+		want map[string]any
+	}{
+		{
+			name: "running",
+			snap: withOp(operation("op-2", dcctlv1.Operation_RUNNING, dcB, dcB), nil),
+			want: map[string]any{"operation": "operations/op-2", "state": "RUNNING"},
+		},
+		{
+			name: "interrupted",
+			snap: withOp(operation("op-2", dcctlv1.Operation_INTERRUPTED, dcB, dcB), nil),
+			want: map[string]any{"operation": "operations/op-2", "state": "INTERRUPTED"},
+		},
+		{
+			name: "finished",
+			snap: withOp(operation("op-2", dcctlv1.Operation_SUCCEEDED, dcB, dcB), nil),
+			want: map[string]any{"operation": "operations/op-2", "state": "SUCCEEDED", "kv": dcA},
+		},
+		{
+			name: "not_found",
+			snap: snap(nil),
+			want: map[string]any{"operation": "operations/op-2", "found": false},
+		},
+		{
+			name: "not_found_where_kv_answers",
+			snap: snap(func(s *collect.Snapshot) { s.Voters[1].KV = down[collect.KV]() }),
+			want: map[string]any{"operation": "operations/op-2", "unreachable": []any{dcB}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := newInput(tt.snap(t), Resume, p).opInterrupted()
+
+			assert.Equal(t, tt.want, c.Facts, c.Detail)
+			requireStruct(t, c)
+		})
+	}
+}
+
 func TestPointOfNoReturn(t *testing.T) {
 	p := Params{Operation: "op-2"}
 	before := opWithSteps(dcctlv1.Operation_INTERRUPTED,

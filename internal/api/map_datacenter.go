@@ -1,17 +1,16 @@
 package api
 
 import (
-	"fmt"
 	"maps"
 	"slices"
 	"time"
 
-	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	dcctlv1 "github.com/webitel/webitel-dcctl/gen/go/dcctl/v1"
 	"github.com/webitel/webitel-dcctl/internal/check"
 	"github.com/webitel/webitel-dcctl/internal/jobstate"
+	"github.com/webitel/webitel-dcctl/internal/preflight/answer"
 	"github.com/webitel/webitel-dcctl/internal/status"
 )
 
@@ -225,24 +224,11 @@ func missingNodes(nodes []jobstate.MissingNode) []*dcctlv1.Datacenter_Nomad_Node
 	return out
 }
 
-// checkOf maps c; DiscardBytes is internal, its amount is in the facts.
+// checkOf maps c; facts the proto cannot hold set the error of m.
 func (m *mapper) checkOf(c check.Check) *dcctlv1.Check {
-	out := &dcctlv1.Check{
-		Id:           string(c.ID),
-		Result:       checkResultOf(c.Result),
-		Effect:       checkEffectOf(c.Effect),
-		Confirmation: string(c.Confirmation),
-		Datacenter:   datacenterName(c.Datacenter),
-		Detail:       c.Detail,
-	}
-
-	if c.Facts != nil {
-		facts, err := structpb.NewStruct(c.Facts)
-		if err != nil {
-			m.fail(fmt.Errorf("facts of %s: %w", c.ID, err))
-		}
-
-		out.Facts = facts
+	out, err := answer.Check(c)
+	if err != nil {
+		m.fail(err)
 	}
 
 	return out

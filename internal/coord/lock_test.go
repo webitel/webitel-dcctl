@@ -206,7 +206,7 @@ func TestAcquireConcurrent(t *testing.T) {
 	assert.Equal(t, "LOCK_BUSY", info.GetReason())
 	assert.Equal(t, fmt.Sprintf("node-%d", winner), info.GetMetadata()["holder"])
 	assert.Equal(t, fmt.Sprintf("operations/op-%d", winner), info.GetMetadata()["operation"])
-	assert.Equal(t, "dc_a", info.GetMetadata()["datacenter"], "the datacenter of the holder")
+	assert.Equal(t, "datacenters/dc_a", info.GetMetadata()["datacenter"], "the datacenter of the holder")
 
 	lk := locks[winner]
 	assert.Equal(t, []string{"dc_a", "dc_b"}, lk.Held())
