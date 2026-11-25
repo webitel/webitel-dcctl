@@ -158,8 +158,8 @@ func (in *Input) dcAppsStopped() check.Check {
 }
 
 // plan checks the plans of the jobs of dc that keep: a job without a plan, whose plan
-// failed or that Nomad cannot place fails it.
-func (in *Input) plan(id check.ID, dc string, keep func(status.Job) bool) check.Check {
+// failed or that Nomad cannot place fails it, and so does no job at all when needJobs.
+func (in *Input) plan(id check.ID, dc string, needJobs bool, keep func(status.Job) bool) check.Check {
 	c := block(id, dc)
 
 	if dc == "" {
@@ -197,6 +197,10 @@ func (in *Input) plan(id check.ID, dc string, keep func(status.Job) bool) check.
 
 	facts := map[string]any{"failed": failed, "planned": planned}
 
+	if needJobs && planned == 0 {
+		return c.fail(dc+" has no managed job to start", facts)
+	}
+
 	if len(failed) > 0 {
 		return c.fail(fmt.Sprintf("%d managed jobs of %s cannot be placed", len(failed), dc), facts)
 	}
@@ -204,12 +208,14 @@ func (in *Input) plan(id check.ID, dc string, keep func(status.Job) bool) check.
 	return c.pass(fmt.Sprintf("Nomad places every one of %d managed jobs of %s", planned, dc), facts)
 }
 
+// targetPlan needs every managed job of the target placed; a target without any would
+// take over without apps.
 func (in *Input) targetPlan() check.Check {
-	return in.plan(check.NomadTargetPlan, in.Params.Datacenter, func(status.Job) bool { return true })
+	return in.plan(check.NomadTargetPlan, in.Params.Datacenter, true, func(status.Job) bool { return true })
 }
 
 func (in *Input) activePlan() check.Check {
-	return in.plan(check.NomadActivePlan, in.activeName(), func(j status.Job) bool { return j.State == status.JobStopped })
+	return in.plan(check.NomadActivePlan, in.activeName(), false, func(j status.Job) bool { return j.State == status.JobStopped })
 }
 
 // targetNodes warns about the nodes of the target out of scheduling that run the

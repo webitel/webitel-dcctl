@@ -88,6 +88,9 @@ func TestTargetPlan(t *testing.T) {
 		{name: "plan_error", plans: func(p map[string]Plan) { p["engine"] = Plan{Err: errors.New("timeout")} }, want: check.Fail},
 		{name: "not_planned", plans: func(p map[string]Plan) { delete(p, "engine") }, want: check.Fail},
 		{name: "unreachable", snap: func(s *collect.Snapshot) { cutNomad(s, dcB) }, want: check.Fail},
+		{name: "no_managed_jobs", snap: func(s *collect.Snapshot) {
+			setNomad(s, dcB, func(n *collect.Nomad) { n.Managed, n.Allocs = nil, nil })
+		}, want: check.Fail},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			s := warm()

@@ -63,6 +63,21 @@ func TestPointOfNoReturn(t *testing.T) {
 		{name: "before", snap: withOp(before, nil), action: Abandon, params: p, want: check.Pass},
 		{name: "maybe_passed", snap: withOp(after, nil), action: Abandon, params: p, want: check.Warn},
 		{name: "not_found", snap: snap(nil), action: Abandon, params: p, want: check.Warn},
+		{
+			name: "failed_step", snap: withOp(opWithSteps(dcctlv1.Operation_INTERRUPTED,
+				step(dcctlv1.Operation_Step_PATRONI_PROMOTE, dcctlv1.Operation_Step_FAILED, true)), nil),
+			action: Abandon, params: p, want: check.Warn,
+		},
+		{
+			name: "unknown_step_state", snap: withOp(opWithSteps(dcctlv1.Operation_INTERRUPTED,
+				step(dcctlv1.Operation_Step_PATRONI_PROMOTE, dcctlv1.Operation_Step_STATE_UNSPECIFIED, true)), nil),
+			action: Abandon, params: p, want: check.Warn,
+		},
+		{
+			name: "skipped_step", snap: withOp(opWithSteps(dcctlv1.Operation_INTERRUPTED,
+				step(dcctlv1.Operation_Step_PATRONI_PROMOTE, dcctlv1.Operation_Step_SKIPPED, true)), nil),
+			action: Abandon, params: p, want: check.Pass,
+		},
 	})
 }
 

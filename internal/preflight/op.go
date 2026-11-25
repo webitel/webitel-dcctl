@@ -77,7 +77,8 @@ func finished(s dcctlv1.Operation_State) bool {
 }
 
 // pointOfNoReturn warns when the operation may have passed its point of no return:
-// abandoning it then leaves the datacenters as the steps left them.
+// abandoning it then leaves the datacenters as the steps left them. Every step that
+// started counts, also one that failed or is in a state this dcctl does not know.
 func (in *Input) pointOfNoReturn() check.Check {
 	c := warnOnly(check.OpPointOfNoReturn, "")
 
@@ -86,20 +87,20 @@ func (in *Input) pointOfNoReturn() check.Check {
 		return c.fail("the operation is not found", nil)
 	}
 
-	var done []any
+	var started []any
 
 	passed := false
 
 	for _, st := range op.GetSteps() {
-		if st.GetState() != dcctlv1.Operation_Step_SUCCEEDED && st.GetState() != dcctlv1.Operation_Step_RUNNING {
+		if st.GetState() == dcctlv1.Operation_Step_PENDING || st.GetState() == dcctlv1.Operation_Step_SKIPPED {
 			continue
 		}
 
-		done = append(done, map[string]any{"type": st.GetType().String(), "state": st.GetState().String()})
+		started = append(started, map[string]any{"type": st.GetType().String(), "state": st.GetState().String()})
 		passed = passed || st.GetPointOfNoReturn()
 	}
 
-	facts := map[string]any{"steps": done}
+	facts := map[string]any{"steps": started}
 
 	if passed {
 		return c.fail("the operation may have passed its point of no return", facts)
