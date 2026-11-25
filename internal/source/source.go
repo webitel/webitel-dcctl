@@ -30,10 +30,17 @@ const (
 	ReasonHTTP Reason = "http"
 	// ReasonInvalid is a response that cannot be decoded or breaks the source's API.
 	ReasonInvalid Reason = "invalid"
+	// ReasonNoEndpoints is a source with no endpoint to ask, such as a service without
+	// passing instances in Consul.
+	ReasonNoEndpoints Reason = "no_endpoints"
 )
 
-// ErrInvalidResponse marks a response that cannot be decoded or breaks the source's API.
-var ErrInvalidResponse = errors.New("invalid response")
+var (
+	// ErrInvalidResponse marks a response that cannot be decoded or breaks the source's API.
+	ErrInvalidResponse = errors.New("invalid response")
+	// ErrNoEndpoints marks a source with no endpoint to ask.
+	ErrNoEndpoints = errors.New("no endpoints")
+)
 
 // Error reports that an endpoint could not be reached or used.
 type Error struct {
@@ -89,6 +96,10 @@ func ReasonOf(err error) (Reason, bool) {
 }
 
 func reasonFor(err error) Reason {
+	if errors.Is(err, ErrNoEndpoints) {
+		return ReasonNoEndpoints
+	}
+
 	if se, ok := errors.AsType[*StatusError](err); ok {
 		if se.Code == http.StatusUnauthorized || se.Code == http.StatusForbidden {
 			return ReasonAuth

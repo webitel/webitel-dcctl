@@ -50,17 +50,9 @@ func (c Consul) apiConfig() *api.Config {
 // checkDatacenter refuses an agent whose node_meta names another datacenter:
 // such an instance would act on the datacenter it is not in.
 func (c Consul) checkDatacenter(ctx context.Context) error {
-	cfg := c.apiConfig()
-	cfg.HttpClient = &http.Client{Timeout: agentTimeout}
-
-	client, err := api.NewClient(cfg)
+	self, addr, err := c.self(ctx)
 	if err != nil {
-		return fmt.Errorf("consul client: %w", err)
-	}
-
-	self, err := await(ctx, client.Agent().Self)
-	if err != nil {
-		return fmt.Errorf("read node_meta of the local Consul agent at %s: %w", cfg.Address, err)
+		return fmt.Errorf("read node_meta of the local Consul agent at %s: %w", addr, err)
 	}
 
 	got, ok := self["Meta"][c.NodeMetaKey].(string)
@@ -73,6 +65,37 @@ func (c Consul) checkDatacenter(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// NodeName returns the node name of the local agent, which is the node the
+// instance runs on in the Consul catalog.
+func (c Consul) NodeName(ctx context.Context) (string, error) {
+	self, addr, err := c.self(ctx)
+	if err != nil {
+		return "", fmt.Errorf("read the local Consul agent at %s: %w", addr, err)
+	}
+
+	name, ok := self["Config"]["NodeName"].(string)
+	if !ok || name == "" {
+		return "", fmt.Errorf("the local Consul agent at %s reports no node name", addr)
+	}
+
+	return name, nil
+}
+
+// self reads /v1/agent/self of the local agent at addr.
+func (c Consul) self(ctx context.Context) (self map[string]map[string]any, addr string, err error) {
+	cfg := c.apiConfig()
+	cfg.HttpClient = &http.Client{Timeout: agentTimeout}
+
+	client, err := api.NewClient(cfg)
+	if err != nil {
+		return nil, cfg.Address, fmt.Errorf("consul client: %w", err)
+	}
+
+	self, err = await(ctx, client.Agent().Self)
+
+	return self, cfg.Address, err
 }
 
 // register registers the peer listener as buildinfo.ServiceName with a TTL

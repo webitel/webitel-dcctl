@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -132,6 +134,128 @@ func TestRegisteredAddrs(t *testing.T) {
 	})
 }
 
+func TestClusterInstances(t *testing.T) {
+	var got http.Request
+
+	f := newFake(t, func(w http.ResponseWriter, r *http.Request) {
+		got = *r.Clone(context.Background())
+		_, _ = w.Write([]byte(healthBody))
+	})
+	c := newTestClients(t, config.ProfileStretch, f.addr())
+
+	cl, err := c.Client("dc_a")
+	require.NoError(t, err)
+
+	nodes, _, err := cl.ClusterInstances(t.Context(), "pg", "primary", false)
+	require.NoError(t, err)
+	require.Len(t, nodes, 1)
+	assert.Equal(t, "/v1/health/service/pg", got.URL.Path)
+	assert.Empty(t, got.URL.Query()["node-meta"], "a cluster-wide query is not filtered by datacenter")
+	assert.Equal(t, []string{"primary"}, got.URL.Query()["tag"])
+	assert.Empty(t, got.URL.Query()["passing"])
+}
+
+func TestReadConsistency(t *testing.T) {
+	ctx := t.Context()
+
+	serve := func(t *testing.T) (*fake, *[]string) {
+		t.Helper()
+
+		var (
+			mu    sync.Mutex
+			stale []string
+		)
+
+		f := newFake(t, func(w http.ResponseWriter, r *http.Request) {
+			mu.Lock()
+			if r.URL.Query().Has("stale") {
+				stale = append(stale, r.Method+" "+r.URL.Path)
+			}
+			mu.Unlock()
+
+			w.Header().Set("X-Consul-Knownleader", "false")
+			w.Header().Set("X-Consul-Lastcontact", "1500")
+
+			switch {
+			case strings.HasPrefix(r.URL.Path, "/v1/kv/") && r.Method == http.MethodGet:
+				_, _ = w.Write([]byte(`[{"Key":"dcctl/state","Value":"dg==","ModifyIndex":7}]`))
+			case strings.HasPrefix(r.URL.Path, "/v1/kv/"):
+				_, _ = w.Write([]byte("true"))
+			case strings.HasPrefix(r.URL.Path, "/v1/query/"):
+				_, _ = w.Write([]byte(`{"Service":"webitel-api","Nodes":` + healthBody + `}`))
+			default:
+				_, _ = w.Write([]byte(healthBody))
+			}
+		})
+
+		return f, &stale
+	}
+
+	t.Run("stale_reads_report_the_leader_state", func(t *testing.T) {
+		f, stale := serve(t)
+		c := newStaleClient(t, f.addr())
+		want := QueryMeta{KnownLeader: false, LastContact: 1500 * time.Millisecond}
+
+		e, meta, err := c.KVGet(ctx, "dcctl/state")
+		require.NoError(t, err)
+		assert.Equal(t, uint64(7), e.ModifyIndex)
+		assert.Equal(t, want, meta)
+
+		_, meta, err = c.Instances(ctx, "web", "", false)
+		require.NoError(t, err)
+		assert.Equal(t, want, meta)
+
+		_, meta, err = c.ClusterInstances(ctx, "web", "", false)
+		require.NoError(t, err)
+		assert.Equal(t, want, meta)
+
+		_, meta, err = c.ExecuteQuery(ctx, "webitel-api")
+		require.NoError(t, err)
+		assert.Equal(t, want, meta)
+
+		_, err = c.KVList(ctx, "dcctl/journal/")
+		require.NoError(t, err)
+
+		_, err = c.KVCAS(ctx, "dcctl/state", []byte("v"), 7)
+		require.NoError(t, err)
+
+		assert.Equal(t, []string{
+			"GET /v1/kv/dcctl/state",
+			"GET /v1/health/service/web",
+			"GET /v1/health/service/web",
+			"GET /v1/query/webitel-api/execute",
+			"GET /v1/kv/dcctl/journal/",
+		}, *stale, "every read may be stale, a write may not")
+	})
+
+	t.Run("consistent_by_default", func(t *testing.T) {
+		f, stale := serve(t)
+		c := newTestClient(t, f.addr())
+
+		_, _, err := c.KVGet(ctx, "dcctl/state")
+		require.NoError(t, err)
+		_, _, err = c.Instances(ctx, "web", "", false)
+		require.NoError(t, err)
+		_, _, err = c.ExecuteQuery(ctx, "webitel-api")
+		require.NoError(t, err)
+
+		assert.Empty(t, *stale)
+	})
+
+	t.Run("missing_key_reports_the_leader_state", func(t *testing.T) {
+		f := newFake(t, func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("X-Consul-Knownleader", "true")
+			w.Header().Set("X-Consul-Lastcontact", "0")
+			w.WriteHeader(http.StatusNotFound)
+		})
+		c := newStaleClient(t, f.addr())
+
+		_, meta, err := c.KVGet(ctx, "dcctl/state")
+		require.ErrorIs(t, err, ErrKeyNotFound)
+		assert.True(t, meta.KnownLeader)
+	})
+}
+
 func TestKV(t *testing.T) {
 	ctx := t.Context()
 
@@ -139,7 +263,7 @@ func TestKV(t *testing.T) {
 		f := newFake(t, respond(http.StatusOK, `[{"Key":"dcctl/state","Value":"dg==","ModifyIndex":7}]`))
 		c := newTestClient(t, f.addr())
 
-		e, err := c.KVGet(ctx, "dcctl/state")
+		e, _, err := c.KVGet(ctx, "dcctl/state")
 		require.NoError(t, err)
 		assert.Equal(t, uint64(7), e.ModifyIndex)
 		assert.Equal(t, []byte("v"), e.Value)
@@ -149,7 +273,7 @@ func TestKV(t *testing.T) {
 		f := newFake(t, respond(http.StatusNotFound, ""))
 		c := newTestClient(t, f.addr())
 
-		_, err := c.KVGet(ctx, "dcctl/state")
+		_, _, err := c.KVGet(ctx, "dcctl/state")
 		require.ErrorIs(t, err, ErrKeyNotFound)
 
 		_, classified := source.ReasonOf(err)
@@ -221,7 +345,7 @@ func TestExecuteQuery(t *testing.T) {
 	})
 	c := newTestClients(t, config.ProfileStretch, f.addr()).mustClient(t, "dc_a")
 
-	nodes, err := c.ExecuteQuery(t.Context(), "webitel-api")
+	nodes, _, err := c.ExecuteQuery(t.Context(), "webitel-api")
 	require.NoError(t, err)
 	require.Len(t, nodes, 1)
 	assert.Equal(t, "dc_a", nodes[0].NodeMeta["webitel_datacenter"])

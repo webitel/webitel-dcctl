@@ -248,6 +248,7 @@ func TestNoEndpoints(t *testing.T) {
 
 	_, _, err := c.Jobs(t.Context())
 	require.ErrorIs(t, err, nomad.ErrNoEndpoints)
+	require.ErrorIs(t, err, source.ErrNoEndpoints)
 
 	_, err = c.Endpoints(t.Context())
 	require.ErrorIs(t, err, nomad.ErrNoEndpoints)

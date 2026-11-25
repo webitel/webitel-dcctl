@@ -116,18 +116,10 @@ func (c *Client) checkVersion(ctx context.Context, nc *api.Client) error {
 		return nil
 	}
 
-	self, err := request(ctx, c, func(ctx context.Context) (api.AgentSelf, error) {
-		var self api.AgentSelf
-
-		_, err := nc.Raw().Query("/v1/agent/self", &self, statusQuery(ctx))
-
-		return self, err
-	})
+	build, err := c.build(ctx, nc)
 	if err != nil {
 		return err
 	}
-
-	build := self.Member.Tags["build"]
 
 	if !versionAtLeast(build, minJobMetaVersion) {
 		return fmt.Errorf("%w: nomad %q lists no job meta, %d.%d.0 or newer is required",
@@ -139,6 +131,39 @@ func (c *Client) checkVersion(ctx context.Context, nc *api.Client) error {
 	c.mu.Unlock()
 
 	return nil
+}
+
+// Version returns the version of a Nomad server of the datacenter, such as "1.7.2+ent".
+func (c *Client) Version(ctx context.Context) (string, error) {
+	var version string
+
+	err := c.each(ctx, func(ctx context.Context, nc *api.Client) error {
+		build, err := c.build(ctx, nc)
+		version = build
+
+		return err
+	})
+	if err != nil {
+		return "", err
+	}
+
+	return version, nil
+}
+
+// build reads the version of the server nc talks to.
+func (c *Client) build(ctx context.Context, nc *api.Client) (string, error) {
+	self, err := request(ctx, c, func(ctx context.Context) (api.AgentSelf, error) {
+		var self api.AgentSelf
+
+		_, err := nc.Raw().Query("/v1/agent/self", &self, statusQuery(ctx))
+
+		return self, err
+	})
+	if err != nil {
+		return "", err
+	}
+
+	return self.Member.Tags["build"], nil
 }
 
 // versionAtLeast compares the major and minor of a version such as "1.7.2+ent".

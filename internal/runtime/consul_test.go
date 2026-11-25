@@ -137,6 +137,20 @@ func TestCheckDatacenterMismatch(t *testing.T) {
 	}
 }
 
+func TestNodeName(t *testing.T) {
+	_, srv := newFakeAgent(t, map[string]string{"webitel_datacenter": "dc_a"})
+
+	name, err := testConsul(srv).NodeName(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, "node-a1", name)
+
+	closed := httptest.NewServer(http.NotFoundHandler())
+	closed.Close()
+
+	_, err = Consul{Address: closed.Listener.Addr().String()}.NodeName(t.Context())
+	require.ErrorContains(t, err, "read the local Consul agent at "+closed.Listener.Addr().String())
+}
+
 func TestCheckDatacenterAgentErrors(t *testing.T) {
 	failing := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "boom", http.StatusInternalServerError)

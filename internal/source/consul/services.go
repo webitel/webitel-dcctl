@@ -39,34 +39,52 @@ func (n ServiceNode) HostPort() string {
 
 // Instances returns the instances of service with tag (any when empty) in the datacenter
 // of the client. In stretch only those on nodes of the datacenter, by node_meta.
-func (c *Client) Instances(ctx context.Context, service, tag string, passingOnly bool) ([]ServiceNode, error) {
-	var out []ServiceNode
+func (c *Client) Instances(ctx context.Context, service, tag string, passingOnly bool) ([]ServiceNode, QueryMeta, error) {
+	return c.queryInstances(ctx, service, tag, passingOnly, c.nodeMeta)
+}
+
+// ClusterInstances is [Client.Instances] without the datacenter filter: in stretch it
+// returns the instances of the whole cluster, each with the node_meta of its node.
+func (c *Client) ClusterInstances(ctx context.Context, service, tag string, passingOnly bool) ([]ServiceNode, QueryMeta, error) {
+	return c.queryInstances(ctx, service, tag, passingOnly, nil)
+}
+
+func (c *Client) queryInstances(
+	ctx context.Context, service, tag string, passingOnly bool, nodeMeta map[string]string,
+) ([]ServiceNode, QueryMeta, error) {
+	var (
+		out  []ServiceNode
+		meta QueryMeta
+	)
 
 	err := c.pool.do(ctx, true, func(ctx context.Context, client *api.Client) error {
-		opts := new(api.QueryOptions).WithContext(ctx)
-		opts.NodeMeta = c.nodeMeta
+		opts := c.queryOptions(ctx)
+		opts.NodeMeta = nodeMeta
 
-		entries, _, err := client.Health().Service(service, tag, passingOnly, opts)
+		entries, qm, err := client.Health().Service(service, tag, passingOnly, opts)
 		if err != nil {
 			return err
 		}
 
-		out = serviceNodes(entries)
+		out, meta = serviceNodes(entries), queryMeta(qm)
 
 		return nil
 	})
 
-	return out, err
+	return out, meta, err
 }
 
 // ExecuteQuery executes the prepared query name, for example webitel-api. The nodes
 // carry their node_meta. The query is not filtered by datacenter: in stretch it is one
 // for the whole cluster.
-func (c *Client) ExecuteQuery(ctx context.Context, name string) ([]ServiceNode, error) {
-	var out []ServiceNode
+func (c *Client) ExecuteQuery(ctx context.Context, name string) ([]ServiceNode, QueryMeta, error) {
+	var (
+		out  []ServiceNode
+		meta QueryMeta
+	)
 
 	err := c.pool.do(ctx, true, func(ctx context.Context, client *api.Client) error {
-		resp, _, err := client.PreparedQuery().Execute(name, new(api.QueryOptions).WithContext(ctx))
+		resp, qm, err := client.PreparedQuery().Execute(name, c.queryOptions(ctx))
 		if err != nil {
 			return err
 		}
@@ -76,12 +94,12 @@ func (c *Client) ExecuteQuery(ctx context.Context, name string) ([]ServiceNode, 
 			entries[i] = &resp.Nodes[i]
 		}
 
-		out = serviceNodes(entries)
+		out, meta = serviceNodes(entries), queryMeta(qm)
 
 		return nil
 	})
 
-	return out, err
+	return out, meta, err
 }
 
 // HealthyAddrs returns host:port of the passing instances of service with tag (any when
@@ -104,7 +122,7 @@ func (c *Clients) addrs(ctx context.Context, dc, service, tag string, passingOnl
 		return nil, err
 	}
 
-	nodes, err := cl.Instances(ctx, service, tag, passingOnly)
+	nodes, _, err := cl.Instances(ctx, service, tag, passingOnly)
 	if err != nil {
 		return nil, err
 	}

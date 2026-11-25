@@ -154,6 +154,7 @@ func TestClient_Members_noEndpoints(t *testing.T) {
 
 	_, err := newClient(t, p, patroni.Options{}).Members(t.Context())
 	require.ErrorIs(t, err, patroni.ErrNoEndpoints)
+	require.ErrorIs(t, err, source.ErrNoEndpoints)
 
 	r := &fakeResolver{}
 	_, err = newClient(t, p, patroni.Options{Scope: "s", Datacenter: "dc_a", Resolver: r}).Members(t.Context())

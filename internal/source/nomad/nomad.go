@@ -35,7 +35,7 @@ const (
 
 var (
 	// ErrNoEndpoints means Consul has no passing Nomad instance in the datacenter.
-	ErrNoEndpoints = errors.New("no healthy nomad endpoints")
+	ErrNoEndpoints = fmt.Errorf("no healthy nomad endpoints: %w", source.ErrNoEndpoints)
 	// ErrIndexConflict means the job changed between reading it and registering it.
 	ErrIndexConflict = errors.New("job modify index conflict")
 	// ErrInvalidStage is the meta.dcctl_stage of a job that is not an integer of at least 1.

@@ -6,20 +6,26 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 
 	"github.com/urfave/cli/v2"
 	"google.golang.org/grpc"
 
+	"github.com/webitel/webitel-go-kit/infra/health"
 	"github.com/webitel/webitel-go-kit/pkg/logging"
 
 	"github.com/webitel/webitel-dcctl/internal/arbiter"
 	"github.com/webitel/webitel-dcctl/internal/auth"
 	"github.com/webitel/webitel-dcctl/internal/buildinfo"
+	"github.com/webitel/webitel-dcctl/internal/collect"
 	"github.com/webitel/webitel-dcctl/internal/config"
 	"github.com/webitel/webitel-dcctl/internal/runtime"
 	"github.com/webitel/webitel-dcctl/internal/source/consul"
 )
+
+// healthSystemDcctl is the health system of the checks of dcctl itself.
+const healthSystemDcctl health.System = "dcctl"
 
 func main() {
 	if err := newApp().Run(os.Args); err != nil {
@@ -75,11 +81,13 @@ func serve(c *cli.Context) error {
 	})
 }
 
-func runServe(ctx context.Context, cfg *config.Serve) error {
+func runServe(ctx context.Context, cfg *config.Serve) (err error) {
 	httpOpts, peerOpts, err := serverOptions(ctx, cfg)
 	if err != nil {
 		return err
 	}
+
+	agent := runtime.Consul{Datacenter: cfg.Datacenter, NodeMetaKey: cfg.Consul.NodeMetaKey}
 
 	rt, err := runtime.New(runtime.Config{
 		HTTP:        cfg.Listen.HTTP,
@@ -89,13 +97,73 @@ func runServe(ctx context.Context, cfg *config.Serve) error {
 		HTTPOptions: httpOpts,
 		PeerOptions: peerOpts,
 		APIGuard:    auth.CheckAPIRequest,
-		Consul:      &runtime.Consul{Datacenter: cfg.Datacenter, NodeMetaKey: cfg.Consul.NodeMetaKey},
+		Consul:      &agent,
 	}, logging.New(logging.WithComponent("dcctl.runtime")))
 	if err != nil {
 		return err
 	}
 
-	return rt.Run(ctx)
+	var arb *arbiter.Client
+
+	if cfg.Arbiter.Address != "" {
+		arb, err = arbiter.NewClient(arbiter.ClientOptions{
+			Address: cfg.Arbiter.Address,
+			TLS:     cfg.TLS,
+			Timeout: cfg.Status.RequestTimeout,
+		})
+		if err != nil {
+			return err
+		}
+
+		defer func() { err = errors.Join(err, arb.Close()) }()
+	}
+
+	log := logging.New(logging.WithComponent("dcctl.collect"))
+
+	self, err := instance(ctx, cfg.Datacenter, agent, log)
+	if err != nil {
+		return err
+	}
+
+	collector, err := collect.FromConfig(cfg, self, arb, log)
+	if err != nil {
+		return err
+	}
+
+	rt.Health().Liveness(healthSystemDcctl, collector.Check, health.WithName("collector"))
+
+	ctx, cancel := context.WithCancel(ctx)
+
+	var wg sync.WaitGroup
+
+	wg.Go(func() { collector.Run(ctx) })
+
+	err = rt.Run(ctx)
+
+	cancel()
+	wg.Wait()
+
+	return err
+}
+
+// instance names this dcctl instance as the node of the local Consul agent, which is
+// where it is in the catalog, or as the hostname when the agent does not tell.
+func instance(ctx context.Context, datacenter string, agent runtime.Consul, log *logging.Logger) (collect.Instance, error) {
+	node, err := agent.NodeName(ctx)
+	if err == nil {
+		log.InfoCtx(ctx, "instance is named by the Consul node", logging.Str("node", node))
+
+		return collect.Instance{Datacenter: datacenter, Node: node}, nil
+	}
+
+	host, herr := os.Hostname()
+	if herr != nil {
+		return collect.Instance{}, fmt.Errorf("name the instance: %w", errors.Join(err, herr))
+	}
+
+	log.WarnCtx(ctx, "instance is named by the hostname, the Consul node is unknown", logging.Str("node", host), logging.Err(err))
+
+	return collect.Instance{Datacenter: datacenter, Node: host}, nil
 }
 
 // serverOptions returns the interceptors of the listeners, with the dcctl

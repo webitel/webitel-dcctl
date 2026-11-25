@@ -3,11 +3,14 @@
 package consul
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"slices"
 	"sort"
 	"time"
+
+	"github.com/hashicorp/consul/api"
 
 	"github.com/webitel/webitel-dcctl/internal/config"
 )
@@ -25,6 +28,10 @@ type Options struct {
 	LockDelay  time.Duration
 	// Timeout bounds one request to one server.
 	Timeout time.Duration
+	// AllowStale lets any server answer a read, also one without a leader, as on the
+	// minority side of a partition; [QueryMeta] tells how current the answer is. It is for
+	// status reads; coordination reads stay consistent. Writes are never stale.
+	AllowStale bool
 }
 
 // Clients holds the [Client] of every datacenter.
@@ -42,6 +49,16 @@ type Client struct {
 	nodeMeta   map[string]string
 	sessionTTL time.Duration
 	lockDelay  time.Duration
+	allowStale bool
+}
+
+// QueryMeta is how current a read is.
+type QueryMeta struct {
+	// KnownLeader is false when the server that answered has no leader.
+	KnownLeader bool
+	// LastContact is how long ago that server last heard from the leader; zero on the
+	// leader itself.
+	LastContact time.Duration
 }
 
 // New builds the clients of opts.Servers, which are tried in the order they are listed.
@@ -104,7 +121,7 @@ func New(opts Options) (*Clients, error) {
 			}
 		}
 
-		c := &Client{dc: dc, pool: p, sessionTTL: opts.SessionTTL, lockDelay: opts.LockDelay}
+		c := &Client{dc: dc, pool: p, sessionTTL: opts.SessionTTL, lockDelay: opts.LockDelay, allowStale: opts.AllowStale}
 		if stretch {
 			c.nodeMeta = map[string]string{opts.NodeMetaKey: dc}
 		}
@@ -154,3 +171,18 @@ func (c *Clients) Voters() []*Client { return slices.Clone(c.voters) }
 
 // Datacenter returns the name of the datacenter of the client.
 func (c *Client) Datacenter() string { return c.dc }
+
+func (c *Client) queryOptions(ctx context.Context) *api.QueryOptions {
+	opts := new(api.QueryOptions).WithContext(ctx)
+	opts.AllowStale = c.allowStale
+
+	return opts
+}
+
+func queryMeta(qm *api.QueryMeta) QueryMeta {
+	if qm == nil {
+		return QueryMeta{}
+	}
+
+	return QueryMeta{KnownLeader: qm.KnownLeader, LastContact: qm.LastContact}
+}

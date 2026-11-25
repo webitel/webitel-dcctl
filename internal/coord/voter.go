@@ -133,7 +133,7 @@ func (v *kvVoter) Get(ctx context.Context, key Key) (Entry, error) {
 		return Entry{}, err
 	}
 
-	e, err := v.client.KVGet(ctx, k)
+	e, _, err := v.client.KVGet(ctx, k)
 
 	switch {
 	case errors.Is(err, consul.ErrKeyNotFound):

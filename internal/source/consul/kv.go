@@ -19,31 +19,35 @@ func kvEntry(p *api.KVPair) KVEntry {
 	return KVEntry{Key: p.Key, Value: p.Value, ModifyIndex: p.ModifyIndex, Session: p.Session}
 }
 
-// KVGet returns the key with its ModifyIndex, or [ErrKeyNotFound].
-func (c *Client) KVGet(ctx context.Context, key string) (*KVEntry, error) {
-	var pair *api.KVPair
+// KVGet returns the key with its ModifyIndex, or [ErrKeyNotFound]. The meta is that of
+// the server that answered, also for a missing key.
+func (c *Client) KVGet(ctx context.Context, key string) (*KVEntry, QueryMeta, error) {
+	var (
+		pair *api.KVPair
+		meta QueryMeta
+	)
 
 	err := c.pool.do(ctx, true, func(ctx context.Context, client *api.Client) error {
-		p, _, err := client.KV().Get(key, new(api.QueryOptions).WithContext(ctx))
+		p, qm, err := client.KV().Get(key, c.queryOptions(ctx))
 		if err != nil {
 			return err
 		}
 
-		pair = p
+		pair, meta = p, queryMeta(qm)
 
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		return nil, QueryMeta{}, err
 	}
 
 	if pair == nil {
-		return nil, ErrKeyNotFound
+		return nil, meta, ErrKeyNotFound
 	}
 
 	e := kvEntry(pair)
 
-	return &e, nil
+	return &e, meta, nil
 }
 
 // KVList returns the keys under prefix with their ModifyIndex; none is not an error.
@@ -51,7 +55,7 @@ func (c *Client) KVList(ctx context.Context, prefix string) ([]KVEntry, error) {
 	var pairs api.KVPairs
 
 	err := c.pool.do(ctx, true, func(ctx context.Context, client *api.Client) error {
-		p, _, err := client.KV().List(prefix, new(api.QueryOptions).WithContext(ctx))
+		p, _, err := client.KV().List(prefix, c.queryOptions(ctx))
 		if err != nil {
 			return err
 		}

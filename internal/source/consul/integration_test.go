@@ -76,7 +76,7 @@ func TestIntegrationKVCAS(t *testing.T) {
 	ctx := t.Context()
 	c := integrationClients(t, config.ProfileWarmStandby, startConsul(t)).mustClient(t, "dc_a")
 
-	_, err := c.KVGet(ctx, "dcctl/state")
+	_, _, err := c.KVGet(ctx, "dcctl/state")
 	require.ErrorIs(t, err, ErrKeyNotFound)
 
 	ok, err := c.KVCAS(ctx, "dcctl/state", []byte("v1"), 0)
@@ -87,7 +87,7 @@ func TestIntegrationKVCAS(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, ok, "index 0 must not overwrite an existing key")
 
-	e, err := c.KVGet(ctx, "dcctl/state")
+	e, _, err := c.KVGet(ctx, "dcctl/state")
 	require.NoError(t, err)
 	assert.Equal(t, []byte("v1"), e.Value)
 
@@ -225,7 +225,7 @@ func TestIntegrationStretch(t *testing.T) {
 
 		cl := integrationClients(t, config.ProfileStretch, addr).mustClient(t, "dc_b")
 
-		nodes, err := cl.ExecuteQuery(ctx, "webitel-api")
+		nodes, _, err := cl.ExecuteQuery(ctx, "webitel-api")
 		require.NoError(t, err)
 
 		dcs := make([]string, 0, len(nodes))

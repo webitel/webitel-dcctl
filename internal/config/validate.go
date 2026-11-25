@@ -37,6 +37,12 @@ func (c *Serve) Validate() error {
 	v.consul(c.Consul)
 	v.patroni(c.Patroni)
 
+	// Both datacenters of warm_standby run a cluster of the same scope, so one static list
+	// of seeds would read the members of one datacenter as those of the other.
+	if len(c.Patroni.Endpoints) > 0 && c.Profile == ProfileWarmStandby {
+		v.add("patroni.endpoints", "must be empty for profile %s", ProfileWarmStandby)
+	}
+
 	v.sessionTTL(c.Coordination.SessionTTL)
 	v.lockDelay(c.Coordination.LockDelay)
 	v.positive("coordination.lease_period", c.Coordination.LeasePeriod)
