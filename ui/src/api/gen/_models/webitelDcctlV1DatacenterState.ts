@@ -7,12 +7,16 @@
  */
 
 /**
- * Role of the datacenter in coordination. The first matching value in
- * this order wins.
+ * Role of the datacenter in coordination. The first matching value in the
+ * order listed here, not by number, wins.
  *
  *  - STATE_UNSPECIFIED: Not set.
  *  - UNREACHABLE: No source of the datacenter is reachable.
  *  - UNINITIALIZED: No voter has the dcctl state.
+ *  - UNDETERMINED: The role cannot be told: the voters give no effective state, as in a
+ * conflict, or voters that do not answer may hold a state the others do
+ * not show. A voter whose Consul has no leader does not count. dcctl
+ * does not guess ACTIVE or STANDBY then.
  *  - ACTIVE: The active datacenter of the effective state.
  *  - SPLIT_BRAIN: An inactive datacenter runs a managed job that is not stopped.
  *  - DB_SPLIT: warm_standby: the Patroni leader of an inactive datacenter is primary.
@@ -27,6 +31,7 @@ export const WebitelDcctlV1DatacenterState = {
 	StateUnspecified: 'STATE_UNSPECIFIED',
 	Unreachable: 'UNREACHABLE',
 	Uninitialized: 'UNINITIALIZED',
+	Undetermined: 'UNDETERMINED',
 	Active: 'ACTIVE',
 	SplitBrain: 'SPLIT_BRAIN',
 	DbSplit: 'DB_SPLIT',

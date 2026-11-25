@@ -10,7 +10,8 @@
  * Voter kind.
  *
  *  - TYPE_UNSPECIFIED: Not set.
- *  - DATACENTER: Consul KV of the datacenter in `datacenter`.
+ *  - DATACENTER: Consul KV of the datacenter in `datacenter`; in stretch, of the
+ * cluster-wide Consul, with `datacenter` empty.
  *  - ARBITER: The arbiter.
  */
 export type WebitelDcctlV1StatusVoterType =

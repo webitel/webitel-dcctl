@@ -627,6 +627,7 @@ export const ListOperationsResponse = zod
 												'PATRONI_REPOINT',
 												'PATRONI_FOLLOW',
 												'PATRONI_SWITCHOVER',
+												'PATRONI_FAILOVER',
 											])
 											.default(
 												listOperationsResponseOperationsItemStepsItemTypeDefault,
@@ -1324,6 +1325,7 @@ export const GetOperationResponse = zod
 								'PATRONI_REPOINT',
 								'PATRONI_FOLLOW',
 								'PATRONI_SWITCHOVER',
+								'PATRONI_FAILOVER',
 							])
 							.default(getOperationResponseStepsItemTypeDefault)
 							.describe('Step type.'),
@@ -2041,6 +2043,7 @@ export const AbandonOperationResponse = zod
 								'PATRONI_REPOINT',
 								'PATRONI_FOLLOW',
 								'PATRONI_SWITCHOVER',
+								'PATRONI_FAILOVER',
 							])
 							.default(abandonOperationResponseStepsItemTypeDefault)
 							.describe('Step type.'),
@@ -2758,6 +2761,7 @@ export const ResumeOperationResponse = zod
 								'PATRONI_REPOINT',
 								'PATRONI_FOLLOW',
 								'PATRONI_SWITCHOVER',
+								'PATRONI_FAILOVER',
 							])
 							.default(resumeOperationResponseStepsItemTypeDefault)
 							.describe('Step type.'),
@@ -3460,6 +3464,7 @@ export const WatchOperationResponse = zod.object({
 									'PATRONI_REPOINT',
 									'PATRONI_FOLLOW',
 									'PATRONI_SWITCHOVER',
+									'PATRONI_FAILOVER',
 								])
 								.default(watchOperationResponseResultStepsItemTypeDefault)
 								.describe('Step type.'),

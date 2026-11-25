@@ -25,8 +25,8 @@ message Error {
   // HTTP status text.
   string status = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
 
-  // ErrorInfo metadata: `operation`, `holder`, `datacenter`, `instance`,
-  // `state`.
+  // ErrorInfo metadata: `operation`, `holder`, `datacenter`, `datacenters`,
+  // `instance`, `state`.
   map<string, string> metadata = 5 [(google.api.field_behavior) = OUTPUT_ONLY];
 
   // BadRequest field violations and PreconditionFailure violations.

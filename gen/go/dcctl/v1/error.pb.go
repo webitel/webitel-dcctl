@@ -36,8 +36,8 @@ type Error struct {
 	Detail string `protobuf:"bytes,3,opt,name=detail,proto3" json:"detail,omitempty"`
 	// HTTP status text.
 	Status string `protobuf:"bytes,4,opt,name=status,proto3" json:"status,omitempty"`
-	// ErrorInfo metadata: `operation`, `holder`, `datacenter`, `instance`,
-	// `state`.
+	// ErrorInfo metadata: `operation`, `holder`, `datacenter`, `datacenters`,
+	// `instance`, `state`.
 	Metadata map[string]string `protobuf:"bytes,5,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	// BadRequest field violations and PreconditionFailure violations.
 	Violations []*Violation `protobuf:"bytes,6,rep,name=violations,proto3" json:"violations,omitempty"`

@@ -7,13 +7,22 @@
  */
 
 /**
- * Action dcctl takes by itself, without an operation.
+ * Action dcctl takes by itself, without an operation, or a coordination
+ * event it records. ALIGN_OPERATION, LOCK_LOST and OUTCOME_UNKNOWN set
+ * `operation`.
  *
  *  - SYSTEM_ACTION_UNSPECIFIED: Not set.
  *  - FENCE_APPS: Fencing: stop the managed apps of this datacenter because the
  * effective state names another datacenter as active. A Patroni primary
  * here is left to the DB_SPLIT alarm.
- *  - ALIGN_GENERATION: Copy the effective state to a voter with an older generation.
+ *  - ALIGN_GENERATION: Voter alignment: copy the effective state to a voter with an older
+ * generation.
+ *  - ALIGN_OPERATION: Copy the final record of an operation to the copies of `dcctl/op`
+ * that still hold it unfinished.
+ *  - LOCK_LOST: A session of `dcctl/lock` expired, was invalidated or was not renewed
+ * for its TTL; the operation holding the lock is interrupted.
+ *  - OUTCOME_UNKNOWN: Releasing `dcctl/lock` or writing `dcctl/op` in `datacenter` failed in
+ * a way that may have been applied; `params.key` names the key.
  */
 export type WebitelDcctlV1JournalEntrySystemAction =
 	(typeof WebitelDcctlV1JournalEntrySystemAction)[keyof typeof WebitelDcctlV1JournalEntrySystemAction];
@@ -22,4 +31,7 @@ export const WebitelDcctlV1JournalEntrySystemAction = {
 	SystemActionUnspecified: 'SYSTEM_ACTION_UNSPECIFIED',
 	FenceApps: 'FENCE_APPS',
 	AlignGeneration: 'ALIGN_GENERATION',
+	AlignOperation: 'ALIGN_OPERATION',
+	LockLost: 'LOCK_LOST',
+	OutcomeUnknown: 'OUTCOME_UNKNOWN',
 } as const;

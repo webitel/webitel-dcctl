@@ -20,6 +20,7 @@ export const getStatusResponseDatacentersItemNomadNotReadyNodesItemReasonDefault
 export const getStatusResponseDatacentersItemNomadStagesItemJobsItemMissingNodesItemReasonDefault = `REASON_UNSPECIFIED`;
 export const getStatusResponseDatacentersItemNomadStagesItemJobsItemStateDefault = `STATE_UNSPECIFIED`;
 export const getStatusResponseDatacentersItemNomadStagesItemJobsItemTypeDefault = `TYPE_UNSPECIFIED`;
+export const getStatusResponseDatacentersItemPatroniDivergenceStateDefault = `DIVERGENCE_STATE_UNSPECIFIED`;
 export const getStatusResponseDatacentersItemPatroniMembersItemErrorDefault = `ERROR_UNSPECIFIED`;
 export const getStatusResponseDatacentersItemPatroniMembersItemRoleDefault = `ROLE_UNSPECIFIED`;
 export const getStatusResponseDatacentersItemPatroniMembersItemUnusableReasonDefault = `UNUSABLE_REASON_UNSPECIFIED`;
@@ -150,7 +151,7 @@ export const GetStatusResponse = zod
 						health_reasons: zod
 							.array(zod.string())
 							.optional()
-							.describe('Why health is DEGRADED or DOWN.'),
+							.describe('Why health is DEGRADED, DOWN or UNKNOWN.'),
 						info_checks: zod
 							.array(
 								zod
@@ -277,11 +278,14 @@ export const GetStatusResponse = zod
 														'DRAINING',
 														'DOWN',
 														'INELIGIBLE',
+														'NO_ALLOCATION',
 													])
 													.default(
 														getStatusResponseDatacentersItemNomadNotReadyNodesItemReasonDefault,
 													)
-													.describe('Why the node is not ready.'),
+													.describe(
+														'Why the node does not run managed jobs normally.',
+													),
 											})
 											.describe(
 												'Nomad node that does not run managed jobs normally.',
@@ -360,12 +364,13 @@ export const GetStatusResponse = zod
 																						'DRAINING',
 																						'DOWN',
 																						'INELIGIBLE',
+																						'NO_ALLOCATION',
 																					])
 																					.default(
 																						getStatusResponseDatacentersItemNomadStagesItemJobsItemMissingNodesItemReasonDefault,
 																					)
 																					.describe(
-																						'Why the node is not ready.',
+																						'Why the node does not run managed jobs normally.',
 																					),
 																			})
 																			.describe(
@@ -472,12 +477,27 @@ export const GetStatusResponse = zod
 								divergence_bytes: zod
 									.string()
 									.optional()
-									.describe('WAL written after the divergence point.'),
+									.describe(
+										'WAL written after the divergence point. Set only when divergence_state\nis DIVERGED.',
+									),
 								divergence_lsn: zod
 									.string()
 									.optional()
 									.describe(
-										'Point where the timeline diverged from the active leader, as an LSN\nlike `0/5000060`. Set only when the datacenter diverged.',
+										'Point where the timeline diverged from the active leader, as an LSN\nlike `0/5000060`. Set only when divergence_state is DIVERGED.',
+									),
+								divergence_state: zod
+									.enum([
+										'DIVERGENCE_STATE_UNSPECIFIED',
+										'NOT_DIVERGED',
+										'DIVERGED',
+										'UNKNOWN',
+									])
+									.default(
+										getStatusResponseDatacentersItemPatroniDivergenceStateDefault,
+									)
+									.describe(
+										'Whether the datacenter diverged from the active leader. Authoritative:\nan empty divergence_lsn does not mean NOT_DIVERGED. Not set\n(UNSPECIFIED) for the active datacenter and in stretch, where there is\nnothing to compare.',
 									),
 								lag_bytes: zod
 									.string()
@@ -511,6 +531,8 @@ export const GetStatusResponse = zod
 														'AUTH',
 														'HTTP',
 														'INVALID',
+														'NO_ENDPOINTS',
+														'NO_LEADER',
 													])
 													.default(
 														getStatusResponseDatacentersItemPatroniMembersItemErrorDefault,
@@ -663,6 +685,8 @@ export const GetStatusResponse = zod
 												'AUTH',
 												'HTTP',
 												'INVALID',
+												'NO_ENDPOINTS',
+												'NO_LEADER',
 											])
 											.default(
 												getStatusResponseDatacentersItemSourcesItemErrorDefault,
@@ -703,6 +727,7 @@ export const GetStatusResponse = zod
 								'STATE_UNSPECIFIED',
 								'UNREACHABLE',
 								'UNINITIALIZED',
+								'UNDETERMINED',
 								'ACTIVE',
 								'SPLIT_BRAIN',
 								'DB_SPLIT',
@@ -737,6 +762,12 @@ export const GetStatusResponse = zod
 			.boolean()
 			.optional()
 			.describe('At least one voter has the dcctl state.'),
+		interval: zod
+			.string()
+			.optional()
+			.describe(
+				'Configured pause between the end of one collection cycle and the start\nof the next (`status.interval`). The next cycle finishes about interval\nplus cycle_duration after observe_time.',
+			),
 		lease: zod
 			.object({
 				age: zod
@@ -1350,6 +1381,7 @@ export const GetStatusResponse = zod
 										'PATRONI_REPOINT',
 										'PATRONI_FOLLOW',
 										'PATRONI_SWITCHOVER',
+										'PATRONI_FAILOVER',
 									])
 									.default(getStatusResponseOperationStepsItemTypeDefault)
 									.describe('Step type.'),
@@ -1517,7 +1549,9 @@ export const GetStatusResponse = zod
 						datacenter: zod
 							.string()
 							.optional()
-							.describe('Datacenter of a DATACENTER voter.'),
+							.describe(
+								'Datacenter of a DATACENTER voter. Empty in stretch, where the only\nDATACENTER voter is the cluster-wide Consul.',
+							),
 						error: zod
 							.enum([
 								'ERROR_UNSPECIFIED',
@@ -1528,6 +1562,8 @@ export const GetStatusResponse = zod
 								'AUTH',
 								'HTTP',
 								'INVALID',
+								'NO_ENDPOINTS',
+								'NO_LEADER',
 							])
 							.default(getStatusResponseVotersItemErrorDefault)
 							.describe('Why the voter does not answer.'),

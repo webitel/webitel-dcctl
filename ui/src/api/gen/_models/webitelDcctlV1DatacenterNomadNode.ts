@@ -13,6 +13,6 @@ import type { WebitelDcctlV1DatacenterNomadNodeReason } from './webitelDcctlV1Da
 export interface WebitelDcctlV1DatacenterNomadNode {
 	/** Node name. */
 	readonly node?: string;
-	/** Why the node is not ready. */
+	/** Why the node does not run managed jobs normally. */
 	readonly reason?: WebitelDcctlV1DatacenterNomadNodeReason;
 }

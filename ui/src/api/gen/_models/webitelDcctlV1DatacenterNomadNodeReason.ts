@@ -7,12 +7,14 @@
  */
 
 /**
- * Why the node is not ready.
+ * Why the node does not run managed jobs normally.
  *
  *  - REASON_UNSPECIFIED: Not set.
  *  - DRAINING: The node is draining.
  *  - DOWN: The node is down.
  *  - INELIGIBLE: The node is ineligible for scheduling.
+ *  - NO_ALLOCATION: missing_nodes only: the node is ready and eligible but has no
+ * healthy allocation of the job.
  */
 export type WebitelDcctlV1DatacenterNomadNodeReason =
 	(typeof WebitelDcctlV1DatacenterNomadNodeReason)[keyof typeof WebitelDcctlV1DatacenterNomadNodeReason];
@@ -22,4 +24,5 @@ export const WebitelDcctlV1DatacenterNomadNodeReason = {
 	Draining: 'DRAINING',
 	Down: 'DOWN',
 	Ineligible: 'INELIGIBLE',
+	NoAllocation: 'NO_ALLOCATION',
 } as const;

@@ -19,6 +19,7 @@ import {
 	WebitelDcctlV1DatacenterNomadJobState,
 	WebitelDcctlV1DatacenterNomadJobType,
 	WebitelDcctlV1DatacenterNomadNodeReason,
+	WebitelDcctlV1DatacenterPatroniDivergenceState,
 	WebitelDcctlV1DatacenterPatroniRole,
 	WebitelDcctlV1DatacenterPatroniUnusableReason,
 	WebitelDcctlV1DatacenterState,
@@ -388,6 +389,12 @@ export const getGetStatusResponseMock = (
 						faker.string.alpha({ length: { min: 10, max: 20 } }),
 						undefined,
 					]),
+					divergence_state: faker.helpers.arrayElement([
+						faker.helpers.arrayElement(
+							Object.values(WebitelDcctlV1DatacenterPatroniDivergenceState),
+						),
+						undefined,
+					]),
 					lag_bytes: faker.helpers.arrayElement([
 						faker.string.alpha({ length: { min: 10, max: 20 } }),
 						undefined,
@@ -572,6 +579,10 @@ export const getGetStatusResponseMock = (
 	]),
 	initialized: faker.helpers.arrayElement([
 		faker.datatype.boolean(),
+		undefined,
+	]),
+	interval: faker.helpers.arrayElement([
+		faker.string.alpha({ length: { min: 10, max: 20 } }),
 		undefined,
 	]),
 	lease: faker.helpers.arrayElement([

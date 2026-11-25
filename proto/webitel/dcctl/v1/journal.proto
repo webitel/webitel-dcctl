@@ -33,13 +33,15 @@ message JournalEntry {
     OPERATION = 1;
     // Operation step.
     STEP = 2;
-    // Action dcctl takes by itself, see SystemAction.
+    // Action dcctl takes by itself, without an operation, or a coordination
+    // event it records; see SystemAction.
     SYSTEM = 3;
     // Alarm raised or cleared.
     ALARM = 4;
   }
 
-  // Outcome of the recorded action.
+  // Outcome of the recorded action. For SYSTEM events: LOCK_LOST is ERROR,
+  // OUTCOME_UNKNOWN is WARNING.
   enum Result {
     // Not set.
     RESULT_UNSPECIFIED = 0;
@@ -51,7 +53,9 @@ message JournalEntry {
     ERROR = 3;
   }
 
-  // Action dcctl takes by itself, without an operation.
+  // Action dcctl takes by itself, without an operation, or a coordination
+  // event it records. ALIGN_OPERATION, LOCK_LOST and OUTCOME_UNKNOWN set
+  // `operation`.
   enum SystemAction {
     // Not set.
     SYSTEM_ACTION_UNSPECIFIED = 0;
@@ -59,8 +63,18 @@ message JournalEntry {
     // effective state names another datacenter as active. A Patroni primary
     // here is left to the DB_SPLIT alarm.
     FENCE_APPS = 1;
-    // Copy the effective state to a voter with an older generation.
+    // Voter alignment: copy the effective state to a voter with an older
+    // generation.
     ALIGN_GENERATION = 2;
+    // Copy the final record of an operation to the copies of `dcctl/op`
+    // that still hold it unfinished.
+    ALIGN_OPERATION = 3;
+    // A session of `dcctl/lock` expired, was invalidated or was not renewed
+    // for its TTL; the operation holding the lock is interrupted.
+    LOCK_LOST = 4;
+    // Releasing `dcctl/lock` or writing `dcctl/op` in `datacenter` failed in
+    // a way that may have been applied; `params.key` names the key.
+    OUTCOME_UNKNOWN = 5;
   }
 
   // Resource name: `journalEntries/<time>-<id>`, the same `<time>-<id>` as

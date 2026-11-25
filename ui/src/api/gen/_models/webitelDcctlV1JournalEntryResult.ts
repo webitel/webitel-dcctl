@@ -7,7 +7,8 @@
  */
 
 /**
- * Outcome of the recorded action.
+ * Outcome of the recorded action. For SYSTEM events: LOCK_LOST is ERROR,
+ * OUTCOME_UNKNOWN is WARNING.
  *
  *  - RESULT_UNSPECIFIED: Not set.
  *  - OK: Succeeded, or an alarm cleared.

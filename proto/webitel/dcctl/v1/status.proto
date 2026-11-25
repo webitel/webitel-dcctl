@@ -39,7 +39,8 @@ message Status {
     enum Type {
       // Not set.
       TYPE_UNSPECIFIED = 0;
-      // Consul KV of the datacenter in `datacenter`.
+      // Consul KV of the datacenter in `datacenter`; in stretch, of the
+      // cluster-wide Consul, with `datacenter` empty.
       DATACENTER = 1;
       // The arbiter.
       ARBITER = 2;
@@ -48,7 +49,8 @@ message Status {
     // Voter kind.
     Type type = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
 
-    // Datacenter of a DATACENTER voter.
+    // Datacenter of a DATACENTER voter. Empty in stretch, where the only
+    // DATACENTER voter is the cluster-wide Consul.
     string datacenter = 2 [
       (google.api.field_behavior) = OUTPUT_ONLY,
       (google.api.resource_reference).type = "dcctl.webitel.com/Datacenter"
@@ -227,6 +229,11 @@ message Status {
 
   // Duration of the last collection cycle.
   google.protobuf.Duration cycle_duration = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Configured pause between the end of one collection cycle and the start
+  // of the next (`status.interval`). The next cycle finishes about interval
+  // plus cycle_duration after observe_time.
+  google.protobuf.Duration interval = 20 [(google.api.field_behavior) = OUTPUT_ONLY];
 
   // Deployment profile.
   Profile profile = 5 [(google.api.field_behavior) = OUTPUT_ONLY];

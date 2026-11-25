@@ -23,8 +23,8 @@ export interface WebitelDcctlV1Error {
 	/** Error id, for example `dcctl.preflight.failed`. */
 	readonly id?: string;
 	/**
-	 * ErrorInfo metadata: `operation`, `holder`, `datacenter`, `instance`,
-	 * `state`.
+	 * ErrorInfo metadata: `operation`, `holder`, `datacenter`, `datacenters`,
+	 * `instance`, `state`.
 	 */
 	readonly metadata?: WebitelDcctlV1ErrorMetadata;
 	/** Full preflight result of PREFLIGHT_FAILED and CONFIRMATION_REQUIRED. */

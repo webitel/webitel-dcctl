@@ -7,7 +7,7 @@
  */
 
 /**
- * Why the source is unreachable.
+ * Why the source is unreachable or its answer cannot be used.
  *
  *  - ERROR_UNSPECIFIED: Reachable.
  *  - TIMEOUT: Request timed out.
@@ -17,6 +17,10 @@
  *  - AUTH: Authentication failed.
  *  - HTTP: Unexpected HTTP status.
  *  - INVALID: Response could not be parsed.
+ *  - NO_ENDPOINTS: Discovery found no endpoint to ask, such as a service without passing
+ * instances in Consul.
+ *  - NO_LEADER: The Consul agent answered, but its cluster has no known leader, so its
+ * reads cannot be trusted. The source counts as unreachable.
  */
 export type WebitelDcctlV1SourceError =
 	(typeof WebitelDcctlV1SourceError)[keyof typeof WebitelDcctlV1SourceError];
@@ -30,4 +34,6 @@ export const WebitelDcctlV1SourceError = {
 	Auth: 'AUTH',
 	Http: 'HTTP',
 	Invalid: 'INVALID',
+	NoEndpoints: 'NO_ENDPOINTS',
+	NoLeader: 'NO_LEADER',
 } as const;

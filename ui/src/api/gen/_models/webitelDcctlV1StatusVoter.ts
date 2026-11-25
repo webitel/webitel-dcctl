@@ -14,7 +14,10 @@ import type { WebitelDcctlV1StatusVoterType } from './webitelDcctlV1StatusVoterT
 export interface WebitelDcctlV1StatusVoter {
 	/** Active datacenter of the voter record. */
 	readonly active_datacenter?: string;
-	/** Datacenter of a DATACENTER voter. */
+	/**
+	 * Datacenter of a DATACENTER voter. Empty in stretch, where the only
+	 * DATACENTER voter is the cluster-wide Consul.
+	 */
 	readonly datacenter?: string;
 	/** Why the voter does not answer. */
 	readonly error?: WebitelDcctlV1SourceError;

@@ -5,6 +5,7 @@
  * Datacenter switching for Webitel. Errors are `Error` objects; tell them apart by `id`, not by the HTTP status.
  * OpenAPI spec version: v1
  */
+import type { WebitelDcctlV1DatacenterPatroniDivergenceState } from './webitelDcctlV1DatacenterPatroniDivergenceState';
 import type { WebitelDcctlV1DatacenterPatroniMember } from './webitelDcctlV1DatacenterPatroniMember';
 import type { WebitelDcctlV1DatacenterPatroniRole } from './webitelDcctlV1DatacenterPatroniRole';
 
@@ -13,13 +14,23 @@ import type { WebitelDcctlV1DatacenterPatroniRole } from './webitelDcctlV1Datace
  * cluster in it (stretch).
  */
 export interface WebitelDcctlV1DatacenterPatroni {
-	/** WAL written after the divergence point. */
+	/**
+	 * WAL written after the divergence point. Set only when divergence_state
+	 * is DIVERGED.
+	 */
 	readonly divergence_bytes?: string;
 	/**
 	 * Point where the timeline diverged from the active leader, as an LSN
-	 * like `0/5000060`. Set only when the datacenter diverged.
+	 * like `0/5000060`. Set only when divergence_state is DIVERGED.
 	 */
 	readonly divergence_lsn?: string;
+	/**
+	 * Whether the datacenter diverged from the active leader. Authoritative:
+	 * an empty divergence_lsn does not mean NOT_DIVERGED. Not set
+	 * (UNSPECIFIED) for the active datacenter and in stretch, where there is
+	 * nothing to compare.
+	 */
+	readonly divergence_state?: WebitelDcctlV1DatacenterPatroniDivergenceState;
 	/**
 	 * Lag of the datacenter behind the active primary. Approximate between
 	 * clusters.

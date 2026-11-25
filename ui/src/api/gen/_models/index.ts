@@ -31,6 +31,7 @@ export * from './webitelDcctlV1DatacenterNomadNodeReason';
 export * from './webitelDcctlV1DatacenterNomadStage';
 export * from './webitelDcctlV1DatacenterNomadUnmanagedJob';
 export * from './webitelDcctlV1DatacenterPatroni';
+export * from './webitelDcctlV1DatacenterPatroniDivergenceState';
 export * from './webitelDcctlV1DatacenterPatroniMember';
 export * from './webitelDcctlV1DatacenterPatroniRole';
 export * from './webitelDcctlV1DatacenterPatroniUnusableReason';
