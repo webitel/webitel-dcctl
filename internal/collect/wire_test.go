@@ -54,7 +54,7 @@ func TestFromConfig(t *testing.T) {
 	t.Run("warm_standby", func(t *testing.T) {
 		cfg := serveConfig(t, config.ProfileWarmStandby)
 
-		c, err := FromConfig(cfg, instance, nil, testLogger())
+		c, err := FromConfig(cfg, instance, nil, ReadsStale, testLogger())
 		require.NoError(t, err)
 
 		assert.Equal(t, instance, c.cfg.Instance)
@@ -71,7 +71,7 @@ func TestFromConfig(t *testing.T) {
 	t.Run("stretch", func(t *testing.T) {
 		cfg := serveConfig(t, config.ProfileStretch)
 
-		c, err := FromConfig(cfg, instance, nil, testLogger())
+		c, err := FromConfig(cfg, instance, nil, ReadsStale, testLogger())
 		require.NoError(t, err)
 
 		require.Len(t, c.src.Voters, 1)
@@ -87,7 +87,7 @@ func TestFromConfig(t *testing.T) {
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = arb.Close() })
 
-		c, err := FromConfig(cfg, instance, arb, testLogger())
+		c, err := FromConfig(cfg, instance, arb, ReadsStale, testLogger())
 		require.NoError(t, err)
 		assert.Same(t, arb, c.src.Arbiter)
 	})
@@ -96,7 +96,7 @@ func TestFromConfig(t *testing.T) {
 		cfg := serveConfig(t, config.ProfileWarmStandby)
 		cfg.TLS.CA = t.TempDir() + "/missing.pem"
 
-		_, err := FromConfig(cfg, instance, nil, testLogger())
+		_, err := FromConfig(cfg, instance, nil, ReadsStale, testLogger())
 		require.Error(t, err)
 	})
 }
@@ -146,7 +146,7 @@ func TestFromConfig_deadFirstConsulServer(t *testing.T) {
 	}
 	cfg.Status.RequestTimeout = 900 * time.Millisecond
 
-	c, err := FromConfig(cfg, Instance{}, nil, testLogger())
+	c, err := FromConfig(cfg, Instance{}, nil, ReadsStale, testLogger())
 	require.NoError(t, err)
 
 	s, ok := c.cycle(t.Context(), nil)
@@ -163,6 +163,53 @@ func TestFromConfig_deadFirstConsulServer(t *testing.T) {
 	defer mu.Unlock()
 
 	assert.Empty(t, consistent, "collection reads are stale")
+}
+
+// A collector an action is decided on reads from the Consul leaders: a server cut off
+// from its leader may show a lock free or an operation missing.
+func TestFromConfig_consistentReads(t *testing.T) {
+	var (
+		mu    sync.Mutex
+		stale []string
+	)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		if r.URL.Query().Has("stale") {
+			stale = append(stale, r.URL.Path)
+		}
+		mu.Unlock()
+
+		w.Header().Set("X-Consul-Knownleader", "true")
+		w.Header().Set("X-Consul-Lastcontact", "0")
+
+		if strings.HasPrefix(r.URL.Path, "/v1/kv/") {
+			w.WriteHeader(http.StatusNotFound)
+
+			return
+		}
+
+		_, _ = io.WriteString(w, `[]`)
+	}))
+	t.Cleanup(srv.Close)
+
+	addr := strings.TrimPrefix(srv.URL, "http://")
+
+	cfg := serveConfig(t, config.ProfileWarmStandby)
+	cfg.Consul.Servers = []config.ConsulServer{{Address: addr, Datacenter: "dc_a"}, {Address: addr, Datacenter: "dc_b"}}
+	cfg.Status.RequestTimeout = 900 * time.Millisecond
+
+	c, err := FromConfig(cfg, Instance{}, nil, ReadsConsistent, testLogger())
+	require.NoError(t, err)
+
+	s, err := c.Collect(t.Context())
+	require.NoError(t, err)
+	require.True(t, s.Voters[0].KV.Reachable, "%v", s.Voters[0].KV.Err)
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	assert.Empty(t, stale)
 }
 
 type passingCatalog struct {

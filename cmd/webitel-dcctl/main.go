@@ -125,7 +125,7 @@ func runServe(ctx context.Context, cfg *config.Serve) (err error) {
 		return err
 	}
 
-	collector, err := collect.FromConfig(cfg, self, arb, log)
+	collector, err := collect.FromConfig(cfg, self, arb, collect.ReadsStale, log)
 	if err != nil {
 		return err
 	}
