@@ -116,7 +116,7 @@ describe('DatacenterTable', () => {
 		expect(cell).toContain('pg-b1');
 		expect(cell).toContain('standby leader');
 		expect(cell).toContain('timeline 5');
-		expect(cell).toContain('lag 1024');
+		expect(cell).toContain('lag 1 kB');
 	});
 
 	it('shows healthy over all managed apps and reachable over all sources', async () => {
@@ -183,6 +183,14 @@ describe('DatacenterTable', () => {
 		expect(rowOf(wrapper, 'dc_b').find('a').attributes('href')).toBe(
 			'/dcctl/datacenters/dc_b',
 		);
+	});
+
+	it('has the anchor the alarms link to', async () => {
+		const wrapper = await mountTable({
+			datacenters: [{ name: 'datacenters/dc_a' }],
+		});
+
+		expect(wrapper.find('#datacenters').exists()).toBe(true);
 	});
 
 	it('shows a row for every datacenter of the real example', async () => {

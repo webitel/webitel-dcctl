@@ -101,6 +101,20 @@ describe('AlarmList', () => {
 		);
 	});
 
+	it('makes the alarm type the link, so every link says what it opens', async () => {
+		const wrapper = await mountAlarms({
+			alarms: [
+				{
+					type: 'DB_SPLIT',
+					severity: 'CRITICAL',
+					datacenter: 'datacenters/dc_b',
+				},
+			],
+		});
+
+		expect(wrapper.find('[data-test="alarm"] a').text()).toBe('Database split');
+	});
+
 	it('shows one row when there are no alarms', async () => {
 		const wrapper = await mountAlarms({ alarms: [] });
 

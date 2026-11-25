@@ -56,9 +56,45 @@ describe('alarmTarget', () => {
 		).toEqual({ name: 'overview', hash: '#coordination' });
 	});
 
-	it('sends a conflict to the datacenter list until the resolve dialog exists', () => {
+	it('sends a conflict to the coordination block until the resolve dialog exists', () => {
 		expect(alarmTarget({ type: 'CONFLICT' } as never)).toEqual({
-			name: 'datacenters',
+			name: 'overview',
+			hash: '#coordination',
 		});
+	});
+
+	it.each(['MULTIPLE_PRIMARIES', 'DB_LEADER_MISMATCH'])(
+		'%s points at the datacenter table, which shows the Patroni leaders',
+		(type) => {
+			expect(alarmTarget({ type } as never)).toEqual({
+				name: 'overview',
+				hash: '#datacenters',
+			});
+		},
+	);
+
+	it.each(['DB_SPLIT', 'DATACENTER_UNREACHABLE', 'APPS_DEGRADED'])(
+		'%s without a datacenter points at the datacenter table',
+		(type) => {
+			expect(alarmTarget({ type } as never)).toEqual({
+				name: 'overview',
+				hash: '#datacenters',
+			});
+		},
+	);
+
+	it('does not send an unknown alarm type to the coordination block', () => {
+		expect(alarmTarget({ type: 'FUTURE_THING' } as never)).toEqual({
+			name: 'overview',
+		});
+	});
+
+	it('opens the datacenter page for an unknown type that names a datacenter', () => {
+		expect(
+			alarmTarget({
+				type: 'FUTURE_THING',
+				datacenter: 'datacenters/dc_b',
+			} as never),
+		).toEqual({ name: 'datacenter', params: { dc: 'dc_b' } });
 	});
 });

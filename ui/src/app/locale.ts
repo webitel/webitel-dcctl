@@ -20,6 +20,7 @@ const en = {
 		observerUnknown: 'View from unknown instance',
 		updated: 'Updated {age} ago',
 		noData: 'No data yet',
+		staleShort: 'Data may be stale',
 		staleHint:
 			'The data is older than {seconds} s: it may not match the real state',
 		pollFailed: 'Cannot refresh the status',
@@ -28,7 +29,6 @@ const en = {
 		ageUnit: { s: '{n} s', m: '{n} min', h: '{n} h' },
 	},
 	operationLine: {
-		label: 'Operation',
 		target: 'target {target}',
 		step: 'step {number} of {total}: {step}',
 		noStep: 'no step yet',
@@ -61,11 +61,12 @@ const en = {
 		PATRONI_SWITCHOVER: 'Patroni switchover',
 	},
 	overview: {
+		loading: 'Loading the status…',
+		unavailable: 'Cannot get the status',
 		alarms: {
 			title: 'Alarms',
 			empty: 'No alarms',
 			since: 'since {time}',
-			open: 'Open',
 			severity: { CRITICAL: 'Critical', WARNING: 'Warning' },
 			type: {
 				CONFLICT: 'Conflict',
@@ -113,8 +114,8 @@ const en = {
 			forcedYes: 'yes, written in forced mode',
 			forcedNo: 'no',
 			quorum: 'Quorum',
+			noData: 'no data',
 			quorumValue: '{reachable} of {total} reachable, {required} needed',
-			quorumNone: 'no quorum',
 			profile: 'Profile',
 			voters: 'Voters',
 			voter: 'Voter',
@@ -125,7 +126,6 @@ const en = {
 			leaseHolder: 'holder {holder}',
 			leaseAge: 'age {age}',
 			leaseLost: 'lost',
-			noLease: 'no lease',
 		},
 	},
 	state: {
@@ -192,6 +192,7 @@ const uk: typeof en = {
 		observerUnknown: 'Погляд з невідомої інстанції',
 		updated: 'Оновлено {age} тому',
 		noData: 'Даних ще немає',
+		staleShort: 'Дані можуть бути застарілі',
 		staleHint:
 			'Дані старші за {seconds} с: вони можуть не збігатися з реальним станом',
 		pollFailed: 'Не вдається оновити статус',
@@ -200,7 +201,6 @@ const uk: typeof en = {
 		ageUnit: { s: '{n} с', m: '{n} хв', h: '{n} год' },
 	},
 	operationLine: {
-		label: 'Операція',
 		target: 'ціль {target}',
 		step: 'крок {number} з {total}: {step}',
 		noStep: 'кроків ще немає',
@@ -233,11 +233,12 @@ const uk: typeof en = {
 		PATRONI_SWITCHOVER: 'Switchover Patroni',
 	},
 	overview: {
+		loading: 'Завантаження статусу…',
+		unavailable: 'Не вдається отримати статус',
 		alarms: {
 			title: 'Тривоги',
 			empty: 'Тривог немає',
 			since: 'з {time}',
-			open: 'Відкрити',
 			severity: { CRITICAL: 'Критична', WARNING: 'Попередження' },
 			type: {
 				CONFLICT: 'Конфлікт',
@@ -285,8 +286,8 @@ const uk: typeof en = {
 			forcedYes: 'так, записано у forced-режимі',
 			forcedNo: 'ні',
 			quorum: 'Кворум',
+			noData: 'немає даних',
 			quorumValue: 'досяжні {reachable} з {total}, потрібно {required}',
-			quorumNone: 'кворуму немає',
 			profile: 'Профіль',
 			voters: 'Voters',
 			voter: 'Voter',
@@ -297,7 +298,6 @@ const uk: typeof en = {
 			leaseHolder: 'власник {holder}',
 			leaseAge: 'вік {age}',
 			leaseLost: 'втрачено',
-			noLease: 'lease немає',
 		},
 	},
 	state: {

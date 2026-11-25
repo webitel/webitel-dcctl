@@ -9,33 +9,27 @@
       v-if="stale"
       icon="attention"
       size="sm"
+      :aria-label="$t('dcctl.header.staleShort')"
     />
     <template v-if="age === null">{{ $t('dcctl.header.noData') }}</template>
     <template v-else>
-      {{ $t('dcctl.header.updated', { age: text }) }}
+      {{ $t('dcctl.header.updated', { age: ageText(age) }) }}
     </template>
+    <span v-if="stale && age !== null">{{ $t('dcctl.header.staleShort') }}</span>
   </span>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
-import { useI18n } from 'vue-i18n';
+import { useAgeText } from '@/composables/useAgeText';
+import { STALE_AFTER_SECONDS } from '@/utils/dataAge';
 
-import { formatAge, STALE_AFTER_SECONDS } from '@/utils/dataAge';
-
-const props = defineProps<{
+defineProps<{
 	/** Seconds since the last collection cycle; `null` before the first answer. */
 	age: number | null;
 	stale: boolean;
 }>();
 
-const { t } = useI18n();
-
-const text = computed(() => {
-	if (props.age === null) return '';
-	const { unit, value } = formatAge(props.age);
-	return t(`dcctl.header.ageUnit.${unit}`, { n: value });
-});
+const ageText = useAgeText();
 </script>
 
 <style scoped>

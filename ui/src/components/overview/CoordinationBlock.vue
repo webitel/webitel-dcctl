@@ -21,7 +21,19 @@
       </dd>
 
       <dt>{{ $t('dcctl.overview.coordination.quorum') }}</dt>
-      <dd data-test="quorum">{{ quorumText }}</dd>
+      <dd>
+        <wt-chip
+          v-if="status?.quorum"
+          :color="toChipColor(quorumColor)"
+          data-test="quorum"
+        >
+          {{ quorumText }}
+        </wt-chip>
+        <span
+          v-else
+          data-test="quorum"
+        >{{ $t('dcctl.overview.coordination.noData') }}</span>
+      </dd>
 
       <dt>{{ $t('dcctl.overview.coordination.profile') }}</dt>
       <dd>{{ enumLabel('profileName', status?.profile) }}</dd>
@@ -60,7 +72,7 @@ import { useEnumLabel } from '@/composables/useEnumLabel';
 import { useStatusStore } from '@/stores/status';
 import { durationSeconds } from '@/utils/dataAge';
 import { resourceId } from '@/utils/datacenterSummary';
-import { toChipColor } from '@/utils/statusMapping';
+import { type StatusColor, toChipColor } from '@/utils/statusMapping';
 
 const store = useStatusStore();
 const { t } = useI18n();
@@ -69,9 +81,15 @@ const ageText = useAgeText();
 
 const status = computed(() => store.status);
 
+/** No majority, or only a forced write possible, is an emergency. */
+const quorumColor = computed<StatusColor>(() => {
+	const quorum = status.value?.quorum;
+	return quorum?.available && quorum.mode !== 'FORCED_ONLY' ? 'green' : 'red';
+});
+
 const quorumText = computed(() => {
 	const quorum = status.value?.quorum;
-	if (!quorum) return t('dcctl.overview.coordination.quorumNone');
+	if (!quorum) return '';
 	const counts = t('dcctl.overview.coordination.quorumValue', {
 		reachable: quorum.reachable_count ?? 0,
 		total: quorum.total_count ?? 0,
@@ -82,7 +100,7 @@ const quorumText = computed(() => {
 
 const leaseText = computed(() => {
 	const lease = status.value?.lease;
-	if (!lease?.holder) return t('dcctl.overview.coordination.noLease');
+	if (!lease?.holder) return t('dcctl.overview.coordination.noData');
 	const age = durationSeconds(lease.age);
 	return [
 		t('dcctl.overview.coordination.leaseHolder', {

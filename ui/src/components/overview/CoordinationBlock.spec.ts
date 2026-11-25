@@ -85,10 +85,31 @@ describe('CoordinationBlock', () => {
 		expect(field(wrapper, 'lease')).toContain('lost');
 	});
 
-	it('says so when there is no lease or quorum data', async () => {
+	it('says there is no data, not that there is no quorum, when the objects are missing', async () => {
 		const wrapper = await mountBlock({});
 
-		expect(field(wrapper, 'lease')).toBe('no lease');
-		expect(field(wrapper, 'quorum')).toBe('no quorum');
+		expect(field(wrapper, 'lease')).toBe('no data');
+		expect(field(wrapper, 'quorum')).toBe('no data');
+	});
+
+	it.each([
+		['available quorum', { available: true, mode: 'QUORUM' }, 'p-chip-success'],
+		[
+			'forced-only mode',
+			{ available: true, mode: 'FORCED_ONLY' },
+			'p-chip-error',
+		],
+		['no majority', { available: false, mode: 'QUORUM' }, 'p-chip-error'],
+	] as const)('shows %s as %s', async (_name, quorum, chipClass) => {
+		const wrapper = await mountBlock({
+			quorum: {
+				...quorum,
+				reachable_count: 1,
+				required_count: 2,
+				total_count: 3,
+			},
+		});
+
+		expect(wrapper.find('[data-test="quorum"]').classes()).toContain(chipClass);
 	});
 });

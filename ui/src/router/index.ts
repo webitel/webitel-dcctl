@@ -24,6 +24,8 @@ export const createAppRouter = (
 ) => {
 	const router = createRouter({
 		history,
+		// `/#coordination` links from the alarms must scroll to the block.
+		scrollBehavior: (to) => (to.hash ? { el: to.hash } : undefined),
 		routes: [
 			{
 				path: '/login',

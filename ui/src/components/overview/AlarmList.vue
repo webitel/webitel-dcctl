@@ -24,7 +24,12 @@
         >
           {{ enumLabel('overview.alarms.severity', alarm.severity) }}
         </wt-chip>
-        <span class="typo-body-1-bold">{{ enumLabel('overview.alarms.type', alarm.type) }}</span>
+        <router-link
+          class="typo-body-1-bold"
+          :to="alarmTarget(alarm, store.status?.operation?.name)"
+        >
+          {{ enumLabel('overview.alarms.type', alarm.type) }}
+        </router-link>
         <span class="typo-body-1">{{ subject(alarm) }}</span>
         <span
           v-if="alarm.start_time"
@@ -36,12 +41,6 @@
           class="typo-body-1 alarm-list__detail"
           data-test="alarm-detail"
         >{{ alarm.detail }}</span>
-        <router-link
-          class="typo-body-1"
-          :to="alarmTarget(alarm, store.status?.operation?.name)"
-        >
-          {{ $t('dcctl.overview.alarms.open') }}
-        </router-link>
       </li>
     </ul>
   </section>

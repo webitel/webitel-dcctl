@@ -59,6 +59,25 @@ describe('StatusHeader', () => {
 		const age = wrapper.find('[data-test="data-age"]');
 		expect(age.classes()).toContain('data-age--stale');
 		expect(age.attributes('title')).toContain('older than 15 s');
+		expect(age.text()).toContain('Data may be stale');
+	});
+
+	it('does not say the data may be stale while it is fresh', async () => {
+		const { wrapper } = await mountHeader(statusObservedAgo(2));
+
+		expect(wrapper.text()).not.toContain('may be stale');
+	});
+
+	it('shows the deployment profile next to the observer', async () => {
+		const { wrapper } = await mountHeader({
+			...statusObservedAgo(2),
+			profile: 'WARM_STANDBY',
+		});
+
+		expect(wrapper.find('[data-test="profile"]').text()).toBe('warm standby');
+		expect(wrapper.find('[data-test="observer"]').text()).toBe(
+			'View from dc_b',
+		);
 	});
 
 	it('greys the age as the clock moves on while no new data arrives', async () => {
@@ -86,6 +105,28 @@ describe('StatusHeader', () => {
 		expect(wrapper.text()).toContain('Cannot refresh the status');
 		expect(wrapper.text()).toContain('View from dc_b');
 		expect(wrapper.text()).toContain('Updated 7 s ago');
+	});
+
+	it('puts the reason of the failure into the error chip', async () => {
+		const { wrapper } = await mountHeader(
+			statusObservedAgo(7),
+			new Error('Network Error'),
+		);
+
+		const chip = wrapper.find('[data-test="poll-error"]');
+		expect(chip.attributes('title')).toContain('Network Error');
+		expect(chip.attributes('title')).toContain('Showing the last known data');
+	});
+
+	it('does not promise the last known data when there is none', async () => {
+		const { wrapper } = await mountHeader(
+			undefined,
+			new Error('Network Error'),
+		);
+
+		const chip = wrapper.find('[data-test="poll-error"]');
+		expect(chip.attributes('title')).toContain('Network Error');
+		expect(chip.attributes('title')).not.toContain('last known data');
 	});
 
 	it('shows no error state when the poll succeeds', async () => {

@@ -19,6 +19,16 @@ beforeEach(() => {
 	setActivePinia(createPinia());
 });
 
+describe('scrollBehavior', () => {
+	it('scrolls to the hash target', () => {
+		const router = createAppRouter(createMemoryHistory('/dcctl/'));
+		const scroll = router.options.scrollBehavior as (to: unknown) => unknown;
+
+		expect(scroll({ hash: '#coordination' })).toEqual({ el: '#coordination' });
+		expect(scroll({ hash: '' })).toBeUndefined();
+	});
+});
+
 describe('safeRedirect', () => {
 	it.each([
 		['/operations', '/operations'],
@@ -35,7 +45,8 @@ describe('safeRedirect', () => {
 	});
 });
 
-describe('router', () => {
+// The first lazy view import loads the whole SDK: slow on a busy machine.
+describe('router', { timeout: 20_000 }, () => {
 	it('sends an anonymous visitor to the login form and remembers the target', async () => {
 		const router = createAppRouter(createMemoryHistory('/dcctl/'));
 

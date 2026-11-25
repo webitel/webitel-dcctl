@@ -1,5 +1,8 @@
 <template>
-  <section class="dc-table">
+  <section
+    id="datacenters"
+    class="dc-table"
+  >
     <h2 class="typo-heading-3">{{ $t('dcctl.overview.datacenters.title') }}</h2>
     <p
       v-if="!rows.length"
@@ -107,10 +110,11 @@ import {
 	sourcesSummary,
 	unreachableSources,
 } from '@/utils/datacenterSummary';
+import { formatBytes } from '@/utils/formatBytes';
 import { healthColor, stateColor, toChipColor } from '@/utils/statusMapping';
 
 const store = useStatusStore();
-const { t } = useI18n();
+const { t, locale } = useI18n();
 const enumLabel = useEnumLabel();
 const ageText = useAgeText();
 
@@ -144,7 +148,9 @@ const patroniDetails = (patroni: Patroni): string =>
 			? t('dcctl.overview.datacenters.timeline', { timeline: patroni.timeline })
 			: '',
 		patroni.lag_bytes
-			? t('dcctl.overview.datacenters.lag', { bytes: `${patroni.lag_bytes} B` })
+			? t('dcctl.overview.datacenters.lag', {
+					bytes: formatBytes(patroni.lag_bytes, locale.value),
+				})
 			: '',
 	]
 		.filter(Boolean)

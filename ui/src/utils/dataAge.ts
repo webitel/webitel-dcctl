@@ -1,7 +1,8 @@
 /**
  * `status.interval` default (seconds). `GetStatus` does not return the
- * interval, so the UI assumes the default; a collector configured with a
- * longer interval makes the data look stale too early.
+ * interval yet, so the UI assumes the default; a collector configured with a
+ * longer interval makes the data look stale too early. This is the only place
+ * that knows the interval: the threshold will come from the API.
  */
 export const STATUS_INTERVAL_SECONDS = 5;
 
