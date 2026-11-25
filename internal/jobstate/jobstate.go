@@ -200,7 +200,7 @@ func SystemHealth(jobID string, allocs []nomad.Alloc, nodes []nomad.Node, now ti
 	var missing []string
 
 	for _, n := range nodes {
-		if !runsService(n, jobID) {
+		if !RunsService(n, jobID) {
 			continue
 		}
 
@@ -235,9 +235,9 @@ func SystemHealth(jobID string, allocs []nomad.Alloc, nodes []nomad.Node, now ti
 	return s
 }
 
-// runsService reports whether meta.services of the node holds the service of the job.
+// RunsService reports whether meta.services of the node holds the service of the job.
 // A job is named after its service with "-" in place of "_".
-func runsService(n nomad.Node, jobID string) bool {
+func RunsService(n nomad.Node, jobID string) bool {
 	return slices.ContainsFunc(n.Services, func(s string) bool {
 		return strings.ReplaceAll(s, "_", "-") == jobID
 	})
