@@ -52,3 +52,6 @@ journal:
   max_entries: 1000
 arbiter:
   address: 10.9.0.10:10024
+# Optional directory of the UI build, an override of the embedded one.
+# ui:
+#   dir: /usr/share/webitel-dcctl/ui

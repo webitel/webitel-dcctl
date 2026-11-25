@@ -145,6 +145,17 @@ func runServe(ctx context.Context, cfg *config.Serve) (err error) {
 		return err
 	}
 
+	if cfg.UI.Dir != "" {
+		root, rootErr := os.OpenRoot(cfg.UI.Dir)
+		if rootErr != nil {
+			return fmt.Errorf("ui.dir: %w", rootErr)
+		}
+
+		defer func() { err = errors.Join(err, root.Close()) }()
+
+		apiOpts.UI = root.FS()
+	}
+
 	if err := api.Register(ctx, rt, apiOpts); err != nil {
 		return err
 	}
