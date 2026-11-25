@@ -108,5 +108,7 @@ describe('LoginView', () => {
 		expect(replace).toHaveBeenCalledWith('/journal');
 		expect(useAuthStore().isAuthenticated).toBe(true);
 		wrapper.unmount();
+		// The redirect loads the lazy view of the route: let it finish before the environment goes.
+		await vi.dynamicImportSettled();
 	});
 });
