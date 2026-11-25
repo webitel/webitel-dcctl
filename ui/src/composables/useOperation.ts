@@ -201,6 +201,7 @@ export const useOperation = (id: MaybeRefOrGetter<string>) => {
 		error,
 		connection,
 		now,
+		receivedAt,
 		age,
 		reconnect,
 	};
