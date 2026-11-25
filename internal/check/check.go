@@ -44,15 +44,12 @@ const (
 	// ConfirmNotMaxLSN accepts a failover target without the largest received LSN.
 	ConfirmNotMaxLSN Confirmation = "not_max_lsn"
 	// ConfirmMaxDiscardBytes bounds the WAL the operator agrees to discard; the amount a
-	// check needs covered is its fact [FactDiscardBytes].
+	// check needs covered is its [Check.DiscardBytes].
 	ConfirmMaxDiscardBytes Confirmation = "max_discard_bytes"
 )
 
-// FactDiscardBytes is the fact, an int64, with the WAL a [ConfirmMaxDiscardBytes] check
-// would discard. A check without it does not know the amount, which no bound covers.
-const FactDiscardBytes = "discard_bytes"
-
-// Check is the result of one check.
+// Check is the result of one check. Every field but DiscardBytes is a field of the API
+// message.
 type Check struct {
 	ID     ID
 	Result Result
@@ -65,12 +62,7 @@ type Check struct {
 	// Facts are the data the result is based on. They hold only what
 	// google.protobuf.Struct takes: strings, booleans, ints, maps of them and []any.
 	Facts map[string]any
-}
-
-// DiscardBytes returns the fact [FactDiscardBytes]; false when the check does not know
-// the amount.
-func (c Check) DiscardBytes() (int64, bool) {
-	n, ok := c.Facts[FactDiscardBytes].(int64)
-
-	return n, ok
+	// DiscardBytes is the WAL a failed [ConfirmMaxDiscardBytes] check would discard; nil
+	// when the amount is not known, which no bound covers. The facts show it too.
+	DiscardBytes *int64
 }

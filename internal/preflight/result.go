@@ -48,6 +48,14 @@ func (s spec) fail(detail string, facts map[string]any) check.Check {
 	return s.with(check.Fail, detail, facts)
 }
 
+// discard fails a [check.ConfirmMaxDiscardBytes] check that would discard n bytes.
+func (s spec) discard(detail string, facts map[string]any, n int64) check.Check {
+	c := s.with(check.Fail, detail, facts)
+	c.DiscardBytes = &n
+
+	return c
+}
+
 // warn does not block whatever the effect, as for an unreachable replica of a
 // datacenter whose leader answers.
 func (s spec) warn(detail string, facts map[string]any) check.Check {

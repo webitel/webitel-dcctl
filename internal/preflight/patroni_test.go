@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/webitel/webitel-dcctl/internal/check"
 	"github.com/webitel/webitel-dcctl/internal/collect"
@@ -363,17 +364,16 @@ func TestCandidateLoss(t *testing.T) {
 	})
 
 	c := newInput(lag(300)(t), Failover, Params{Datacenter: dcB}).candidateLoss()
-	n, ok := c.DiscardBytes()
-	assert.True(t, ok)
-	assert.Equal(t, int64(300), n)
+	require.NotNil(t, c.DiscardBytes)
+	assert.Equal(t, int64(300), *c.DiscardBytes)
+	assert.Equal(t, int64(300), c.Facts["lag_bytes"])
 	assert.Equal(t, check.ConfirmMaxDiscardBytes, c.Confirmation)
 
 	c = newInput(stretchSnap(func(s *collect.Snapshot) {
 		noLeader(s)
 		editPatroni(s, dcA, func(p *collect.Patroni) { memberNamed(p, "pg-4").Lag = nil })
 	})(t), Failover, Params{Datacenter: dcB}).candidateLoss()
-	_, ok = c.DiscardBytes()
-	assert.False(t, ok, "an unknown lag has no amount to confirm")
+	assert.Nil(t, c.DiscardBytes, "an unknown lag has no amount to confirm")
 }
 
 func TestActivePrimary(t *testing.T) {
@@ -420,9 +420,8 @@ func TestDivergence(t *testing.T) {
 	})
 
 	c := newInput(snap(diverged)(t), Demote, Params{Datacenter: dcB}).divergence()
-	n, ok := c.DiscardBytes()
-	assert.True(t, ok)
-	assert.Equal(t, int64(400), n)
+	require.NotNil(t, c.DiscardBytes)
+	assert.Equal(t, int64(400), *c.DiscardBytes)
 
 	verdict := check.Decide([]check.Check{c}, check.Confirmations{MaxDiscardBytes: 400})
 	assert.Equal(t, check.Allowed, verdict.Outcome, "a bound equal to the discard covers it")
@@ -432,8 +431,9 @@ func TestDivergence(t *testing.T) {
 
 	unknown := newInput(snap(func(s *collect.Snapshot) { cutPatroni(s, dcB) })(t), Demote, Params{Datacenter: dcB}).divergence()
 	assert.Equal(t, check.Confirm, unknown.Effect)
-	_, ok = unknown.DiscardBytes()
-	assert.False(t, ok)
+	assert.Nil(t, unknown.DiscardBytes)
+	assert.Equal(t, check.Blocked, check.Decide([]check.Check{unknown}, check.Confirmations{MaxDiscardBytes: 1 << 62}).Outcome,
+		"no bound covers an amount that is not known")
 }
 
 func TestDCRecovered(t *testing.T) {

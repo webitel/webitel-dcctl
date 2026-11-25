@@ -25,7 +25,8 @@ type Verdict struct {
 	Outcome Outcome
 	// Checks are all checks of the action, in the order of its set.
 	Checks []Check
-	// Failed are the failed checks that block the action.
+	// Failed are the checks that block the action: failed ones no confirmation can
+	// accept, and those with a result Decide does not know.
 	Failed []Check
 	// Unconfirmed are the failed [Confirm] checks the given confirmations do not cover.
 	Unconfirmed []Check
@@ -37,28 +38,24 @@ type Verdict struct {
 	Confirmed Confirmations
 }
 
-// Decide tells what checks allow with the given confirmations. A failed check blocks
-// unless its effect is [Confirm]; such a check is covered by its confirmation, a
-// [ConfirmMaxDiscardBytes] one only when it knows the amount and the bound is not
-// smaller.
+// Decide tells what checks allow with the given confirmations. It fails closed: a
+// check with a result it does not know blocks, and so does a failed check unless its
+// effect is [Confirm] with a known confirmation. A [ConfirmMaxDiscardBytes] check that
+// does not know the amount blocks as well, since no bound can cover it; otherwise a
+// confirm check is covered by its confirmation, a discard one when the bound is not
+// smaller than the amount.
 func Decide(checks []Check, given Confirmations) Verdict {
 	v := Verdict{Checks: checks}
 
 	for _, c := range checks {
-		switch c.Result {
-		case Warn:
+		switch {
+		case c.Result == Pass || c.Result == Skip:
+		case c.Result == Warn:
 			v.Warnings = append(v.Warnings, c)
-		case Fail:
-			if c.Effect != Confirm {
-				v.Failed = append(v.Failed, c)
-
-				continue
-			}
-
-			if !covered(c, given, &v.Confirmed) {
-				v.Unconfirmed = append(v.Unconfirmed, c)
-			}
-		case Pass, Skip:
+		case c.Result != Fail || !confirmable(c):
+			v.Failed = append(v.Failed, c)
+		case !covered(c, given, &v.Confirmed):
+			v.Unconfirmed = append(v.Unconfirmed, c)
 		}
 	}
 
@@ -79,6 +76,22 @@ func Decide(checks []Check, given Confirmations) Verdict {
 	return v
 }
 
+// confirmable reports whether some confirmation can accept the failed check c.
+func confirmable(c Check) bool {
+	if c.Effect != Confirm {
+		return false
+	}
+
+	switch c.Confirmation {
+	case ConfirmIsolation, ConfirmNotMaxLSN:
+		return true
+	case ConfirmMaxDiscardBytes:
+		return c.DiscardBytes != nil
+	}
+
+	return false
+}
+
 // covered reports whether given covers c and records in used what it took.
 func covered(c Check, given Confirmations, used *Confirmations) bool {
 	switch c.Confirmation {
@@ -91,8 +104,7 @@ func covered(c Check, given Confirmations, used *Confirmations) bool {
 
 		return given.NotMaxLSN
 	case ConfirmMaxDiscardBytes:
-		n, ok := c.DiscardBytes()
-		if !ok || given.MaxDiscardBytes < n {
+		if c.DiscardBytes == nil || given.MaxDiscardBytes < *c.DiscardBytes {
 			return false
 		}
 

@@ -803,10 +803,11 @@ func (in *Input) candidateLoss() check.Check {
 		return c.fail("the lag of the candidate "+m.Name+" is not known", facts)
 	}
 
-	facts[check.FactDiscardBytes] = *m.LagBytes
+	facts["lag_bytes"] = *m.LagBytes
 
 	if *m.LagBytes > 0 {
-		return c.fail(fmt.Sprintf("the candidate %s lags %d bytes, a failover discards them", m.Name, *m.LagBytes), facts)
+		return c.discard(fmt.Sprintf("the candidate %s lags %d bytes, a failover discards them", m.Name, *m.LagBytes),
+			facts, *m.LagBytes)
 	}
 
 	return c.pass("the candidate "+m.Name+" does not lag", facts)
@@ -882,9 +883,9 @@ func (in *Input) divergence() check.Check {
 	}
 
 	facts["divergence_lsn"] = div.LSN
-	facts[check.FactDiscardBytes] = div.Bytes
+	facts["divergence_bytes"] = div.Bytes
 
-	return c.fail(fmt.Sprintf("%s diverged, a rewind discards %d bytes", dc, div.Bytes), facts)
+	return c.discard(fmt.Sprintf("%s diverged, a rewind discards %d bytes", dc, div.Bytes), facts, div.Bytes)
 }
 
 // dcRecovered needs every member of the datacenter to stream on the timeline of the
