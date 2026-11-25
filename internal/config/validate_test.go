@@ -148,6 +148,11 @@ func TestServeValidate_invalid(t *testing.T) {
 		{"coordination_session_ttl_above_consul_max", func(c *Serve) { c.Coordination.SessionTTL = 25 * time.Hour }, "coordination.session_ttl: must be within 10s..24h0m0s"},
 		{"coordination_lock_delay_zero", func(c *Serve) { c.Coordination.LockDelay = 0 }, "coordination.lock_delay: must be greater than 0 and at most 1m0s"},
 		{"coordination_lock_delay_above_consul_max", func(c *Serve) { c.Coordination.LockDelay = 61 * time.Second }, "coordination.lock_delay: must be greater than 0 and at most 1m0s"},
+		{"coordination_lock_delay_within_renewal", func(c *Serve) { c.Coordination.LockDelay = 8 * time.Second }, "coordination.lock_delay: must be greater than coordination.session_ttl/3 + status.request_timeout (8s)"},
+		{"status_request_timeout_above_renewal", func(c *Serve) {
+			c.Status.RequestTimeout = 5 * time.Second
+			c.Coordination.LockDelay = 30 * time.Second
+		}, "status.request_timeout: must be less than coordination.session_ttl/3 (5s)"},
 		{"coordination_lease_period", func(c *Serve) { c.Coordination.LeasePeriod = 0 }, "coordination.lease_period: must be positive"},
 		{"coordination_lease_acquire_after", func(c *Serve) { c.Coordination.LeaseAcquireAfter = 0 }, "coordination.lease_acquire_after: must be positive"},
 
