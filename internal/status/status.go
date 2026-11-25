@@ -1,7 +1,8 @@
 // Package status derives from one collection snapshot what dcctl reports about the
 // installation: the role and health of every datacenter, its Patroni and apps, the
-// voters, the quorum and the current operation. Everything here is a pure
-// function of the snapshot; nothing asks a source.
+// voters, the quorum and the current operation. [Build] is a pure function of the
+// snapshot; nothing asks a source. [Tracker] wraps it with what depends on the cycles
+// before: the lease and the alarms.
 //
 // The active datacenter is only ever the one of the effective state of the voters.
 // When the voters do not tell it, no datacenter is called active or standby. The last
@@ -80,7 +81,7 @@ type Status struct {
 
 // Build derives the status from snap at now. now judges how long the tasks of the
 // apps have been running. The lease and the alarms are not part of it: they depend on
-// how their records and conditions change across cycles.
+// how their records and conditions change across cycles, see [Tracker].
 func Build(snap *collect.Snapshot, cfg Config, now time.Time) Status {
 	evaluated, voters := voterStates(snap)
 	view := coord.Evaluate(evaluated)
