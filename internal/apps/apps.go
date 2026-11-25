@@ -77,6 +77,11 @@ type Options struct {
 	// Progress, when set, receives every [Progress] from the goroutine running the
 	// primitive, which waits for it to return.
 	Progress func(Progress)
+	// TolerateUnknown makes a stop count a job with Stop set whose only active
+	// allocations are unknown as stopped, with a warning, so that the lower stages
+	// go on; see [jobstate.UnknownLeft]. Without it the stage waits for them until
+	// its deadline.
+	TolerateUnknown bool
 }
 
 // Apps runs the primitives with the timings of apps in the config.

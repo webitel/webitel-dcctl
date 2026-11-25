@@ -202,8 +202,9 @@ func quorumOf(view coord.View) Quorum {
 	return q
 }
 
-// operationOf returns the operation that is not finished, by the copies of dcctl/op.
-func operationOf(snap *collect.Snapshot) *dcctlv1.Operation {
+// Operations returns dcctl/op of every voter KV in snap, in name order: a KV that
+// does not answer is unreachable, a copy that cannot be decoded invalid.
+func Operations(snap *collect.Snapshot) coord.OpView {
 	copies := make([]coord.OpCopy, 0, len(snap.Voters))
 
 	for _, v := range snap.Voters {
@@ -228,7 +229,13 @@ func operationOf(snap *collect.Snapshot) *dcctlv1.Operation {
 
 	slices.SortFunc(copies, func(a, b coord.OpCopy) int { return cmp.Compare(a.Name, b.Name) })
 
-	if c := (coord.OpView{Copies: copies}).Blocking(); c != nil {
+	return coord.OpView{Copies: copies}
+}
+
+// operationOf returns the operation that is not finished; nil also when the blocking
+// copy cannot be read.
+func operationOf(ops coord.OpView) *dcctlv1.Operation {
+	if c := ops.Blocking(); c != nil {
 		return c.Operation
 	}
 

@@ -252,6 +252,16 @@ func TestBuild_state(t *testing.T) {
 			snap: forcedBelowUndetermined(dcB),
 			dc:   dcB, want: status.StateActive,
 		},
+		{
+			name: "forced_seen_alone_is_undetermined_for_its_active",
+			snap: forcedSeenAlone,
+			dc:   dcA, want: status.StateUndetermined,
+		},
+		{
+			name: "forced_seen_alone_is_undetermined_for_the_other",
+			snap: forcedSeenAlone,
+			dc:   dcB, want: status.StateUndetermined,
+		},
 	}
 
 	for _, tt := range tests {
@@ -278,6 +288,18 @@ func forcedBelowUndetermined(active string) func() *collect.Snapshot {
 	})
 }
 
+// forcedSeenAlone: only the KV of dc_b answers, with a forced generation 5 that names
+// dc_a; the KV of dc_a and the arbiter, a majority, may hold a newer one.
+func forcedSeenAlone() *collect.Snapshot {
+	return with(warm, func(s *collect.Snapshot) {
+		forced := stateEntry(5, dcA)
+		forced.Value = []byte(`{"generation":5,"active_datacenter":"dc_a","forced":true}`)
+		setVoterState(s, dcB, forced)
+		voterDown(s, dcA)
+		s.Arbiter = new(unreachable(*s.Arbiter))
+	})()
+}
+
 func TestBuild_needsRecoveryUnderHigherState(t *testing.T) {
 	s := warm()
 	setVoterState(s, dcA, stateEntry(5, dcA, dcB))
@@ -299,6 +321,7 @@ func TestBuild_undeterminedNeverGuesses(t *testing.T) {
 		})(),
 		"stretch_no_leader":         with(stretch, func(s *collect.Snapshot) { s.Voters[0].KV.Data.Meta.KnownLeader = false })(),
 		"forced_below_undetermined": forcedBelowUndetermined(dcA)(),
+		"forced_seen_alone":         forcedSeenAlone(),
 	}
 
 	for name, snap := range snaps {

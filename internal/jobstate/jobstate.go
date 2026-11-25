@@ -78,6 +78,28 @@ func Stopped(job nomad.Job, allocs []nomad.Alloc) (ok bool, detail string) {
 	return true, ""
 }
 
+// UnknownLeft reports whether the job has Stop set and every allocation still active
+// is unknown: its node does not answer, and Nomad stops the allocation once the node
+// is back. Nothing can be done about such a job until then.
+func UnknownLeft(job nomad.Job, allocs []nomad.Alloc) bool {
+	if !job.Stop {
+		return false
+	}
+
+	unknown := 0
+
+	for _, a := range allocs {
+		switch a.ClientStatus {
+		case allocPending, allocRunning:
+			return false
+		case allocUnknown:
+			unknown++
+		}
+	}
+
+	return unknown > 0
+}
+
 // allocProblem returns why the allocation is not healthy, or "" when it is: it runs and
 // every task has been running for at least minHealthy. Nomad sets StartedAt each time a
 // task starts, so a task restarted within the window is not healthy yet. StartedAt comes

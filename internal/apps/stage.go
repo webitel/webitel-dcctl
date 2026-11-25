@@ -336,13 +336,13 @@ func (r *run) judge(job nomad.Job, i int, obs observation, reached bool) (JobSta
 	}
 
 	if r.action == ActionStop {
-		return judgeStop(s, cur, listed, allocs, reached)
+		return judgeStop(s, cur, listed, allocs, reached, r.opts.TolerateUnknown)
 	}
 
 	return r.judgeStart(s, cur, listed, allocs, obs, reached)
 }
 
-func judgeStop(s JobStatus, cur nomad.Job, listed bool, allocs []nomad.Alloc, reached bool) (JobStatus, bool) {
+func judgeStop(s JobStatus, cur nomad.Job, listed bool, allocs []nomad.Alloc, reached, tolerateUnknown bool) (JobStatus, bool) {
 	if !listed {
 		if n := jobstate.ActiveAllocs(allocs); n > 0 {
 			s.State, s.Detail = JobStopping, fmt.Sprintf("job is no longer registered, %d allocations active", n)
@@ -358,6 +358,13 @@ func judgeStop(s JobStatus, cur nomad.Job, listed bool, allocs []nomad.Alloc, re
 	ok, detail := jobstate.Stopped(cur, allocs)
 	if ok {
 		s.State = JobStopped
+
+		return s, false
+	}
+
+	if tolerateUnknown && jobstate.UnknownLeft(cur, allocs) {
+		s.State = JobStopped
+		s.Warnings = []string{fmt.Sprintf("%d allocations unknown, their nodes do not answer", jobstate.ActiveAllocs(allocs))}
 
 		return s, false
 	}
