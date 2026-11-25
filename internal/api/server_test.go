@@ -48,7 +48,7 @@ func (f fakeStatusSource) Status(time.Time) (dcstatus.Status, bool) { return f.s
 
 type fakeAlarms []*dcctlv1.Status_Alarm
 
-func (f fakeAlarms) Alarms() []*dcctlv1.Status_Alarm { return f }
+func (f fakeAlarms) Alarms(context.Context) []*dcctlv1.Status_Alarm { return f }
 
 type fakeVerifier struct {
 	checks []*dcctlv1.Check
