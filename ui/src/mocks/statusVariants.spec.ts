@@ -51,6 +51,16 @@ describe('status variants', () => {
 		);
 	});
 
+	it('stretch: one cluster, the leader only in the active datacenter', () => {
+		const status = buildStatus('stretch', NOW);
+		const standby = status.datacenters?.find(
+			(dc) => dc.name === 'datacenters/dc_b',
+		);
+
+		expect(status.profile).toBe('STRETCH');
+		expect(standby?.patroni?.leader).toBeUndefined();
+	});
+
 	it('stale: the last cycle finished long ago', () => {
 		const status = buildStatus('stale', NOW);
 

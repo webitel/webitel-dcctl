@@ -1,8 +1,5 @@
 import { HttpResponse, http } from 'msw';
-import {
-	getGetDatacenterMockHandler,
-	getListDatacentersMockHandler,
-} from '@/api/gen/datacenter-service/datacenter-service.msw';
+import { getListDatacentersMockHandler } from '@/api/gen/datacenter-service/datacenter-service.msw';
 import { getListJournalEntriesMockHandler } from '@/api/gen/journal-service/journal-service.msw';
 import {
 	getGetOperationMockHandler,
@@ -10,6 +7,7 @@ import {
 } from '@/api/gen/operation-service/operation-service.msw';
 import { getVerifyStatusMockHandler } from '@/api/gen/status-service/status-service.msw';
 import { encodeBasicToken } from '@/utils/basicAuth';
+import { currentDatacenterResponse } from './datacenterVariants';
 import { example } from './example';
 import { currentStatusResponse } from './statusVariants';
 
@@ -39,7 +37,9 @@ export const handlers = [
 	http.get('*/v1/status', () => currentStatusResponse()),
 	getVerifyStatusMockHandler(example('/v1/status:verify', 'get')),
 	getListDatacentersMockHandler(example('/v1/datacenters', 'get')),
-	getGetDatacenterMockHandler(example('/v1/datacenters/{datacenter}', 'get')),
+	http.get('*/v1/datacenters/:dc', ({ params }) =>
+		currentDatacenterResponse(String(params.dc)),
+	),
 	getListOperationsMockHandler(example('/v1/operations', 'get')),
 	getGetOperationMockHandler(example('/v1/operations/{operation}', 'get')),
 	getListJournalEntriesMockHandler(example('/v1/journalEntries', 'get')),
