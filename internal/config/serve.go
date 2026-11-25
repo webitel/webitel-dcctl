@@ -106,6 +106,10 @@ type PatroniTimeouts struct {
 // within its TTL.
 const RenewalsPerSessionTTL = 3
 
+// LeaseRenewalsPerPeriod is how many times the active datacenter renews the lease
+// within coordination.lease_period.
+const LeaseRenewalsPerPeriod = 3
+
 // Coordination holds the Consul lock and lease timings.
 type Coordination struct {
 	SessionTTL        time.Duration `yaml:"session_ttl"`

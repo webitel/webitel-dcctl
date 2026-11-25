@@ -161,8 +161,8 @@ func (w LeaseWrite) Written() int {
 
 // AcquireLease writes the lease of h to every voter in parallel: the holder,
 // the generation, fencing and a counter above every counter read. The
-// operation that makes h active takes the lease with it, and [RenewLease]
-// renews it the same way.
+// operation that makes h active takes the lease with it, and
+// [Coordinator.RenewLease] renews it the same way.
 //
 // It writes nothing unless the effective state names h.Datacenter at
 // h.Generation, see [ErrNotLeaseHolder] and [ErrLeaseHolderUndetermined].
