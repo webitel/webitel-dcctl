@@ -193,6 +193,7 @@ func TestInvalidEtag(t *testing.T) {
 		{"not_a_number", "abc", false},
 		{"over_uint64", "18446744073709551616", false},
 		{"zero", "0", false},
+		{"leading_zero", "0" + state.GetEtag(), false},
 		{"etag_with_allow_missing", state.GetEtag(), true},
 	}
 	for _, tt := range tests {

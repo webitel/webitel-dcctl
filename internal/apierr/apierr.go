@@ -30,6 +30,7 @@ const (
 	ReasonLockBusy                Reason = "LOCK_BUSY"
 	ReasonRequestIDMismatch       Reason = "REQUEST_ID_MISMATCH"
 	ReasonLeaderUnavailable       Reason = "LEADER_UNAVAILABLE"
+	ReasonLockUnavailable         Reason = "LOCK_UNAVAILABLE"
 	ReasonEtagMismatch            Reason = "ETAG_MISMATCH"
 	ReasonArbiterUninitialized    Reason = "ARBITER_UNINITIALIZED"
 	ReasonRecordNotFound          Reason = "RECORD_NOT_FOUND"
@@ -54,6 +55,7 @@ var contract = []entry{
 	{ReasonLockBusy, "dcctl.lock.busy", codes.Aborted},
 	{ReasonRequestIDMismatch, "dcctl.request_id.mismatch", codes.AlreadyExists},
 	{ReasonLeaderUnavailable, "dcctl.leader.unavailable", codes.Unavailable},
+	{ReasonLockUnavailable, "dcctl.lock.unavailable", codes.Unavailable},
 	{ReasonEtagMismatch, "", codes.Aborted},
 	{ReasonArbiterUninitialized, "", codes.FailedPrecondition},
 	{ReasonRecordNotFound, "", codes.NotFound},

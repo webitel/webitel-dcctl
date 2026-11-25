@@ -79,9 +79,10 @@ func recordName(resource string) string {
 	return name
 }
 
-// parseEtag returns the store index of etag; 0 creates the record. Index 0
-// is never a stored index, so a caller cannot create a record by sending
-// etag "0" without allow_missing.
+// parseEtag returns the store index of etag; 0 creates the record. An etag
+// is a stored index in decimal without leading zeros. Index 0 is never
+// stored, so a caller cannot create a record by sending etag "0" without
+// allow_missing.
 func parseEtag(etag string, allowMissing bool) (uint64, error) {
 	if allowMissing {
 		if etag != "" {
@@ -96,7 +97,7 @@ func parseEtag(etag string, allowMissing bool) (uint64, error) {
 	}
 
 	index, err := strconv.ParseUint(etag, 10, 64)
-	if err != nil || index == 0 {
+	if err != nil || etag[0] == '0' {
 		return 0, invalidField("record.etag", "etag is not a record index")
 	}
 

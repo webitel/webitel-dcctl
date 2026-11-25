@@ -32,6 +32,7 @@ func TestReason(t *testing.T) {
 		{apierr.ReasonLockBusy, "LOCK_BUSY", "dcctl.lock.busy", codes.Aborted},
 		{apierr.ReasonRequestIDMismatch, "REQUEST_ID_MISMATCH", "dcctl.request_id.mismatch", codes.AlreadyExists},
 		{apierr.ReasonLeaderUnavailable, "LEADER_UNAVAILABLE", "dcctl.leader.unavailable", codes.Unavailable},
+		{apierr.ReasonLockUnavailable, "LOCK_UNAVAILABLE", "dcctl.lock.unavailable", codes.Unavailable},
 		{apierr.ReasonEtagMismatch, "ETAG_MISMATCH", "", codes.Aborted},
 		{apierr.ReasonArbiterUninitialized, "ARBITER_UNINITIALIZED", "", codes.FailedPrecondition},
 		{apierr.ReasonRecordNotFound, "RECORD_NOT_FOUND", "", codes.NotFound},
