@@ -2,7 +2,8 @@
 //
 // The format is a contract with the Ansible role topology, described in docs/kv-format.md.
 // Records are read with encoding/json defaults: unknown fields are ignored, so an older
-// dcctl keeps reading records written by a newer one.
+// dcctl keeps reading records written by a newer one. Proto records go through
+// [EncodeProto] and [DecodeProto].
 package kv
 
 import (

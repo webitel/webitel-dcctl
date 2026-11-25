@@ -49,6 +49,11 @@ func TestGolden(t *testing.T) {
 			UpdatedAt:        time.Date(2026, 11, 20, 9, 0, 0, 0, time.UTC),
 		}, decoded: &kv.State{}},
 		{name: "lease", value: &sampleLease, decoded: &kv.Lease{}},
+		{name: "lock", value: &kv.Lock{
+			Instance:   "dcctl-b1",
+			Datacenter: "dc_b",
+			Operation:  "4f0c9a52-7d1e-4b8a-9f3c-2a6e5d7b1c08",
+		}, decoded: &kv.Lock{}},
 	}
 
 	for _, tt := range tests {
