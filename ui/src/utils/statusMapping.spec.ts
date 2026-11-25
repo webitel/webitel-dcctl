@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	healthColor,
 	modeColor,
+	operationStateColor,
 	severityColor,
 	stateColor,
 	stepColor,
@@ -87,5 +88,19 @@ describe('modeColor', () => {
 		expect(modeColor('FORCED')).toBe('red');
 		expect(modeColor('QUORUM')).toBe('gray');
 		expect(modeColor(undefined)).toBe('gray');
+	});
+});
+
+describe('operationStateColor', () => {
+	it.each([
+		['RUNNING', 'blue'],
+		['SUCCEEDED', 'green'],
+		['FAILED', 'red'],
+		['INTERRUPTED', 'yellow'],
+		['ABANDONED', 'gray'],
+		['STATE_UNSPECIFIED', 'gray'],
+		[undefined, 'gray'],
+	] as const)('%s -> %s', (state, color) => {
+		expect(operationStateColor(state)).toBe(color);
 	});
 });

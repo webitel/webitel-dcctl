@@ -3,6 +3,7 @@ import { ChipColor } from '@webitel/ui-sdk/enums';
 import type {
 	WebitelDcctlV1DatacenterHealth as Health,
 	WebitelDcctlV1OperationMode as Mode,
+	WebitelDcctlV1OperationState as OperationState,
 	WebitelDcctlV1StatusAlarmSeverity as Severity,
 	WebitelDcctlV1DatacenterState as State,
 	WebitelDcctlV1OperationStep as Step,
@@ -71,6 +72,22 @@ export const stepColor = (
 			return 'blue';
 		case 'FAILED':
 			return 'red';
+		default:
+			return 'gray';
+	}
+};
+
+/** INTERRUPTED waits for a decision, so it is yellow like other things that need attention. */
+export const operationStateColor = (state?: OperationState): StatusColor => {
+	switch (state) {
+		case 'RUNNING':
+			return 'blue';
+		case 'SUCCEEDED':
+			return 'green';
+		case 'FAILED':
+			return 'red';
+		case 'INTERRUPTED':
+			return 'yellow';
 		default:
 			return 'gray';
 	}

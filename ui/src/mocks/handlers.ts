@@ -1,14 +1,15 @@
 import { HttpResponse, http } from 'msw';
 import { getListDatacentersMockHandler } from '@/api/gen/datacenter-service/datacenter-service.msw';
 import { getListJournalEntriesMockHandler } from '@/api/gen/journal-service/journal-service.msw';
-import {
-	getGetOperationMockHandler,
-	getListOperationsMockHandler,
-} from '@/api/gen/operation-service/operation-service.msw';
 import { getVerifyStatusMockHandler } from '@/api/gen/status-service/status-service.msw';
 import { encodeBasicToken } from '@/utils/basicAuth';
 import { currentDatacenterResponse } from './datacenterVariants';
 import { example } from './example';
+import {
+	currentOperationResponse,
+	currentOperationsResponse,
+	watchResponse,
+} from './operationVariants';
 import { currentStatusResponse } from './statusVariants';
 
 /** The only credentials the mock accepts. Mock-only, not a real account. */
@@ -40,7 +41,15 @@ export const handlers = [
 	http.get('*/v1/datacenters/:dc', ({ params }) =>
 		currentDatacenterResponse(String(params.dc)),
 	),
-	getListOperationsMockHandler(example('/v1/operations', 'get')),
-	getGetOperationMockHandler(example('/v1/operations/{operation}', 'get')),
+	http.get('*/v1/operations', ({ request }) =>
+		currentOperationsResponse(new URL(request.url)),
+	),
+	// Before the plain operation: its `:operation` segment would match `id:watch` too.
+	http.get('*/v1/operations/:operation\\:watch', ({ params, request }) =>
+		watchResponse(String(params.operation), request.signal),
+	),
+	http.get('*/v1/operations/:operation', ({ params }) =>
+		currentOperationResponse(String(params.operation)),
+	),
 	getListJournalEntriesMockHandler(example('/v1/journalEntries', 'get')),
 ];
