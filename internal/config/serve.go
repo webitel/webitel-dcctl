@@ -102,6 +102,10 @@ type PatroniTimeouts struct {
 	Rewind  time.Duration `yaml:"rewind"`
 }
 
+// RenewalsPerSessionTTL is how many times the holder of a lock session renews it
+// within its TTL.
+const RenewalsPerSessionTTL = 3
+
 // Coordination holds the Consul lock and lease timings.
 type Coordination struct {
 	SessionTTL        time.Duration `yaml:"session_ttl"`

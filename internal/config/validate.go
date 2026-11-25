@@ -54,6 +54,7 @@ func (c *Serve) Validate() error {
 	v.positive("apps.min_healthy_time", c.Apps.MinHealthyTime)
 
 	v.status(c.Status)
+	v.lockTimings(c.Coordination, c.Status.RequestTimeout)
 
 	if c.Journal.MaxEntries <= 0 {
 		v.add("journal.max_entries", "must be positive")
@@ -236,6 +237,28 @@ func (v *violations) sessionTTL(d time.Duration) {
 func (v *violations) lockDelay(d time.Duration) {
 	if d <= 0 || d > maxLockDelay {
 		v.add("coordination.lock_delay", "must be greater than 0 and at most %s, the Consul limit", maxLockDelay)
+	}
+}
+
+// lockTimings checks that a lost lock session is noticed before Consul lets another
+// holder take the lock: the holder learns of it at its next renewal, at most one
+// renewal interval and one request later, and the lock delay holds the key until then.
+func (v *violations) lockTimings(c Coordination, requestTimeout time.Duration) {
+	if c.SessionTTL < minSessionTTL || c.LockDelay <= 0 || requestTimeout <= 0 {
+		return
+	}
+
+	renewal := c.SessionTTL / RenewalsPerSessionTTL
+
+	if requestTimeout >= renewal {
+		v.add("status.request_timeout", "must be less than coordination.session_ttl/%d (%s)", RenewalsPerSessionTTL, renewal)
+
+		return
+	}
+
+	if c.LockDelay <= renewal+requestTimeout {
+		v.add("coordination.lock_delay", "must be greater than coordination.session_ttl/%d + status.request_timeout (%s)",
+			RenewalsPerSessionTTL, renewal+requestTimeout)
 	}
 }
 

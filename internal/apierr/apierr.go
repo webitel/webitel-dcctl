@@ -101,17 +101,23 @@ func (r Reason) Code() codes.Code {
 // New returns a gRPC status error with the code of r, msg and the details,
 // after an ErrorInfo with r.
 func New(r Reason, msg string, details ...protoadapt.MessageV1) error {
+	return Status(r, msg, nil, details...).Err()
+}
+
+// Status returns the gRPC status of [New] with metadata in its ErrorInfo,
+// for an error type that implements GRPCStatus.
+func Status(r Reason, msg string, metadata map[string]string, details ...protoadapt.MessageV1) *status.Status {
 	st := status.New(r.Code(), msg)
 
 	withDetails, err := st.WithDetails(append(
-		[]protoadapt.MessageV1{&errdetails.ErrorInfo{Domain: Domain, Reason: string(r)}},
+		[]protoadapt.MessageV1{&errdetails.ErrorInfo{Domain: Domain, Reason: string(r), Metadata: metadata}},
 		details...,
 	)...)
 	if err != nil {
 		// Only a detail that cannot be marshaled gets here; the code and
 		// message still reach the client.
-		return st.Err()
+		return st
 	}
 
-	return withDetails.Err()
+	return withDetails
 }

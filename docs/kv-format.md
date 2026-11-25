@@ -29,7 +29,7 @@ keep working.
 | `dcctl/state` | JSON, see [`dcctl/state`](#dcctlstate) |
 | `dcctl/op` | protojson of `webitel.dcctl.v1.Operation`, see [`dcctl/op`](#dcctlop) |
 | `dcctl/lease` | JSON, see [`dcctl/lease`](#dcctllease) |
-| `dcctl/lock` | Consul session lock; Ansible does not read it |
+| `dcctl/lock` | Consul session lock holding JSON, see [`dcctl/lock`](#dcctllock) |
 | `dcctl/journal/<time>-<id>` | protojson of `webitel.dcctl.v1.JournalEntry`, one entry per key |
 
 The arbiter stores the same JSON as `dcctl/state` and `dcctl/lease` in its records `records/state`
@@ -102,6 +102,29 @@ A missing `dcctl/op` means no operation in that datacenter; continue.
 | `fencing` | bool | `true` if the holder has fencing rules enabled. |
 
 The role does not read the lease.
+
+## `dcctl/lock`
+
+A Consul session lock that dcctl takes for the time of an operation: in every reachable datacenter
+in `warm_standby`, once in the global Consul in `stretch`. The `Session` of the key is the holding
+session; the value tells who holds it:
+
+```json
+{
+  "instance": "dcctl-b1",
+  "datacenter": "dc_b",
+  "operation": "4f0c9a52-7d1e-4b8a-9f3c-2a6e5d7b1c08"
+}
+```
+
+| Field | Type | Meaning |
+|---|---|---|
+| `instance` | string | Consul node name of the dcctl instance that holds the lock. |
+| `datacenter` | string | Datacenter of that instance. |
+| `operation` | string | ID of the operation the lock is held for (the `{id}` in `operations/{id}`). |
+
+The lock is held only while the key has a `Session`. A released lock keeps the value of its last
+holder. The role does not read the lock.
 
 ## `dcctl/journal/<time>-<id>`
 
