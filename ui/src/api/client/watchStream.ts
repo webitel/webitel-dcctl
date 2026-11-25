@@ -170,5 +170,7 @@ export const watchOperation = async (
 	} finally {
 		clearTimeout(timer);
 		signal.removeEventListener('abort', forwardAbort);
+		// Whatever ended the read, the body must not stay open: the abort cancels the reader.
+		controller.abort();
 	}
 };

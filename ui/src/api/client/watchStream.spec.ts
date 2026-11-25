@@ -232,6 +232,30 @@ describe('watchOperation', () => {
 		expect(seen).toEqual([{ state: 'RUNNING' }]);
 	});
 
+	it.each([
+		['a malformed line', 'nonsense\n', undefined],
+		[
+			'a handler that throws',
+			`${line({ state: 'RUNNING' })}`,
+			new Error('handler failed'),
+		],
+	])('closes the body after %s', async (_name, chunk, handlerError) => {
+		const cancel = vi.fn();
+		const stream = new ReadableStream<Uint8Array>({
+			start(controller) {
+				controller.enqueue(new TextEncoder().encode(chunk));
+			},
+			cancel,
+		});
+		const { promise } = run((async () => respond(stream)) as never, {
+			onOperation: () => {
+				if (handlerError) throw handlerError;
+			},
+		});
+		await expect(promise).rejects.toBeDefined();
+		expect(cancel).toHaveBeenCalled();
+	});
+
 	it('rejects on a malformed line', async () => {
 		const { promise } = run((async () =>
 			respond(streamOf('nonsense\n'))) as never);
