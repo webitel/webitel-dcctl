@@ -29,6 +29,33 @@ func FromCollector(c Snapshots, cfg status.Config) StatusSource {
 	return collectorStatus{snaps: c, cfg: cfg}
 }
 
+// Observations gives what the last collection cycle observed; [*status.Tracker] is
+// one.
+type Observations interface {
+	// Current returns nil before the first cycle.
+	Current() *status.Observed
+}
+
+// FromTracker returns the status source of the last cycle src observed, the same cycle
+// [TrackerAlarms] reports the alarms of. The status is built once per cycle, at the end
+// of it, and not on every call.
+func FromTracker(src Observations) StatusSource {
+	return trackerStatus{src: src}
+}
+
+type trackerStatus struct {
+	src Observations
+}
+
+func (t trackerStatus) Status(time.Time) (status.Status, bool) {
+	obs := t.src.Current()
+	if obs == nil {
+		return status.Status{}, false
+	}
+
+	return obs.Status, true
+}
+
 type collectorStatus struct {
 	snaps Snapshots
 	cfg   status.Config
@@ -46,7 +73,7 @@ func (c collectorStatus) Status(now time.Time) (status.Status, bool) {
 // Alarms gives the alarms raised now. The API marshals the returned alarms
 // after the call, so they must not be changed afterwards.
 type Alarms interface {
-	Alarms() []*dcctlv1.Status_Alarm
+	Alarms(ctx context.Context) []*dcctlv1.Status_Alarm
 }
 
 // Verifier runs the verify.* checks: the conditions of a completed switch for

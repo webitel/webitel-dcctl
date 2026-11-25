@@ -75,6 +75,25 @@ func (id AlarmID) Type() dcctlv1.Status_Alarm_Type {
 	return alarmDefs[id].typ
 }
 
+// Scope returns what the alarm is raised for.
+func (id AlarmID) Scope() AlarmScope {
+	return alarmDefs[id].scope
+}
+
+// AlarmScope is what an alarm is raised for: the installation, each datacenter, each
+// voter, or the arbiter alone.
+type AlarmScope string
+
+const (
+	AlarmScopeInstallation AlarmScope = "installation"
+	// AlarmScopeDatacenter alarms have their datacenter. split_brain is also raised for
+	// the installation while the active datacenter is not known, and stale has no
+	// datacenter in stretch, whose one voter is the Consul of every datacenter.
+	AlarmScopeDatacenter AlarmScope = "datacenter"
+	AlarmScopeVoter      AlarmScope = "voter"
+	AlarmScopeArbiter    AlarmScope = "arbiter"
+)
+
 // Severity is how urgent an alarm is.
 type Severity string
 
@@ -134,6 +153,7 @@ func (a Alarm) Key() AlarmKey {
 type alarmDef struct {
 	typ      dcctlv1.Status_Alarm_Type
 	severity Severity
+	scope    AlarmScope
 	// delayed alarms are raised once the condition holds for status.degraded_after.
 	delayed bool
 	// suppressible alarms are not raised for the datacenters of a running operation,
@@ -144,21 +164,21 @@ type alarmDef struct {
 // lease_lost is not delayed: its condition already holds only after the counter
 // stood still for T + acquire_after.
 var alarmDefs = map[AlarmID]alarmDef{
-	AlarmConflict:              {typ: dcctlv1.Status_Alarm_CONFLICT, severity: SeverityCritical},
-	AlarmUncommitted:           {typ: dcctlv1.Status_Alarm_UNCOMMITTED, severity: SeverityCritical},
-	AlarmStale:                 {typ: dcctlv1.Status_Alarm_STALE, severity: SeverityWarning, delayed: true},
-	AlarmSplitBrain:            {typ: dcctlv1.Status_Alarm_SPLIT_BRAIN, severity: SeverityCritical},
-	AlarmDBSplit:               {typ: dcctlv1.Status_Alarm_DB_SPLIT, severity: SeverityCritical},
-	AlarmMultiplePrimaries:     {typ: dcctlv1.Status_Alarm_MULTIPLE_PRIMARIES, severity: SeverityCritical},
-	AlarmDBPrimaryMissing:      {typ: dcctlv1.Status_Alarm_DB_PRIMARY_MISSING, severity: SeverityCritical, delayed: true, suppressible: true},
-	AlarmDatacenterUnreachable: {typ: dcctlv1.Status_Alarm_DATACENTER_UNREACHABLE, severity: SeverityWarning, delayed: true},
-	AlarmDBLeaderMismatch:      {typ: dcctlv1.Status_Alarm_DB_LEADER_MISMATCH, severity: SeverityWarning, delayed: true, suppressible: true},
-	AlarmLeaseLost:             {typ: dcctlv1.Status_Alarm_LEASE_LOST, severity: SeverityWarning, suppressible: true},
-	AlarmAppsDegraded:          {typ: dcctlv1.Status_Alarm_APPS_DEGRADED, severity: SeverityWarning, delayed: true, suppressible: true},
-	AlarmDBDegraded:            {typ: dcctlv1.Status_Alarm_DB_DEGRADED, severity: SeverityWarning, delayed: true},
-	AlarmStandbyNotFollowing:   {typ: dcctlv1.Status_Alarm_STANDBY_NOT_FOLLOWING, severity: SeverityWarning, delayed: true, suppressible: true},
-	AlarmVoterUnreachable:      {typ: dcctlv1.Status_Alarm_VOTER_UNREACHABLE, severity: SeverityWarning, delayed: true},
-	AlarmQuorumLost:            {typ: dcctlv1.Status_Alarm_QUORUM_LOST, severity: SeverityWarning, delayed: true},
-	AlarmArbiterUninitialized:  {typ: dcctlv1.Status_Alarm_ARBITER_UNINITIALIZED, severity: SeverityWarning, delayed: true},
-	AlarmOperationInterrupted:  {typ: dcctlv1.Status_Alarm_OPERATION_INTERRUPTED, severity: SeverityWarning, delayed: true},
+	AlarmConflict:              {typ: dcctlv1.Status_Alarm_CONFLICT, scope: AlarmScopeInstallation, severity: SeverityCritical},
+	AlarmUncommitted:           {typ: dcctlv1.Status_Alarm_UNCOMMITTED, scope: AlarmScopeInstallation, severity: SeverityCritical},
+	AlarmStale:                 {typ: dcctlv1.Status_Alarm_STALE, scope: AlarmScopeDatacenter, severity: SeverityWarning, delayed: true},
+	AlarmSplitBrain:            {typ: dcctlv1.Status_Alarm_SPLIT_BRAIN, scope: AlarmScopeDatacenter, severity: SeverityCritical},
+	AlarmDBSplit:               {typ: dcctlv1.Status_Alarm_DB_SPLIT, scope: AlarmScopeDatacenter, severity: SeverityCritical},
+	AlarmMultiplePrimaries:     {typ: dcctlv1.Status_Alarm_MULTIPLE_PRIMARIES, scope: AlarmScopeInstallation, severity: SeverityCritical},
+	AlarmDBPrimaryMissing:      {typ: dcctlv1.Status_Alarm_DB_PRIMARY_MISSING, scope: AlarmScopeDatacenter, severity: SeverityCritical, delayed: true, suppressible: true},
+	AlarmDatacenterUnreachable: {typ: dcctlv1.Status_Alarm_DATACENTER_UNREACHABLE, scope: AlarmScopeDatacenter, severity: SeverityWarning, delayed: true},
+	AlarmDBLeaderMismatch:      {typ: dcctlv1.Status_Alarm_DB_LEADER_MISMATCH, scope: AlarmScopeInstallation, severity: SeverityWarning, delayed: true, suppressible: true},
+	AlarmLeaseLost:             {typ: dcctlv1.Status_Alarm_LEASE_LOST, scope: AlarmScopeInstallation, severity: SeverityWarning, suppressible: true},
+	AlarmAppsDegraded:          {typ: dcctlv1.Status_Alarm_APPS_DEGRADED, scope: AlarmScopeDatacenter, severity: SeverityWarning, delayed: true, suppressible: true},
+	AlarmDBDegraded:            {typ: dcctlv1.Status_Alarm_DB_DEGRADED, scope: AlarmScopeDatacenter, severity: SeverityWarning, delayed: true},
+	AlarmStandbyNotFollowing:   {typ: dcctlv1.Status_Alarm_STANDBY_NOT_FOLLOWING, scope: AlarmScopeDatacenter, severity: SeverityWarning, delayed: true, suppressible: true},
+	AlarmVoterUnreachable:      {typ: dcctlv1.Status_Alarm_VOTER_UNREACHABLE, scope: AlarmScopeVoter, severity: SeverityWarning, delayed: true},
+	AlarmQuorumLost:            {typ: dcctlv1.Status_Alarm_QUORUM_LOST, scope: AlarmScopeInstallation, severity: SeverityWarning, delayed: true},
+	AlarmArbiterUninitialized:  {typ: dcctlv1.Status_Alarm_ARBITER_UNINITIALIZED, scope: AlarmScopeArbiter, severity: SeverityWarning, delayed: true},
+	AlarmOperationInterrupted:  {typ: dcctlv1.Status_Alarm_OPERATION_INTERRUPTED, scope: AlarmScopeInstallation, severity: SeverityWarning, delayed: true},
 }

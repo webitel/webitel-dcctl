@@ -3,10 +3,13 @@ package main
 import (
 	"bytes"
 	"io/fs"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/attribute"
+	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
 
 	"github.com/webitel/webitel-dcctl/internal/buildinfo"
 	"github.com/webitel/webitel-dcctl/internal/config"
@@ -61,6 +64,36 @@ func TestDaemonCommands(t *testing.T) {
 		t.Run(tt.cmd+"/default_path", func(t *testing.T) {
 			err := newApp().Run([]string{"webitel-dcctl", tt.cmd})
 			assert.ErrorContains(t, err, tt.defaultPath)
+		})
+	}
+}
+
+func TestServiceResource(t *testing.T) {
+	host, err := os.Hostname()
+	require.NoError(t, err)
+
+	tests := []struct {
+		command      string
+		wantInstance string
+	}{
+		{command: "serve", wantInstance: "webitel-dcctl@" + host},
+		{command: "arbiter", wantInstance: "webitel-dcctl-arbiter@" + host},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.command, func(t *testing.T) {
+			res, err := serviceResource(tt.command)
+			require.NoError(t, err)
+
+			got := make(map[attribute.Key]string)
+			for _, kv := range res.Attributes() {
+				got[kv.Key] = kv.Value.String()
+			}
+
+			assert.Equal(t, "webitel-dcctl", got[semconv.ServiceNameKey])
+			assert.Equal(t, tt.wantInstance, got[semconv.ServiceInstanceIDKey])
+			assert.Equal(t, host, got[semconv.HostNameKey])
+			assert.Equal(t, buildinfo.Version, got[semconv.ServiceVersionKey])
 		})
 	}
 }

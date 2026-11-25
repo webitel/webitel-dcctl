@@ -19,6 +19,13 @@ import (
 // sources, may pass without a finished one before the collector is not live.
 const staleCycles = 3
 
+// StaleAfter returns how old the last snapshot may be while the loop is live: three
+// cycles, each with its pause and its longest wait for the sources. An older snapshot
+// tells nothing about now.
+func StaleAfter(cfg config.Status) time.Duration {
+	return staleCycles * (cfg.Interval + cfg.RequestTimeout)
+}
+
 // Config configures a [Collector].
 type Config struct {
 	Profile config.Profile
@@ -105,14 +112,14 @@ func (c *Collector) Watch() (*Snapshot, <-chan struct{}) {
 }
 
 // Check is the liveness check of the loop: it fails when no cycle finished for longer
-// than three times the pause plus the request timeout.
+// than [StaleAfter].
 func (c *Collector) Check(context.Context) error {
 	last := c.created
 	if s := c.Snapshot(); s != nil {
 		last = s.ObserveTime
 	}
 
-	limit := staleCycles * (c.cfg.Status.Interval + c.cfg.Status.RequestTimeout)
+	limit := StaleAfter(c.cfg.Status)
 
 	if age := time.Since(last); age > limit {
 		return fmt.Errorf("no collection cycle finished for %s, the limit is %s", age.Truncate(time.Second), limit)

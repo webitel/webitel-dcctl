@@ -583,3 +583,31 @@ func TestEvaluateAlarms_voterAlarm(t *testing.T) {
 	assert.Equal(t, status.VoterArbiter, f.VoterType)
 	assert.Equal(t, "refused", f.Facts["reason"])
 }
+
+// Every alarm is evaluated for what its scope says, which the metrics rely on for the
+// points of alarms that are not raised.
+func TestAlarmID_Scope(t *testing.T) {
+	for _, id := range status.AlarmIDs() {
+		assert.NotEmpty(t, id.Scope(), id)
+	}
+
+	for _, f := range evaluate(warm(), heldLease()) {
+		k := f.Key
+
+		switch k.ID.Scope() {
+		case status.AlarmScopeInstallation:
+			assert.Equal(t, status.AlarmKey{ID: k.ID}, k)
+		case status.AlarmScopeDatacenter:
+			if k.ID == status.AlarmSplitBrain && k.Datacenter == "" {
+				continue
+			}
+
+			assert.NotEmpty(t, k.Datacenter, k)
+			assert.Empty(t, k.Voter, k)
+		case status.AlarmScopeVoter:
+			assert.NotEmpty(t, k.Voter, k)
+		case status.AlarmScopeArbiter:
+			assert.Equal(t, status.AlarmKey{ID: k.ID, Voter: coord.ArbiterName}, k)
+		}
+	}
+}

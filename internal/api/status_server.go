@@ -47,7 +47,7 @@ func (s *StatusServer) GetStatus(ctx context.Context, _ *dcctlv1.GetStatusReques
 	}
 
 	if s.alarms != nil {
-		out.Alarms = s.alarms.Alarms()
+		out.Alarms = s.alarms.Alarms(ctx)
 	}
 
 	return out, nil
