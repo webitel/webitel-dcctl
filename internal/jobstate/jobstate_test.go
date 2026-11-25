@@ -1,4 +1,4 @@
-package apps
+package jobstate_test
 
 import (
 	"testing"
@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/webitel/webitel-dcctl/internal/jobstate"
 	"github.com/webitel/webitel-dcctl/internal/source/nomad"
 )
 
@@ -45,7 +46,7 @@ func TestStopped(t *testing.T) {
 				allocs = append(allocs, nomad.Alloc{ClientStatus: s})
 			}
 
-			got, detail := stopped(nomad.Job{ID: "engine", Stop: tt.stop}, allocs)
+			got, detail := jobstate.Stopped(nomad.Job{ID: "engine", Stop: tt.stop}, allocs)
 			assert.Equal(t, tt.want, got)
 			assert.Equal(t, tt.want, detail == "", "a job not stopped says why: %q", detail)
 		})
@@ -116,7 +117,7 @@ func TestServiceHealth(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, detail := serviceHealth(tt.allocs, now, minHealthy)
+			got, detail := jobstate.ServiceHealth(tt.allocs, now, minHealthy)
 			assert.Equal(t, tt.want, got)
 			assert.Equal(t, tt.detail, detail)
 		})
@@ -136,71 +137,112 @@ func TestSystemHealth(t *testing.T) {
 		name     string
 		nodes    []nomad.Node
 		allocs   []nomad.Alloc
-		want     bool
-		detail   string
+		want     jobstate.System
 		warnings []string
 	}{
 		{
 			name:   "every_node",
 			nodes:  []nomad.Node{ready("n1"), ready("n2")},
 			allocs: []nomad.Alloc{runningAlloc("n1", time.Hour), runningAlloc("n2", time.Hour)},
-			want:   true,
+			want:   jobstate.System{Healthy: true, HealthyNodes: 2, ExpectedNodes: 2},
 		},
 		{
 			name:   "ready_node_without_alloc",
 			nodes:  []nomad.Node{ready("n1"), ready("n2")},
 			allocs: []nomad.Alloc{runningAlloc("n1", time.Hour)},
-			detail: "no healthy allocation on n2",
+			want: jobstate.System{
+				Detail: "no healthy allocation on n2", HealthyNodes: 1, ExpectedNodes: 2,
+				Missing: []jobstate.MissingNode{{Name: "n2", Reason: jobstate.NodeNoAllocation}},
+			},
 		},
 		{
 			name:   "ready_node_with_young_alloc",
 			nodes:  []nomad.Node{ready("n1"), ready("n2")},
 			allocs: []nomad.Alloc{runningAlloc("n1", time.Hour), runningAlloc("n2", time.Second)},
-			detail: "no healthy allocation on n2",
+			want: jobstate.System{
+				Detail: "no healthy allocation on n2", HealthyNodes: 1, ExpectedNodes: 2,
+				Missing: []jobstate.MissingNode{{Name: "n2", Reason: jobstate.NodeNoAllocation}},
+			},
 		},
 		{
 			name: "draining_node",
 			nodes: []nomad.Node{
 				ready("n1"), node("n2", "ready", "ineligible", true, "media_exporter"),
 			},
-			allocs:   []nomad.Alloc{runningAlloc("n1", time.Hour)},
-			want:     true,
+			allocs: []nomad.Alloc{runningAlloc("n1", time.Hour)},
+			want: jobstate.System{
+				Healthy: true, HealthyNodes: 1, ExpectedNodes: 1,
+				Missing: []jobstate.MissingNode{{Name: "n2", Reason: jobstate.NodeDraining}},
+			},
 			warnings: []string{"node n2 is draining and has no healthy allocation"},
 		},
 		{
-			name:     "down_node",
-			nodes:    []nomad.Node{ready("n1"), node("n2", "down", "eligible", false, "media_exporter")},
-			allocs:   []nomad.Alloc{runningAlloc("n1", time.Hour)},
-			want:     true,
+			name:   "down_node",
+			nodes:  []nomad.Node{ready("n1"), node("n2", "down", "eligible", false, "media_exporter")},
+			allocs: []nomad.Alloc{runningAlloc("n1", time.Hour)},
+			want: jobstate.System{
+				Healthy: true, HealthyNodes: 1, ExpectedNodes: 1,
+				Missing: []jobstate.MissingNode{{Name: "n2", Reason: jobstate.NodeDown}},
+			},
 			warnings: []string{"node n2 is down and has no healthy allocation"},
 		},
 		{
-			name:     "ineligible_node",
-			nodes:    []nomad.Node{ready("n1"), node("n2", "ready", "ineligible", false, "media_exporter")},
-			allocs:   []nomad.Alloc{runningAlloc("n1", time.Hour)},
-			want:     true,
+			name:   "ineligible_node",
+			nodes:  []nomad.Node{ready("n1"), node("n2", "ready", "ineligible", false, "media_exporter")},
+			allocs: []nomad.Alloc{runningAlloc("n1", time.Hour)},
+			want: jobstate.System{
+				Healthy: true, HealthyNodes: 1, ExpectedNodes: 1,
+				Missing: []jobstate.MissingNode{{Name: "n2", Reason: jobstate.NodeIneligible}},
+			},
 			warnings: []string{"node n2 is ineligible and has no healthy allocation"},
 		},
 		{
-			name:     "all_nodes_drained",
-			nodes:    []nomad.Node{node("n1", "ready", "ineligible", true, "media_exporter")},
-			detail:   "no healthy allocation: no allocation",
+			name:  "all_nodes_drained",
+			nodes: []nomad.Node{node("n1", "ready", "ineligible", true, "media_exporter")},
+			want: jobstate.System{
+				Detail:  "no healthy allocation: no allocation",
+				Missing: []jobstate.MissingNode{{Name: "n1", Reason: jobstate.NodeDraining}},
+			},
 			warnings: []string{"node n1 is draining and has no healthy allocation"},
 		},
 		{
 			name:   "node_without_the_service",
 			nodes:  []nomad.Node{ready("n1"), node("n2", "ready", "eligible", false, "opensips")},
 			allocs: []nomad.Alloc{runningAlloc("n1", time.Hour)},
-			want:   true,
+			want:   jobstate.System{Healthy: true, HealthyNodes: 1, ExpectedNodes: 1},
+		},
+		{
+			name:   "healthy_on_draining_node_counts",
+			nodes:  []nomad.Node{ready("n1"), node("n2", "ready", "ineligible", true, "media_exporter")},
+			allocs: []nomad.Alloc{runningAlloc("n1", time.Hour), runningAlloc("n2", time.Hour)},
+			want:   jobstate.System{Healthy: true, HealthyNodes: 2, ExpectedNodes: 1},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, detail, warnings := systemHealth("media-exporter", tt.allocs, tt.nodes, now, minHealthy)
+			got := jobstate.SystemHealth("media-exporter", tt.allocs, tt.nodes, now, minHealthy)
 			assert.Equal(t, tt.want, got)
-			assert.Equal(t, tt.detail, detail)
-			assert.Equal(t, tt.warnings, warnings)
+			assert.Equal(t, tt.warnings, got.Warnings())
+		})
+	}
+}
+
+func TestOutOfService(t *testing.T) {
+	tests := []struct {
+		node nomad.Node
+		want jobstate.NodeReason
+	}{
+		{node("ready", "ready", "eligible", false), ""},
+		{node("down", "down", "ineligible", true), jobstate.NodeDown},
+		{node("initializing", "initializing", "eligible", false), jobstate.NodeDown},
+		{node("draining", "ready", "ineligible", true), jobstate.NodeDraining},
+		{node("ineligible", "ready", "ineligible", false), jobstate.NodeIneligible},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.node.Name, func(t *testing.T) {
+			assert.Equal(t, tt.want, jobstate.OutOfService(tt.node))
 		})
 	}
 }

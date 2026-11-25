@@ -2,14 +2,7 @@
 //
 // A job is managed when it has meta.dcctl_stage. Stop goes from the highest stage down,
 // start from the lowest up; the jobs of a stage are handled together and the next stage
-// begins once every job of the stage meets the condition:
-//
-//   - stopped: Stop is set and no allocation is pending, running or unknown;
-//   - healthy service job: an allocation runs with every task running for at least
-//     apps.min_healthy_time;
-//   - healthy system job: such an allocation on every node that is ready, eligible, not
-//     draining and has the service in meta.services. A node out of scheduling without
-//     one is a warning; no healthy allocation at all keeps the job unhealthy.
+// begins once every job of the stage is stopped or healthy, as package jobstate judges it.
 //
 // A job with an invalid meta.dcctl_stage is stopped with the first stop stage, and
 // start refuses to run while there is one.
