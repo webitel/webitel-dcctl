@@ -26,7 +26,7 @@ var ErrLockLost = errors.New("lock lost")
 
 // LockBusyError is returned by [Locker.Acquire] when another holder has the
 // lock. Its gRPC status is Aborted LOCK_BUSY with metadata holder,
-// datacenter (of the holder) and operation.
+// datacenter (of the holder, as datacenters/{datacenter}) and operation.
 type LockBusyError struct {
 	// Name is the KV where the lock is held.
 	Name string
@@ -59,7 +59,7 @@ func (e *LockBusyError) GRPCStatus() *status.Status {
 	}
 
 	if e.Holder.Datacenter != "" {
-		md["datacenter"] = e.Holder.Datacenter
+		md["datacenter"] = "datacenters/" + e.Holder.Datacenter
 	}
 
 	if e.Holder.Operation != "" {

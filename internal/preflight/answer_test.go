@@ -44,7 +44,7 @@ func TestRefusal_factsOfCoordinationChecks(t *testing.T) {
 			name: "lock_held",
 			snap: snap(func(s *collect.Snapshot) { s.Voters[1].KV.Data.Lock = lockEntry("s-1") }),
 			code: codes.Aborted, reason: apierr.ReasonLockBusy,
-			metadata: map[string]string{"holder": "dcctl-dc_a", "datacenter": dcA, "operation": "operations/op-9"},
+			metadata: map[string]string{"holder": "dcctl-dc_a", "datacenter": "datacenters/" + dcA, "operation": "operations/op-9"},
 		},
 		{
 			name: "operation_running",

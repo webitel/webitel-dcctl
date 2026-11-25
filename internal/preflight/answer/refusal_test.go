@@ -212,7 +212,7 @@ func TestRefusal_specialReasons(t *testing.T) {
 			name: "lock_busy", failed: lockHeld,
 			code: codes.Aborted, reason: apierr.ReasonLockBusy,
 			message:  "dcctl/lock in dc_b is held by instance dcctl-dc_a of dc_a for operation op-9",
-			metadata: map[string]string{"holder": "dcctl-dc_a", "datacenter": "dc_a", "operation": "operations/op-9"},
+			metadata: map[string]string{"holder": "dcctl-dc_a", "datacenter": "datacenters/dc_a", "operation": "operations/op-9"},
 		},
 		{
 			name: "lock_unreachable", failed: lockUnknown,

@@ -145,5 +145,5 @@ func TestRefusalBody_lockBusy(t *testing.T) {
 	assert.Equal(t, want["id"], got["id"])
 	assert.Equal(t, want["code"], got["code"])
 	assert.Equal(t, want["status"], got["status"])
-	assert.Equal(t, map[string]any{"holder": "dcctl-a1", "datacenter": "dc_a", "operation": "operations/op-9"}, got["metadata"])
+	assert.Equal(t, map[string]any{"holder": "dcctl-a1", "datacenter": "datacenters/dc_a", "operation": "operations/op-9"}, got["metadata"])
 }
