@@ -272,6 +272,25 @@ func (f *fakeConsul) put(key string, value []byte, session string) {
 	f.keys[key] = &fakeKey{value: slices.Clone(value), index: f.index, session: session}
 }
 
+// set writes key as another dcctl would.
+func (f *fakeConsul) set(key string, value []byte) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.put(key, value, f.sessionOf(key))
+}
+
+func (f *fakeConsul) value(key string) []byte {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if k := f.keys[key]; k != nil {
+		return slices.Clone(k.value)
+	}
+
+	return nil
+}
+
 func (f *fakeConsul) holder(key string) string {
 	f.mu.Lock()
 	defer f.mu.Unlock()
