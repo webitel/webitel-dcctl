@@ -14,6 +14,7 @@ export const mountWithApp = async (
 	component: Component,
 	props: Record<string, unknown> = {},
 	token = 'dG9rZW4=',
+	path = '/',
 ) => {
 	const pinia = createPinia();
 	setActivePinia(pinia);
@@ -24,7 +25,7 @@ export const mountWithApp = async (
 		'dcctl.auth',
 		JSON.stringify({ name: 'support', token }),
 	);
-	await router.push('/');
+	await router.push(path);
 	await router.isReady();
 	const wrapper = mount(component, {
 		props,
