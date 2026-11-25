@@ -30,9 +30,17 @@ type KV struct {
 	Client KVClient
 }
 
-// NewKVs returns the KVs of profile in name order. clients must not allow
-// stale reads: the lock and the operation record decide on what they read.
-func NewKVs(profile config.Profile, clients *consul.Clients) ([]KV, error) {
+// NamedClient is the Consul client of one voter under the name of its KV.
+type NamedClient struct {
+	Name   string
+	Client *consul.Client
+}
+
+// NamedClients returns the clients of the voters of profile in name order:
+// of a datacenter in warm_standby, named after it, or the global Consul in
+// stretch, named [StretchName]. They must not allow stale reads: the lock,
+// the operation record and the journal decide on what they read.
+func NamedClients(profile config.Profile, clients *consul.Clients) ([]NamedClient, error) {
 	if clients == nil {
 		return nil, errors.New("no consul clients")
 	}
@@ -51,17 +59,34 @@ func NewKVs(profile config.Profile, clients *consul.Clients) ([]KV, error) {
 			return nil, fmt.Errorf("profile %s needs one consul voter, got %d", profile, len(voters))
 		}
 
-		return []KV{{Name: StretchName, Client: voters[0]}}, nil
+		return []NamedClient{{Name: StretchName, Client: voters[0]}}, nil
 	case config.ProfileWarmStandby:
-		kvs := make([]KV, 0, len(voters))
+		out := make([]NamedClient, 0, len(voters))
 		for _, c := range voters {
-			kvs = append(kvs, KV{Name: c.Datacenter(), Client: c})
+			out = append(out, NamedClient{Name: c.Datacenter(), Client: c})
 		}
 
-		return kvs, nil
+		slices.SortFunc(out, func(a, b NamedClient) int { return strings.Compare(a.Name, b.Name) })
+
+		return out, nil
 	}
 
 	return nil, fmt.Errorf("unknown profile %q", profile)
+}
+
+// NewKVs returns the KVs of profile in name order, see [NamedClients].
+func NewKVs(profile config.Profile, clients *consul.Clients) ([]KV, error) {
+	named, err := NamedClients(profile, clients)
+	if err != nil {
+		return nil, err
+	}
+
+	kvs := make([]KV, 0, len(named))
+	for _, n := range named {
+		kvs = append(kvs, KV{Name: n.Name, Client: n.Client})
+	}
+
+	return kvs, nil
 }
 
 // sortedKVs checks kvs and returns them sorted by name.
