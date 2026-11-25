@@ -1,6 +1,7 @@
 package nomad_test
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"testing"
@@ -159,7 +160,7 @@ func TestStartRegistersCurrentVersionWithEnforceIndex(t *testing.T) {
 	c, f := setup(t)
 	f.addJob("engine", 5, map[string]string{"dcctl_stage": "3"}, true)
 
-	require.NoError(t, c.Start(t.Context(), "engine"))
+	require.NoError(t, c.Start(t.Context(), "engine", nil))
 
 	require.Len(t, f.registers, 1)
 	req := f.registers[0]
@@ -176,7 +177,7 @@ func TestStartRetriesOnIndexConflict(t *testing.T) {
 	f.addJob("engine", 5, map[string]string{"dcctl_stage": "3"}, true)
 	f.beforeRegister = func(f *fakeNomad) { f.bumpIndex("engine") }
 
-	require.NoError(t, c.Start(t.Context(), "engine"))
+	require.NoError(t, c.Start(t.Context(), "engine", nil))
 
 	require.Len(t, f.registers, 1, "the rejected attempt is not registered")
 	assert.Equal(t, uint64(6), f.registers[0].JobModifyIndex, "retry carries the re-read index")
@@ -184,12 +185,48 @@ func TestStartRetriesOnIndexConflict(t *testing.T) {
 	assert.Equal(t, false, f.jobs["engine"]["Stop"])
 }
 
+func TestStartChecksBeforeEveryAttempt(t *testing.T) {
+	c, f := setup(t)
+	f.addJob("engine", 5, map[string]string{"dcctl_stage": "3"}, true)
+	f.beforeRegister = func(f *fakeNomad) { f.bumpIndex("engine") }
+
+	var checks int
+
+	require.NoError(t, c.Start(t.Context(), "engine", func(context.Context) error {
+		checks++
+
+		return nil
+	}))
+
+	assert.Equal(t, 2, checks, "the retry after the conflict is checked too")
+	assert.Len(t, f.registers, 1)
+}
+
+func TestStartFailedCheckRegistersNothing(t *testing.T) {
+	ca := newTestCA(t, "dc_a CA")
+	first, second := newFakeNomad(), newFakeNomad()
+	first.addJob("engine", 5, map[string]string{"dcctl_stage": "3"}, true)
+	second.addJob("engine", 5, map[string]string{"dcctl_stage": "3"}, true)
+	c := newClient(t, ca, startTLS(t, ca, first.handler()), startTLS(t, ca, second.handler()))
+
+	errLost := errors.New("lease lost")
+
+	err := c.Start(t.Context(), "engine", func(context.Context) error { return errLost })
+	require.ErrorIs(t, err, errLost)
+
+	_, classified := source.ReasonOf(err)
+	assert.False(t, classified, "the caller's refusal is not an unreachable endpoint")
+	assert.Empty(t, first.registers)
+	assert.Zero(t, first.gets, "the job is not even read")
+	assert.Zero(t, second.gets, "the refusal is not retried on another endpoint")
+}
+
 func TestStartStopsRetryingWhenTheJobIsGone(t *testing.T) {
 	c, f := setup(t)
 	f.addJob("engine", 5, map[string]string{"dcctl_stage": "3"}, true)
 	f.beforeRegister = func(f *fakeNomad) { delete(f.jobs, "engine") }
 
-	err := c.Start(t.Context(), "engine")
+	err := c.Start(t.Context(), "engine", nil)
 	require.Error(t, err)
 	assert.NotErrorIs(t, err, nomad.ErrIndexConflict)
 
@@ -212,7 +249,7 @@ func TestStartGivesUpAfterBoundedAttempts(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = c.Start(t.Context(), "engine")
+	err = c.Start(t.Context(), "engine", nil)
 	require.ErrorIs(t, err, nomad.ErrIndexConflict)
 
 	_, classified := source.ReasonOf(err)
@@ -224,7 +261,7 @@ func TestStartGivesUpAfterBoundedAttempts(t *testing.T) {
 func TestStartUnknownJob(t *testing.T) {
 	c, _ := setup(t)
 
-	err := c.Start(t.Context(), "missing")
+	err := c.Start(t.Context(), "missing", nil)
 	require.Error(t, err)
 	assert.Equal(t, source.ReasonHTTP, reasonOf(t, err))
 }
@@ -306,8 +343,45 @@ func TestStatusReadsMayBeStaleButStartReadIsConsistent(t *testing.T) {
 		assert.True(t, f.stale[route], route)
 	}
 
-	require.NoError(t, c.Start(t.Context(), "engine"))
+	require.NoError(t, c.Start(t.Context(), "engine", nil))
 	assert.False(t, f.stale["GET /v1/job/engine"], "the read Start registers from is consistent")
+}
+
+func TestConsistentReadsAskTheLeader(t *testing.T) {
+	ca := newTestCA(t, "dc_a CA")
+	f := newFakeNomad()
+	f.addJob("engine", 5, map[string]string{"dcctl_stage": "3"}, true)
+	f.allocs["engine"] = "[]"
+	f.nodes = `[{"ID": "n1"}]`
+
+	c, err := nomad.New(nomad.Options{
+		Datacenter: dc, Service: service, CAFile: ca.writeFile(t),
+		Resolver:        &fakeResolver{addrs: map[string][]string{dc + "/" + service: {startTLS(t, ca, f.handler())}}},
+		ConsistentReads: true,
+	})
+	require.NoError(t, err)
+
+	_, _, err = c.Jobs(t.Context())
+	require.NoError(t, err)
+	_, err = c.Allocs(t.Context(), "engine")
+	require.NoError(t, err)
+	_, err = c.Nodes(t.Context())
+	require.NoError(t, err)
+
+	for _, route := range []string{
+		"GET /v1/agent/self", "GET /v1/jobs", "GET /v1/job/engine/allocations", "GET /v1/nodes", "GET /v1/node/n1",
+	} {
+		assert.False(t, f.stale[route], route)
+	}
+}
+
+func TestAllocsIncludeEarlierJobsOfTheSameID(t *testing.T) {
+	c, f := setup(t)
+	f.allocs["engine"] = "[]"
+
+	_, err := c.Allocs(t.Context(), "engine")
+	require.NoError(t, err)
+	assert.Contains(t, f.queries["GET /v1/job/engine/allocations"], "all=true")
 }
 
 func TestVersion(t *testing.T) {

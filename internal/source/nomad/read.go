@@ -41,7 +41,7 @@ func (c *Client) Jobs(ctx context.Context) (managed, unmanaged []Job, err error)
 
 		stubs, err := request(ctx, c, func(ctx context.Context) ([]*api.JobListStub, error) {
 			opts := &api.JobListOptions{Fields: &api.JobListFields{Meta: true}}
-			stubs, _, err := nc.Jobs().ListOptions(opts, statusQuery(ctx))
+			stubs, _, err := nc.Jobs().ListOptions(opts, c.query(ctx))
 
 			return stubs, err
 		})
@@ -155,7 +155,7 @@ func (c *Client) build(ctx context.Context, nc *api.Client) (string, error) {
 	self, err := request(ctx, c, func(ctx context.Context) (api.AgentSelf, error) {
 		var self api.AgentSelf
 
-		_, err := nc.Raw().Query("/v1/agent/self", &self, statusQuery(ctx))
+		_, err := nc.Raw().Query("/v1/agent/self", &self, c.query(ctx))
 
 		return self, err
 	})
@@ -187,13 +187,14 @@ func versionAtLeast(v string, lowest [2]int) bool {
 	return major > lowest[0] || (major == lowest[0] && minor >= lowest[1])
 }
 
-// Allocs returns the allocations of a job.
+// Allocs returns the allocations of a job, those of an earlier job with the same ID
+// included: after a purge and a new register they may still run.
 func (c *Client) Allocs(ctx context.Context, jobID string) ([]Alloc, error) {
 	var allocs []Alloc
 
 	err := c.each(ctx, func(ctx context.Context, nc *api.Client) error {
 		stubs, err := request(ctx, c, func(ctx context.Context) ([]*api.AllocationListStub, error) {
-			stubs, _, err := nc.Jobs().Allocations(jobID, false, statusQuery(ctx))
+			stubs, _, err := nc.Jobs().Allocations(jobID, true, c.query(ctx))
 
 			return stubs, err
 		})
@@ -242,7 +243,7 @@ func (c *Client) Nodes(ctx context.Context) ([]Node, error) {
 
 	err := c.each(ctx, func(ctx context.Context, nc *api.Client) error {
 		stubs, err := request(ctx, c, func(ctx context.Context) ([]*api.NodeListStub, error) {
-			stubs, _, err := nc.Nodes().List(statusQuery(ctx))
+			stubs, _, err := nc.Nodes().List(c.query(ctx))
 
 			return stubs, err
 		})
@@ -264,7 +265,7 @@ func (c *Client) Nodes(ctx context.Context) ([]Node, error) {
 				defer func() { <-sem }()
 
 				info, err := request(ctx, c, func(ctx context.Context) (*api.Node, error) {
-					info, _, err := nc.Nodes().Info(s.ID, statusQuery(ctx))
+					info, _, err := nc.Nodes().Info(s.ID, c.query(ctx))
 
 					return info, err
 				})
