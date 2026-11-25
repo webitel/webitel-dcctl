@@ -55,6 +55,23 @@ describe('router', () => {
 		}
 	});
 
+	it.each([
+		['/datacenters/dc_b', 'datacenter', 'datacenters'],
+		['/operations/0b9f', 'operation', 'operations'],
+		['/', 'overview', 'overview'],
+	])(
+		'%s keeps the %s section active in the navigation',
+		async (path, name, section) => {
+			signIn();
+			const router = createAppRouter(createMemoryHistory('/dcctl/'));
+
+			await router.push(path);
+
+			expect(router.currentRoute.value.name).toBe(name);
+			expect(router.currentRoute.value.meta.section).toBe(section);
+		},
+	);
+
 	it('does not show the login form to a signed-in user', async () => {
 		signIn();
 		const router = createAppRouter(createMemoryHistory('/dcctl/'));
