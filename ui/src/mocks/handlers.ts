@@ -8,35 +8,16 @@ import {
 	getGetOperationMockHandler,
 	getListOperationsMockHandler,
 } from '@/api/gen/operation-service/operation-service.msw';
-import {
-	getGetStatusMockHandler,
-	getVerifyStatusMockHandler,
-} from '@/api/gen/status-service/status-service.msw';
+import { getVerifyStatusMockHandler } from '@/api/gen/status-service/status-service.msw';
 import { encodeBasicToken } from '@/utils/basicAuth';
-import swagger from '../../../api/dcctl.swagger.json';
+import { example } from './example';
+import { currentStatusResponse } from './statusVariants';
 
 /** The only credentials the mock accepts. Mock-only, not a real account. */
 export const MOCK_USER = {
 	name: 'support',
 	password: 'mock-password',
 } as const;
-
-type Examples = Record<string, { examples?: Record<string, unknown> }>;
-type Operation = { responses: Examples };
-
-/** Response example of an operation from `api/dcctl.swagger.json`. */
-const example = <T>(path: string, method: string, status = '200'): T => {
-	const paths = swagger.paths as unknown as Record<
-		string,
-		Record<string, Operation>
-	>;
-	const found =
-		paths[path]?.[method]?.responses[status]?.examples?.['application/json'];
-	if (found === undefined) {
-		throw new Error(`no example for ${method} ${path} ${status}`);
-	}
-	return found as T;
-};
 
 const authorized = (request: Request) =>
 	request.headers.get('Authorization') ===
@@ -55,7 +36,7 @@ const requireAuth = http.all('*/v1/*', ({ request }) => {
 
 export const handlers = [
 	requireAuth,
-	getGetStatusMockHandler(example('/v1/status', 'get')),
+	http.get('*/v1/status', () => currentStatusResponse()),
 	getVerifyStatusMockHandler(example('/v1/status:verify', 'get')),
 	getListDatacentersMockHandler(example('/v1/datacenters', 'get')),
 	getGetDatacenterMockHandler(example('/v1/datacenters/{datacenter}', 'get')),
