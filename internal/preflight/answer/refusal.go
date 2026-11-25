@@ -38,6 +38,11 @@ const (
 	factLockHolder     = "holder"
 	factLockDatacenter = "datacenter"
 	factLockOperation  = "operation"
+	// The operation op.interrupted judged, its state as the enum name, and found=false
+	// when every KV answered without it.
+	factOpName  = "operation"
+	factOpState = "state"
+	factOpFound = "found"
 	// factLeaderInstance is the instance coord.leader_reachable judged.
 	factLeaderInstance = "instance"
 	// factLeaderDatacenters is set when this instance does not lead the action: the
@@ -110,11 +115,18 @@ func reasonOf(v check.Verdict) *status.Status {
 // special returns the status of the coordination check that gives the refusal its own
 // reason, in the order of the package doc, or nil when none failed.
 func special(failed []check.Check) *status.Status {
+	op, hasOp := failedCheck(failed, check.OpInterrupted)
 	noOp, hasNoOp := failedCheck(failed, check.CoordNoOperation)
 	lock, hasLock := failedCheck(failed, check.CoordLockFree)
 	leader, hasLeader := failedCheck(failed, check.CoordLeaderReachable)
 
 	switch {
+	case hasOp && notFound(op):
+		return apierr.Status(apierr.ReasonOperationNotFound, op.Detail,
+			map[string]string{"operation": fact(op, factOpName)})
+	case hasOp && fact(op, factOpName) != "" && fact(op, factOpState) != "":
+		return apierr.Status(apierr.ReasonOperationNotInterrupted, op.Detail,
+			map[string]string{"operation": fact(op, factOpName), "state": fact(op, factOpState)})
 	case hasNoOp && fact(noOp, factOperation) != "":
 		return operationRunning(noOp)
 	case hasLock && !unreachable(lock):
@@ -139,6 +151,13 @@ func failedCheck(cs []check.Check, id check.ID) (check.Check, bool) {
 	}
 
 	return cs[i], true
+}
+
+// notFound reports whether op.interrupted failed because no KV holds the operation.
+func notFound(c check.Check) bool {
+	found, ok := c.Facts[factOpFound].(bool)
+
+	return ok && !found && fact(c, factOpName) != ""
 }
 
 // unreachable reports whether c failed because no Consul KV answered.

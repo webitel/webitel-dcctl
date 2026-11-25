@@ -19,6 +19,7 @@ import (
 const (
 	switchPath   = "/v1/datacenters/{datacenter}:switch"
 	failoverPath = "/v1/datacenters/{datacenter}:failover"
+	resumePath   = "/v1/operations/{operation}:resume"
 )
 
 // swaggerExample returns the JSON example of the POST response code of path.
@@ -173,6 +174,22 @@ func TestRefusalBody_reasons(t *testing.T) {
 				Detail: "the leading instance is critical in Consul", Facts: map[string]any{"instance": "dcctl-b1"},
 			},
 			path: switchPath, code: "503",
+		},
+		{
+			name: "operation_not_interrupted",
+			failed: check.Check{
+				ID: check.OpInterrupted, Result: check.Fail, Effect: check.Block,
+				Detail: op + " is running", Facts: map[string]any{"operation": op, "state": "RUNNING"},
+			},
+			path: resumePath, code: "400",
+		},
+		{
+			name: "operation_not_found",
+			failed: check.Check{
+				ID: check.OpInterrupted, Result: check.Fail, Effect: check.Block,
+				Detail: op + " is not found", Facts: map[string]any{"operation": op, "found": false},
+			},
+			path: resumePath, code: "404",
 		},
 	}
 

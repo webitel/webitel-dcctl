@@ -61,6 +61,15 @@ var (
 		},
 	}
 
+	opNotInterrupted = check.Check{
+		ID: check.OpInterrupted, Result: check.Fail, Effect: check.Block,
+		Detail: "operations/op-2 is running", Facts: map[string]any{"operation": "operations/op-2", "state": "RUNNING"},
+	}
+	opNotFound = check.Check{
+		ID: check.OpInterrupted, Result: check.Fail, Effect: check.Block,
+		Detail: "operations/op-2 is not found", Facts: map[string]any{"operation": "operations/op-2", "found": false},
+	}
+
 	lagTooBig = check.Check{
 		ID: check.PatroniTargetLag, Result: check.Fail, Effect: check.Block, Datacenter: "dc_b",
 		Detail: "lag 52428800 B exceeds 1048576 B",
@@ -209,6 +218,17 @@ func TestRefusal_specialReasons(t *testing.T) {
 			message: "operation operations/op-2 is running", metadata: map[string]string{"operation": "operations/op-2"},
 		},
 		{
+			name: "operation_not_interrupted", failed: opNotInterrupted,
+			code: codes.FailedPrecondition, reason: apierr.ReasonOperationNotInterrupted,
+			message:  "operations/op-2 is running",
+			metadata: map[string]string{"operation": "operations/op-2", "state": "RUNNING"},
+		},
+		{
+			name: "operation_not_found", failed: opNotFound,
+			code: codes.NotFound, reason: apierr.ReasonOperationNotFound,
+			message: "operations/op-2 is not found", metadata: map[string]string{"operation": "operations/op-2"},
+		},
+		{
 			name: "lock_busy", failed: lockHeld,
 			code: codes.Aborted, reason: apierr.ReasonLockBusy,
 			message:  "dcctl/lock in dc_b is held by instance dcctl-dc_a of dc_a for operation op-9",
@@ -265,6 +285,8 @@ func TestRefusal_precedence(t *testing.T) {
 		checks []check.Check
 		want   apierr.Reason
 	}{
+		{name: "not_interrupted_over_lock", checks: []check.Check{lockHeld, opNotInterrupted}, want: apierr.ReasonOperationNotInterrupted},
+		{name: "not_found_over_leader", checks: []check.Check{leaderDown, opNotFound}, want: apierr.ReasonOperationNotFound},
 		{name: "operation_over_lock", checks: []check.Check{lockHeld, operationRunning}, want: apierr.ReasonOperationRunning},
 		{name: "operation_over_leader", checks: []check.Check{leaderDown, operationRunning}, want: apierr.ReasonOperationRunning},
 		{name: "lock_over_leader", checks: []check.Check{leaderDown, lockHeld}, want: apierr.ReasonLockBusy},
@@ -379,6 +401,32 @@ func TestRefusal_operationCopyUnreadable(t *testing.T) {
 	requireViolations(t, []*errdetails.PreconditionFailure_Violation{
 		violation("check", "coord.no_operation", "dcctl/op in dc_a cannot be read: invalid"),
 	}, got)
+}
+
+// op.interrupted gives its own reason only when its facts tell the operation and why.
+func TestRefusal_operationFactsMissing(t *testing.T) {
+	tests := []struct {
+		name  string
+		facts map[string]any
+	}{
+		{name: "no_kv_answers", facts: map[string]any{"unreachable": []any{"dc_a", "dc_b"}}},
+		{name: "not_found_where_kv_answers", facts: map[string]any{"operation": "operations/op-2", "unreachable": []any{"dc_b"}}},
+		{name: "no_state", facts: map[string]any{"operation": "operations/op-2"}},
+		{name: "found_true", facts: map[string]any{"operation": "operations/op-2", "found": true}},
+		{name: "no_operation", facts: map[string]any{"state": "RUNNING"}},
+		{name: "no_facts"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := opNotInterrupted
+			c.Facts = tt.facts
+
+			got := decode(t, refuse([]check.Check{c}, check.Confirmations{}, dcctlv1.Operation_QUORUM))
+
+			assert.Equal(t, string(apierr.ReasonPreflightFailed), got.info.GetReason())
+		})
+	}
 }
 
 // An error Refusal cannot answer with is not a status: the API logs it and answers

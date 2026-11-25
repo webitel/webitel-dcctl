@@ -60,6 +60,36 @@ func TestRefusal_factsOfCoordinationChecks(t *testing.T) {
 			code: codes.FailedPrecondition, reason: apierr.ReasonPreflightFailed,
 		},
 		{
+			name:   "resume_running_operation",
+			snap:   withOp(operation("op-2", dcctlv1.Operation_RUNNING, dcB, dcB), nil),
+			action: Resume, params: Params{Operation: "op-2"},
+			code: codes.FailedPrecondition, reason: apierr.ReasonOperationNotInterrupted,
+			metadata: map[string]string{"operation": "operations/op-2", "state": "RUNNING"},
+		},
+		{
+			name:   "abandon_finished_operation",
+			snap:   withOp(operation("op-2", dcctlv1.Operation_SUCCEEDED, dcB, dcB), nil),
+			action: Abandon, params: Params{Operation: "op-2"},
+			code: codes.FailedPrecondition, reason: apierr.ReasonOperationNotInterrupted,
+			metadata: map[string]string{"operation": "operations/op-2", "state": "SUCCEEDED"},
+		},
+		{
+			name: "resume_missing_operation",
+			snap: snap(nil), action: Resume, params: Params{Operation: "op-2"},
+			code: codes.NotFound, reason: apierr.ReasonOperationNotFound,
+			metadata: map[string]string{"operation": "operations/op-2"},
+		},
+		{
+			name: "abandon_where_no_kv_answers",
+			snap: withOp(operation("op-2", dcctlv1.Operation_INTERRUPTED, dcB, dcB), func(s *collect.Snapshot) {
+				for i := range s.Voters {
+					s.Voters[i].KV = down[collect.KV]()
+				}
+			}),
+			action: Abandon, params: Params{Operation: "op-2"},
+			code: codes.FailedPrecondition, reason: apierr.ReasonPreflightFailed,
+		},
+		{
 			name: "another_datacenter_leads",
 			snap: snap(nil), action: Demote, params: Params{Datacenter: dcA},
 			code: codes.Unavailable, reason: apierr.ReasonLeaderUnavailable,
