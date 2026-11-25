@@ -5,11 +5,15 @@ import { effectScope, ref } from 'vue';
 
 import type { WebitelDcctlV1Operation as Operation } from '@/api/gen/_models';
 import { useAuthStore } from '@/stores/auth';
-import { reconnectDelayMs, useOperation } from './useOperation';
+import { IDLE_REREAD_MS, reconnectDelayMs, useOperation } from './useOperation';
 
 const getOperation = vi.hoisted(() => vi.fn());
 vi.mock('@/api/gen/operation-service/operation-service', () => ({
 	getOperationService: () => ({ getOperation }),
+}));
+
+vi.mock('@/api/gen/status-service/status-service', () => ({
+	getStatusService: () => ({ getStatus: async () => ({}) }),
 }));
 
 const watch = vi.hoisted(() => vi.fn());
@@ -230,10 +234,44 @@ describe('useOperation', () => {
 			await vi.advanceTimersByTimeAsync(1);
 			expect(watch).toHaveBeenCalledTimes(3);
 			nextStream().push(op('RUNNING', 5));
+			nextStream().push(op('RUNNING', 6));
 			nextStream().fail(new Error('x'));
 			await settle();
 			await vi.advanceTimersByTimeAsync(1000);
 			expect(watch).toHaveBeenCalledTimes(4);
+		});
+
+		it('keeps backing off when the server closes right after the snapshot', async () => {
+			getOperation.mockResolvedValue(op('RUNNING', 1));
+			mount();
+			await settle();
+			for (const delay of [1000, 2000, 4000, 8000, 10_000, 10_000]) {
+				const before = watch.mock.calls.length;
+				nextStream().push(op('RUNNING', 2));
+				nextStream().end();
+				await settle();
+				await vi.advanceTimersByTimeAsync(delay - 1);
+				expect(watch).toHaveBeenCalledTimes(before);
+				await vi.advanceTimersByTimeAsync(1);
+				expect(watch).toHaveBeenCalledTimes(before + 1);
+			}
+			// 6 closes in about 35 s, not one a second.
+			expect(getOperation.mock.calls.length).toBe(watch.mock.calls.length);
+		});
+
+		it('starts over when the stream lived long enough', async () => {
+			getOperation.mockResolvedValue(op('RUNNING', 1));
+			mount();
+			await settle();
+			nextStream().fail(new Error('x'));
+			await settle();
+			await vi.advanceTimersByTimeAsync(1000);
+			nextStream().push(op('RUNNING', 2));
+			await vi.advanceTimersByTimeAsync(10_000);
+			nextStream().end();
+			await settle();
+			await vi.advanceTimersByTimeAsync(1000);
+			expect(watch).toHaveBeenCalledTimes(3);
 		});
 
 		it('keeps trying when the re-read fails too, without losing the data', async () => {
@@ -399,6 +437,17 @@ describe('useOperation', () => {
 		});
 	});
 
+	it('does not log out a login that changed after the stream was opened', async () => {
+		getOperation.mockResolvedValue(op('RUNNING', 1));
+		mount();
+		await settle();
+		const stream = nextStream();
+		await useAuthStore().login('other', 'password');
+		stream.fail(new WatchHttpError(401));
+		await settle();
+		expect(useAuthStore().isAuthenticated).toBe(true);
+	});
+
 	it('reconnect() restarts at once: read again, then watch', async () => {
 		getOperation.mockResolvedValue(op('RUNNING', 1));
 		const { state } = mount();
@@ -412,6 +461,52 @@ describe('useOperation', () => {
 		expect(getOperation).toHaveBeenCalledTimes(2);
 		expect(watch).toHaveBeenCalledTimes(2);
 		expect(state.operation.value?.warnings).toEqual(['fresh']);
+		expect(state.connection.value).toBe('reconnecting');
+	});
+
+	describe('a quiet stream', () => {
+		it('is read again after 45 s without a message, and a newer version makes it reconnect', async () => {
+			getOperation.mockResolvedValue(op('RUNNING', 1));
+			const { state } = mount();
+			await settle();
+			nextStream().push(op('RUNNING', 2));
+			await vi.advanceTimersByTimeAsync(IDLE_REREAD_MS - 2000);
+			expect(getOperation).toHaveBeenCalledTimes(1);
+			getOperation.mockResolvedValue(
+				op('FAILED', 40, { warnings: ['moved on'] }),
+			);
+			const first = nextStream();
+			await vi.advanceTimersByTimeAsync(3000);
+			expect(getOperation.mock.calls.length).toBeGreaterThanOrEqual(2);
+			expect(state.operation.value?.warnings).toEqual(['moved on']);
+			expect(first.signal.aborted).toBe(true);
+		});
+
+		it('stays live when the read shows nothing newer, and does not read again at once', async () => {
+			getOperation.mockResolvedValue(op('RUNNING', 2));
+			const { state } = mount();
+			await settle();
+			nextStream().push(op('RUNNING', 2));
+			await vi.advanceTimersByTimeAsync(IDLE_REREAD_MS + 1000);
+			expect(getOperation).toHaveBeenCalledTimes(2);
+			expect(state.connection.value).toBe('live');
+			expect(watch).toHaveBeenCalledTimes(1);
+			expect(state.age.value).toBeLessThan(5);
+			await vi.advanceTimersByTimeAsync(10_000);
+			expect(getOperation).toHaveBeenCalledTimes(2);
+		});
+
+		it('does not read while reconnecting', async () => {
+			getOperation.mockResolvedValue(op('RUNNING', 1));
+			mount();
+			await settle();
+			nextStream().push(op('RUNNING', 2));
+			nextStream().fail(new Error('x'));
+			getOperation.mockRejectedValue(new Error('down'));
+			await vi.advanceTimersByTimeAsync(20_000);
+			// only the re-reads of the backoff loop, none from the idle check
+			expect(getOperation.mock.calls.length).toBeLessThanOrEqual(6);
+		});
 	});
 
 	it('counts the age of the data from the last message', async () => {

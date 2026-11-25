@@ -12,6 +12,8 @@ const NOT_FOUND_ID = 'dcctl.operation.not_found';
 /** A read that hangs must not stop the recovery. */
 const READ_TIMEOUT_MS = 10_000;
 const CLOCK_TICK_MS = 1000;
+/** A live stream quiet for this long is checked with a read. */
+export const IDLE_REREAD_MS = 45_000;
 const FIRST_DELAY_MS = 1000;
 const MAX_DELAY_MS = 10_000;
 
@@ -70,6 +72,7 @@ export const useOperation = (id: MaybeRefOrGetter<string>) => {
 	let epoch = 0;
 	let attempt: AbortController | null = null;
 	let restart = false;
+	let lastIdleCheck = 0;
 	let clock: ReturnType<typeof setInterval> | undefined;
 
 	/** Takes `next` unless it is an older version than the one shown. */
@@ -89,6 +92,8 @@ export const useOperation = (id: MaybeRefOrGetter<string>) => {
 			const controller = new AbortController();
 			attempt = controller;
 			const authorization = auth.authorization;
+			let messages = 0;
+			let watchStartedAt = 0;
 			try {
 				const read = await getOperationService().getOperation(
 					encodeURIComponent(operationId),
@@ -100,6 +105,7 @@ export const useOperation = (id: MaybeRefOrGetter<string>) => {
 					connection.value = 'ended';
 					return;
 				}
+				watchStartedAt = Date.now();
 				await watchOperation(operationId, {
 					authorization,
 					signal: controller.signal,
@@ -107,7 +113,9 @@ export const useOperation = (id: MaybeRefOrGetter<string>) => {
 						if (!isCurrent() || controller.signal.aborted) return;
 						apply(message);
 						connection.value = 'live';
-						failures = 0;
+						// The first message is only the current state: a server that closes
+						// right after it is still failing, so it must not reset the pause.
+						if (++messages >= 2) failures = 0;
 						if (isTerminalState(operation.value?.state)) {
 							finished = true;
 							controller.abort();
@@ -141,11 +149,41 @@ export const useOperation = (id: MaybeRefOrGetter<string>) => {
 			}
 			if (!isCurrent()) return;
 			if (operation.value) connection.value = 'reconnecting';
+			if (watchStartedAt > 0 && Date.now() - watchStartedAt >= MAX_DELAY_MS) {
+				failures = 0;
+			}
+			// A normal close counts as a failure too.
 			await sleep(reconnectDelayMs(failures++), controller.signal);
 			if (restart) {
 				restart = false;
 				failures = 0;
 			}
+		}
+	};
+
+	/**
+	 * A stream that says nothing proves nothing: it may be half open. After a
+	 * quiet spell the operation is read again, and a newer version means the
+	 * stream missed it, so the page reconnects.
+	 */
+	const rereadWhenIdle = async (session: number) => {
+		const shown = operation.value;
+		const signal = attempt?.signal;
+		if (!shown || !signal || connection.value !== 'live') return;
+		const last = Math.max(receivedAt.value ?? 0, lastIdleCheck);
+		if (Date.now() - last < IDLE_REREAD_MS) return;
+		lastIdleCheck = Date.now();
+		try {
+			const read = await getOperationService().getOperation(
+				encodeURIComponent(toValue(id)),
+				{ timeout: READ_TIMEOUT_MS, signal },
+			);
+			if (session !== epoch || signal.aborted) return;
+			const newer = isOlderOperation(shown, read);
+			apply(read);
+			if (newer) reconnect();
+		} catch {
+			// The next quiet spell tries again; a dead stream is found by the stream itself.
 		}
 	};
 
@@ -166,8 +204,10 @@ export const useOperation = (id: MaybeRefOrGetter<string>) => {
 		receivedAt.value = null;
 		connection.value = 'connecting';
 		now.value = Date.now();
+		lastIdleCheck = 0;
 		clock = setInterval(() => {
 			now.value = Date.now();
+			void rereadWhenIdle(epoch);
 		}, CLOCK_TICK_MS);
 		void run(epoch, operationId);
 	};
@@ -178,6 +218,8 @@ export const useOperation = (id: MaybeRefOrGetter<string>) => {
 	/** Aborts the attempt and starts a new one at once: read, then watch. */
 	const reconnect = () => {
 		if (!attempt || attempt.signal.aborted) return;
+		// Until the new stream delivers, the data on screen is not live.
+		if (operation.value) connection.value = 'reconnecting';
 		restart = true;
 		attempt.abort();
 	};
