@@ -43,6 +43,7 @@ type fakeNomad struct {
 	gets           int
 	version        string
 	stale          map[string]bool
+	queries        map[string]string
 	planStatus     int
 }
 
@@ -53,6 +54,7 @@ func newFakeNomad() *fakeNomad {
 		conflictStatus: http.StatusInternalServerError,
 		version:        "1.10.0",
 		stale:          map[string]bool{},
+		queries:        map[string]string{},
 	}
 }
 
@@ -110,6 +112,7 @@ func (f *fakeNomad) handler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		f.mu.Lock()
 		f.stale[r.Method+" "+r.URL.Path] = r.URL.Query().Has("stale")
+		f.queries[r.Method+" "+r.URL.Path] = r.URL.RawQuery
 		f.mu.Unlock()
 
 		mux.ServeHTTP(w, r)

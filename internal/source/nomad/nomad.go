@@ -31,6 +31,10 @@ const (
 	emptyBodyErrPrefix = "Got 0 byte response"
 
 	maxBodyInError = 256
+
+	// maxIdleConnsPerHost covers concurrent requests to one server, the parallel node
+	// reads included, so that a burst does not open and drop connections.
+	maxIdleConnsPerHost = 16
 )
 
 var (
@@ -73,6 +77,9 @@ type Options struct {
 	RequestTimeout time.Duration
 	// EnforceAttempts bounds the register attempts of [Client.Start]; zero means 5.
 	EnforceAttempts int
+	// ConsistentReads makes every read go to the leader, for a client that acts on what it
+	// reads. Without it a follower may answer, which suits the status.
+	ConsistentReads bool
 }
 
 // Client talks to the Nomad cluster of one datacenter.
@@ -82,9 +89,10 @@ type Client struct {
 	resolver Resolver
 	// http is shared by the api clients of every endpoint, so idle connections are pooled
 	// once and not per request walk.
-	http     *http.Client
-	timeout  time.Duration
-	attempts int
+	http       *http.Client
+	timeout    time.Duration
+	attempts   int
+	consistent bool
 
 	mu sync.Mutex
 	// versionOK holds the endpoints that already passed the version check.
@@ -147,13 +155,15 @@ func New(opts Options) (*Client, error) {
 		timeout:  opts.RequestTimeout,
 		attempts: opts.EnforceAttempts,
 
+		consistent: opts.ConsistentReads,
+
 		versionOK: make(map[string]bool),
 		http: &http.Client{
 			// No Proxy: requests go straight to the address Consul returned.
 			Transport: &http.Transport{
 				TLSClientConfig:     tlsCfg,
 				TLSHandshakeTimeout: tlsHandshakeTimeout,
-				MaxIdleConnsPerHost: 2,
+				MaxIdleConnsPerHost: maxIdleConnsPerHost,
 				IdleConnTimeout:     time.Minute,
 			},
 			// A redirect could leave TLS or the verified host.
@@ -230,15 +240,21 @@ func (c *Client) try(ctx context.Context, addr string, fn func(ctx context.Conte
 	err = fn(ctx, nc)
 
 	// Exhausted EnforceIndex attempts are a busy job, not an unreachable endpoint.
-	if errors.Is(err, ErrIndexConflict) {
+	if errors.Is(err, ErrIndexConflict) || isCheckError(err) {
 		return err
 	}
 
 	return source.Classify(addr, err)
 }
 
+func isCheckError(err error) bool {
+	_, ok := errors.AsType[*checkError](err)
+
+	return ok
+}
+
 func isRequestError(err error) bool {
-	if errors.Is(err, ErrIndexConflict) {
+	if errors.Is(err, ErrIndexConflict) || isCheckError(err) {
 		return true
 	}
 
@@ -258,10 +274,12 @@ func request[T any](ctx context.Context, c *Client, fn func(ctx context.Context)
 	return v, mapError(err)
 }
 
-// statusQuery is for status reads, which may be answered by a follower: during a leader
-// election a consistent read fails with 500 and the whole status cycle would fail with it.
-func statusQuery(ctx context.Context) *api.QueryOptions {
-	return (&api.QueryOptions{AllowStale: true}).WithContext(ctx)
+// query returns the options of a read. A status read may be answered by a follower:
+// during a leader election a consistent read fails with 500 and the whole status cycle
+// would fail with it. With [Options.ConsistentReads] the leader answers, because a
+// follower cut off from it may show a running job as stopped.
+func (c *Client) query(ctx context.Context) *api.QueryOptions {
+	return (&api.QueryOptions{AllowStale: !c.consistent}).WithContext(ctx)
 }
 
 // mapError turns what the api package returns into errors [source.Classify] understands.
