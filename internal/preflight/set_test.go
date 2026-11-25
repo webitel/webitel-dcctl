@@ -150,7 +150,7 @@ func TestChecks_sets(t *testing.T) {
 		},
 		{
 			name: "demote", snap: warm, action: Demote, params: Params{Datacenter: dcB},
-			want: cat(common(), []item{{check.CoordDCNotActive, dcB, b}}, basicItems(dcB), basicItems(dcA), []item{
+			want: cat([]item{{check.CoordProfile, "", b}}, common(), []item{{check.CoordDCNotActive, dcB, b}}, basicItems(dcB), basicItems(dcA), []item{
 				{check.PatroniActivePrimary, dcA, b},
 				{check.PatroniDCPrimary, dcB, b},
 				{check.PatroniDivergence, dcB, c},
@@ -159,7 +159,7 @@ func TestChecks_sets(t *testing.T) {
 		},
 		{
 			name: "repoint", snap: warm, action: Repoint, params: Params{Datacenter: dcB},
-			want: cat(common(), []item{{check.CoordDCNotActive, dcB, b}}, basicItems(dcB), basicItems(dcA), []item{
+			want: cat([]item{{check.CoordProfile, "", b}}, common(), []item{{check.CoordDCNotActive, dcB, b}}, basicItems(dcB), basicItems(dcA), []item{
 				{check.PatroniActivePrimary, dcA, b}, {check.PatroniDCStandby, dcB, b}, {check.PatroniDivergence, dcB, c},
 			}),
 		},
@@ -335,6 +335,13 @@ func TestChecks_partialAdvanceAllowsFailover(t *testing.T) {
 	s := warm()
 	partial(s)
 	s.Observer = collect.Instance{Datacenter: dcA, Node: "dcctl-" + dcA}
+
+	// Generation 6 makes dc_b active: dc_a stopped its apps and was demoted before dc_b
+	// went away.
+	d, _ := s.Datacenter(dcA)
+	d.Nomad = up(stoppedNomad())
+
+	editPatroni(s, dcA, func(p *collect.Patroni) { memberNamed(p, "pg-a1").Role = patroni.ClusterRoleStandbyLeader })
 
 	v := verdict(t, newInput(s, Failover, Params{Datacenter: dcA}), check.Confirmations{Isolation: true})
 

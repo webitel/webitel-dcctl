@@ -77,7 +77,8 @@ func (in *Input) noOperation() check.Check {
 
 	ok, unreachable := in.kvAnswers()
 	if !ok {
-		return s.fail("no Consul KV answers, an operation may be running", map[string]any{"unreachable": unreachable})
+		return s.fail("no Consul KV answers, an operation may be running",
+			map[string]any{"reachable": false, "unreachable": unreachable})
 	}
 
 	c := status.Operations(in.Snapshot).Blocking()
@@ -107,7 +108,8 @@ func (in *Input) lockFree() check.Check {
 
 	ok, unreachable := in.kvAnswers()
 	if !ok {
-		return s.fail("no Consul KV answers, the lock may be held", map[string]any{"unreachable": unreachable})
+		return s.fail("no Consul KV answers, the lock may be held",
+			map[string]any{"reachable": false, "unreachable": unreachable})
 	}
 
 	for _, v := range in.Snapshot.Voters {
@@ -230,6 +232,11 @@ func (in *Input) noUncommitted() check.Check {
 	if u := view.Undetermined; len(u) > 0 {
 		facts := map[string]any{"generation": u[0].State.Generation, "records": recordFacts(u)}
 
+		if _, ok := in.undeterminedTop(); !ok {
+			return s.fail(fmt.Sprintf("records of generation %d that voters that do not answer may hold name different datacenters",
+				u[0].State.Generation), facts)
+		}
+
 		if in.Action == Failover {
 			facts["base_generation"] = u[0].State.Generation
 
@@ -243,47 +250,64 @@ func (in *Input) noUncommitted() check.Check {
 	return s.pass("no uncommitted generation", nil)
 }
 
-// noSplit fails on a datacenter in split_brain or db_split, except, for demote, the one
-// demoted. A standby whose state is not known for lack of a source is a warning: it is
-// not the one the action changes, whose own checks fail on its sources. The active
-// datacenter is never split.
+// noSplit fails on an inactive datacenter in split_brain (a managed job not stopped)
+// or, in warm_standby, db_split (its Patroni leader a primary), except, for demote, the
+// one demoted. A datacenter whose source does not answer may be in either and fails it
+// too. The rules are those of the status, judged against the active datacenter of
+// [Input.reference], so a failover from a partial advance is judged too.
 func (in *Input) noSplit(except string) check.Check {
 	s := block(check.CoordNoSplit, "")
-	active, _ := in.active()
+
+	active, ok := in.active()
+	if !ok {
+		return s.fail("the active datacenter is not known, so neither is which datacenters must be stopped", nil)
+	}
 
 	var split, unknown []any
 
-	for _, d := range in.Status.Datacenters {
+	for i := range in.Status.Datacenters {
+		d := &in.Status.Datacenters[i]
 		if d.Name == except || d.Name == active {
 			continue
 		}
 
-		switch {
-		case d.State == status.StateSplitBrain || d.State == status.StateDBSplit:
-			split = append(split, map[string]any{"datacenter": d.Name, "state": string(d.State)})
-		case d.State == status.StateUnreachable || d.State == status.StateUndetermined ||
-			slices.Contains(d.Skipped, status.StateSplitBrain) || slices.Contains(d.Skipped, status.StateDBSplit):
-			unknown = append(unknown, map[string]any{"datacenter": d.Name, "state": string(d.State)})
+		if n := d.Source(status.SystemNomad); !n.Reachable {
+			unknown = append(unknown, map[string]any{"datacenter": d.Name, "source": string(n.System)})
+		} else if d.Nomad.JobCounts.Stopped < d.Nomad.JobCounts.Total() {
+			split = append(split, map[string]any{"datacenter": d.Name, "state": string(status.StateSplitBrain)})
+		}
+
+		if !in.warm() {
+			continue
+		}
+
+		if p := d.Source(status.SystemPatroni); !p.Reachable {
+			unknown = append(unknown, map[string]any{"datacenter": d.Name, "source": string(p.System)})
+		} else if d.Patroni.Role == status.RolePrimary {
+			split = append(split, map[string]any{"datacenter": d.Name, "state": string(status.StateDBSplit)})
 		}
 	}
 
-	facts := map[string]any{"split": split, "unknown": unknown}
+	facts := map[string]any{"active_datacenter": active, "split": split, "unknown": unknown}
 
 	switch {
 	case len(split) > 0:
 		return s.fail(fmt.Sprintf("%d datacenters are split", len(split)), facts)
 	case len(unknown) > 0:
-		return s.warn(fmt.Sprintf("it is not known whether %d datacenters are split", len(unknown)), facts)
+		return s.fail(fmt.Sprintf("it is not known whether %d datacenters are split", len(unknown)), facts)
 	}
 
-	return s.pass("no datacenter is split", nil)
+	return s.pass("no datacenter is split", facts)
 }
 
 func (in *Input) quorum(effect check.Effect) check.Check {
 	s := spec{id: check.CoordQuorum, effect: effect}
 	q := in.Status.Quorum
+	// mode is the quorum mode of the voters that answer, quorum or forced_only; how the
+	// generation is written is decided by the operation from the voters of the effective
+	// record.
 	facts := map[string]any{
-		"voters": in.votersFacts(), "required": q.RequiredCount, "reachable": q.ReachableCount,
+		"voters": in.votersFacts(), "required_count": q.RequiredCount, "reachable_count": q.ReachableCount,
 		"mode": string(q.Mode),
 	}
 
@@ -394,6 +418,20 @@ func (in *Input) leaderHost(dc string) string {
 	}
 
 	return ""
+}
+
+// profileSupported rejects an action the profile has no scenario for: demote and
+// repoint move a Patroni cluster of a datacenter between primary and standby, which
+// stretch, with one cluster over all datacenters, does not have.
+func (in *Input) profileSupported() check.Check {
+	s := block(check.CoordProfile, "")
+	facts := map[string]any{"profile": string(in.Snapshot.Profile)}
+
+	if (in.Action == Demote || in.Action == Repoint) && !in.warm() {
+		return s.fail(fmt.Sprintf("%s applies to warm_standby only", in.Action), facts)
+	}
+
+	return s.pass(fmt.Sprintf("%s applies to %s", in.Action, in.Snapshot.Profile), facts)
 }
 
 func (in *Input) targetValid() check.Check {

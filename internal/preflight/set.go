@@ -32,6 +32,7 @@ func Checks(in *Input) ([]check.Check, error) {
 		return in.failoverStretch(dc), nil
 	case Demote:
 		return concat(
+			[]check.Check{in.profileSupported()},
 			in.common(dc),
 			[]check.Check{in.dcNotActive()},
 			in.basicOf(dc), in.basicOf(a),
@@ -39,6 +40,7 @@ func Checks(in *Input) ([]check.Check, error) {
 		), nil
 	case Repoint:
 		return concat(
+			[]check.Check{in.profileSupported()},
 			in.common(""),
 			[]check.Check{in.dcNotActive()},
 			in.basicOf(dc), in.basicOf(a),

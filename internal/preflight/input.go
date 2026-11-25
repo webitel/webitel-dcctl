@@ -14,6 +14,7 @@ import (
 
 	"github.com/webitel/webitel-dcctl/internal/collect"
 	"github.com/webitel/webitel-dcctl/internal/config"
+	"github.com/webitel/webitel-dcctl/internal/coord"
 	"github.com/webitel/webitel-dcctl/internal/kv"
 	"github.com/webitel/webitel-dcctl/internal/source/nomad"
 	"github.com/webitel/webitel-dcctl/internal/status"
@@ -79,25 +80,48 @@ func (in *Input) warm() bool {
 }
 
 // reference is the state the action starts from: the effective state of the voters
-// when it tells the active datacenter. A failover may also start from the highest
-// record that unreachable voters may have committed, as after a generation that
-// reached only some of them; every other action needs the effective state.
+// when it tells the active datacenter. A failover starts from the highest record that
+// unreachable voters may have committed, as after a generation that reached only some
+// of them, when there is one: it is above the effective record. Records of that
+// generation that name different datacenters give no state to start from.
 func (in *Input) reference() *kv.State {
-	if in.Status.Effective != nil {
-		return in.Status.Effective
+	if in.Action == Failover {
+		if top, ok := in.undeterminedTop(); top != nil {
+			if !ok {
+				return nil
+			}
+
+			return &top.State
+		}
 	}
 
-	if in.Action == Failover && len(in.Status.View.Undetermined) > 0 {
-		return &in.Status.View.Undetermined[0].State
-	}
-
-	return nil
+	return in.Status.Effective
 }
 
-// active returns the active datacenter of [Input.reference].
+// undeterminedTop returns the highest record that unreachable voters may have
+// committed, nil when there is none, and false when the records of its generation name
+// different datacenters.
+func (in *Input) undeterminedTop() (*coord.Record, bool) {
+	u := in.Status.View.Undetermined
+	if len(u) == 0 {
+		return nil, true
+	}
+
+	for _, r := range u[1:] {
+		if r.State.Generation == u[0].State.Generation && r.State.ActiveDatacenter != u[0].State.ActiveDatacenter {
+			return &u[0], false
+		}
+	}
+
+	return &u[0], true
+}
+
+// active returns the active datacenter of [Input.reference]; false also when that is
+// not a configured datacenter, so nothing is judged against a datacenter dcctl does not
+// read.
 func (in *Input) active() (string, bool) {
 	ref := in.reference()
-	if ref == nil {
+	if ref == nil || !in.configured(ref.ActiveDatacenter) {
 		return "", false
 	}
 

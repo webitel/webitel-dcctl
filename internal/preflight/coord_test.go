@@ -216,7 +216,14 @@ func TestNoSplit(t *testing.T) {
 			d.Nomad = up(runningNomad())
 		}), want: check.Fail},
 		{name: "db_split", snap: snap(dbSplit), want: check.Fail},
-		{name: "standby_not_known", snap: snap(func(s *collect.Snapshot) { cut(s, dcB) }), want: check.Warn},
+		{name: "standby_not_known", snap: snap(func(s *collect.Snapshot) { cut(s, dcB) }), want: check.Fail},
+		{name: "standby_nomad_not_known", snap: snap(func(s *collect.Snapshot) {
+			d, _ := s.Datacenter(dcB)
+			d.Nomad = down[collect.Nomad]()
+		}), want: check.Fail},
+		{name: "active_unreachable_is_not_split", snap: snap(func(s *collect.Snapshot) { cut(s, dcA) }), action: Failover, want: check.Pass},
+		{name: "active_not_known", snap: snap(conflict), want: check.Fail},
+		{name: "stretch_without_db_split", snap: stretchSnap(nil), want: check.Pass},
 	})
 
 	in := newInput(snap(dbSplit)(t), Demote, Params{Datacenter: dcB})
@@ -322,4 +329,101 @@ func TestDCNeedsRecovery(t *testing.T) {
 		{name: "recovered", snap: snap(nil), action: MarkRecovered, want: check.Fail},
 		{name: "state_not_known", snap: snap(conflict), action: MarkRecovered, want: check.Fail},
 	})
+}
+
+// gone names in dcctl/state an active datacenter the config no longer has.
+func gone(s *collect.Snapshot) {
+	st := state(5, "dc_gone", dcB)
+	for i := range s.Voters {
+		s.Voters[i] = kvVoter(s.Voters[i].Datacenter, st)
+	}
+
+	s.Arbiter = arbiterWith(st)
+}
+
+func TestActiveNotConfigured(t *testing.T) {
+	for _, a := range []Action{Switch, Failover, Demote, Repoint, MarkRecovered, AppsSync, Verify} {
+		t.Run(string(a), func(t *testing.T) {
+			in := newInput(snap(gone)(t), a, Params{Datacenter: dcB})
+
+			cs, err := Checks(in)
+			require.NoError(t, err)
+
+			v := check.Decide(cs, check.Confirmations{Isolation: true, NotMaxLSN: true})
+			assert.NotEqual(t, check.Allowed, v.Outcome)
+		})
+	}
+
+	in := newInput(snap(gone)(t), MarkRecovered, Params{Datacenter: dcB})
+	assert.Equal(t, check.Fail, in.dcRecovered().Result)
+	assert.Equal(t, check.Fail, in.noSplit("").Result)
+}
+
+// forcedBelowUndetermined has a forced generation 5 with dc_b in needs_recovery on dc_b
+// and generation 6 on dc_c and the arbiter, which dc_a, not answering, may hold too.
+func forcedBelowUndetermined(s *collect.Snapshot) {
+	withC(s, 4900)
+
+	eff := state(5, dcA, dcB)
+	eff.Forced = true
+	next := state(6, dcA)
+
+	s.Voters[0].KV = down[collect.KV]()
+	s.Voters[1] = kvVoter(dcB, eff)
+	s.Voters[2] = kvVoter(dcC, next)
+	s.Arbiter = arbiterWith(next)
+}
+
+func TestFailoverBase(t *testing.T) {
+	in := newInput(snap(forcedBelowUndetermined)(t), Failover, Params{Datacenter: dcB})
+	require.Len(t, in.Status.View.Undetermined, 1)
+
+	nu := in.noUncommitted()
+	assert.Equal(t, check.Pass, nu.Result)
+	assert.Equal(t, int64(6), nu.Facts["base_generation"])
+
+	require.NotNil(t, in.reference())
+	assert.Equal(t, int64(6), in.reference().Generation, "every check starts from the base no_uncommitted reports")
+	assert.Equal(t, check.Pass, in.targetNotNeedsRecovery().Result, "generation 6 does not list dc_b")
+
+	sw := newInput(snap(forcedBelowUndetermined)(t), Switch, Params{Datacenter: dcB})
+	assert.Equal(t, check.Fail, sw.noUncommitted().Result)
+}
+
+func TestFailoverBase_ambiguous(t *testing.T) {
+	s := withC(warm(), 4900)
+	s.Voters[0].KV = down[collect.KV]()
+	s.Voters[1] = kvVoter(dcB, state(6, dcB))
+	s.Voters[2] = kvVoter(dcC, state(6, dcC))
+	s.Arbiter = new(down[collect.Arbiter]())
+
+	in := newInput(s, Failover, Params{Datacenter: dcB})
+	require.Len(t, in.Status.View.Undetermined, 2)
+
+	assert.Equal(t, check.Fail, in.noUncommitted().Result)
+	assert.Nil(t, in.reference())
+	assert.Equal(t, check.Fail, in.targetValid().Result)
+}
+
+func TestProfileSupported(t *testing.T) {
+	runCases(t, (*Input).profileSupported, []caseOf{
+		{name: "demote_warm", snap: snap(nil), action: Demote, want: check.Pass},
+		{name: "repoint_warm", snap: snap(nil), action: Repoint, want: check.Pass},
+		{name: "demote_stretch", snap: stretchSnap(nil), action: Demote, want: check.Fail},
+		{name: "repoint_stretch", snap: stretchSnap(nil), action: Repoint, want: check.Fail},
+	})
+}
+
+func TestNoKVAnswers_unreachableFacts(t *testing.T) {
+	s := warm()
+	for i := range s.Voters {
+		s.Voters[i].KV = down[collect.KV]()
+	}
+
+	in := newInput(s, Switch, Params{Datacenter: dcB})
+
+	for _, c := range []check.Check{in.noOperation(), in.lockFree()} {
+		assert.Equal(t, check.Fail, c.Result)
+		assert.Equal(t, false, c.Facts["reachable"], "%s: a KV that does not answer is not a busy one", c.ID)
+	}
 }
