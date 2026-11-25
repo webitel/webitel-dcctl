@@ -33,8 +33,6 @@ export default defineConfig(({ mode, command }) => {
 		test: {
 			environment: 'jsdom',
 			globals: false,
-			// The first lazy import of a view loads the whole SDK: slow on a busy machine.
-			testTimeout: 20000,
 			include: ['src/**/*.spec.ts'],
 			setupFiles: ['src/tests/setup.ts'],
 			server: { deps: { inline: [/@webitel\//, /primevue/] } },
