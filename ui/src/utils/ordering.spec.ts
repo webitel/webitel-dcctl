@@ -98,4 +98,34 @@ describe('sortAlarms', () => {
 			'w-new',
 		]);
 	});
+
+	it('puts an alarm without start_time after dated ones of the same severity', () => {
+		const sorted = sortAlarms([
+			{ severity: 'WARNING', detail: 'undated' },
+			{
+				severity: 'WARNING',
+				start_time: '2026-11-23T10:00:00Z',
+				detail: 'dated',
+			},
+			{ severity: 'CRITICAL', detail: 'critical-undated' },
+		] as const);
+
+		expect(sorted.map((a) => a.detail)).toEqual([
+			'critical-undated',
+			'dated',
+			'undated',
+		]);
+	});
+
+	it('orders undated alarms by datacenter, not by input order', () => {
+		const sorted = sortAlarms([
+			{ severity: 'WARNING', datacenter: 'datacenters/dc_b' },
+			{ severity: 'WARNING', datacenter: 'datacenters/dc_a' },
+		] as const);
+
+		expect(sorted.map((a) => a.datacenter)).toEqual([
+			'datacenters/dc_a',
+			'datacenters/dc_b',
+		]);
+	});
 });

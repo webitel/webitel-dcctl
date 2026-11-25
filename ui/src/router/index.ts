@@ -24,6 +24,8 @@ export const createAppRouter = (
 ) => {
 	const router = createRouter({
 		history,
+		// `/#coordination` links from the alarms must scroll to the block.
+		scrollBehavior: (to) => (to.hash ? { el: to.hash } : undefined),
 		routes: [
 			{
 				path: '/login',
@@ -39,21 +41,37 @@ export const createAppRouter = (
 						path: '',
 						name: 'overview',
 						component: () => import('@/views/OverviewView.vue'),
+						meta: { section: 'overview' },
 					},
 					{
 						path: 'datacenters',
 						name: 'datacenters',
 						component: () => import('@/views/DatacentersView.vue'),
+						meta: { section: 'datacenters' },
+					},
+					{
+						path: 'datacenters/:dc',
+						name: 'datacenter',
+						component: () => import('@/views/DatacenterView.vue'),
+						meta: { section: 'datacenters' },
 					},
 					{
 						path: 'operations',
 						name: 'operations',
 						component: () => import('@/views/OperationsView.vue'),
+						meta: { section: 'operations' },
+					},
+					{
+						path: 'operations/:id',
+						name: 'operation',
+						component: () => import('@/views/OperationView.vue'),
+						meta: { section: 'operations' },
 					},
 					{
 						path: 'journal',
 						name: 'journal',
 						component: () => import('@/views/JournalView.vue'),
+						meta: { section: 'journal' },
 					},
 				],
 			},

@@ -16,25 +16,34 @@ import type {
 	WebitelDcctlV1OperationServiceResumeOperationBody,
 } from '../_models';
 
+type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
+
 export const getOperationService = () => {
 	/**
 	 * @summary Lists operations from newest to oldest.
 	 */
-	const listOperations = (params?: ListOperationsParams) => {
-		return dcctlAxios<WebitelDcctlV1ListOperationsResponse>({
-			url: `/v1/operations`,
-			method: 'GET',
-			params,
-		});
+	const listOperations = (
+		params?: ListOperationsParams,
+		options?: SecondParameter<
+			typeof dcctlAxios<WebitelDcctlV1ListOperationsResponse>
+		>,
+	) => {
+		return dcctlAxios<WebitelDcctlV1ListOperationsResponse>(
+			{ url: `/v1/operations`, method: 'GET', params },
+			options,
+		);
 	};
 	/**
 	 * @summary Returns an operation.
 	 */
-	const getOperation = (operation: string) => {
-		return dcctlAxios<WebitelDcctlV1Operation>({
-			url: `/v1/operations/${operation}`,
-			method: 'GET',
-		});
+	const getOperation = (
+		operation: string,
+		options?: SecondParameter<typeof dcctlAxios<WebitelDcctlV1Operation>>,
+	) => {
+		return dcctlAxios<WebitelDcctlV1Operation>(
+			{ url: `/v1/operations/${operation}`, method: 'GET' },
+			options,
+		);
 	};
 	/**
 	 * @summary Gives up an INTERRUPTED operation.
@@ -42,13 +51,17 @@ export const getOperationService = () => {
 	const abandonOperation = (
 		operation: string,
 		webitelDcctlV1OperationServiceAbandonOperationBody: WebitelDcctlV1OperationServiceAbandonOperationBody,
+		options?: SecondParameter<typeof dcctlAxios<WebitelDcctlV1Operation>>,
 	) => {
-		return dcctlAxios<WebitelDcctlV1Operation>({
-			url: `/v1/operations/${operation}:abandon`,
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			data: webitelDcctlV1OperationServiceAbandonOperationBody,
-		});
+		return dcctlAxios<WebitelDcctlV1Operation>(
+			{
+				url: `/v1/operations/${operation}:abandon`,
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				data: webitelDcctlV1OperationServiceAbandonOperationBody,
+			},
+			options,
+		);
 	};
 	/**
 	 * @summary Continues an INTERRUPTED operation from the first unconfirmed step.
@@ -56,24 +69,31 @@ export const getOperationService = () => {
 	const resumeOperation = (
 		operation: string,
 		webitelDcctlV1OperationServiceResumeOperationBody: WebitelDcctlV1OperationServiceResumeOperationBody,
+		options?: SecondParameter<typeof dcctlAxios<WebitelDcctlV1Operation>>,
 	) => {
-		return dcctlAxios<WebitelDcctlV1Operation>({
-			url: `/v1/operations/${operation}:resume`,
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			data: webitelDcctlV1OperationServiceResumeOperationBody,
-		});
+		return dcctlAxios<WebitelDcctlV1Operation>(
+			{
+				url: `/v1/operations/${operation}:resume`,
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				data: webitelDcctlV1OperationServiceResumeOperationBody,
+			},
+			options,
+		);
 	};
 	/**
  * @summary Streams the operation after every change; the first message is the
 current state. Through the gateway every message is one JSON line
 `{"result": ...}`. After a disconnect, get the operation and watch again.
  */
-	const watchOperation = (operation: string) => {
-		return dcctlAxios<WatchOperation200>({
-			url: `/v1/operations/${operation}:watch`,
-			method: 'GET',
-		});
+	const watchOperation = (
+		operation: string,
+		options?: SecondParameter<typeof dcctlAxios<WatchOperation200>>,
+	) => {
+		return dcctlAxios<WatchOperation200>(
+			{ url: `/v1/operations/${operation}:watch`, method: 'GET' },
+			options,
+		);
 	};
 	return {
 		listOperations,

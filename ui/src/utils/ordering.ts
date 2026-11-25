@@ -25,14 +25,28 @@ export const sortDatacenters = <
 
 const severityRank = (severity?: string) => (severity === 'CRITICAL' ? 0 : 1);
 
-/** Critical first; within a severity, the oldest first. Returns a new array. */
+/**
+ * Critical first; within a severity, the oldest first. Alarms without
+ * `start_time` go after the dated ones and are ordered by datacenter and type,
+ * so the order does not depend on the response. Returns a new array.
+ */
 export const sortAlarms = <
-	T extends Pick<WebitelDcctlV1StatusAlarm, 'severity' | 'start_time'>,
+	T extends Pick<WebitelDcctlV1StatusAlarm, 'severity' | 'start_time'> &
+		Partial<Pick<WebitelDcctlV1StatusAlarm, 'datacenter' | 'type'>>,
 >(
 	alarms: readonly T[],
 ): T[] =>
 	[...alarms].sort((a, b) => {
 		const rankDiff = severityRank(a.severity) - severityRank(b.severity);
 		if (rankDiff !== 0) return rankDiff;
-		return Date.parse(a.start_time ?? '') - Date.parse(b.start_time ?? '') || 0;
+		const aTime = Date.parse(a.start_time ?? '');
+		const bTime = Date.parse(b.start_time ?? '');
+		const aDated = !Number.isNaN(aTime);
+		const bDated = !Number.isNaN(bTime);
+		if (aDated !== bDated) return aDated ? -1 : 1;
+		if (aDated && aTime !== bTime) return aTime - bTime;
+		return (
+			(a.datacenter ?? '').localeCompare(b.datacenter ?? '') ||
+			(a.type ?? '').localeCompare(b.type ?? '')
+		);
 	});

@@ -19,6 +19,16 @@ beforeEach(() => {
 	setActivePinia(createPinia());
 });
 
+describe('scrollBehavior', () => {
+	it('scrolls to the hash target', () => {
+		const router = createAppRouter(createMemoryHistory('/dcctl/'));
+		const scroll = router.options.scrollBehavior as (to: unknown) => unknown;
+
+		expect(scroll({ hash: '#coordination' })).toEqual({ el: '#coordination' });
+		expect(scroll({ hash: '' })).toBeUndefined();
+	});
+});
+
 describe('safeRedirect', () => {
 	it.each([
 		['/operations', '/operations'],
@@ -35,7 +45,8 @@ describe('safeRedirect', () => {
 	});
 });
 
-describe('router', () => {
+// The first lazy view import loads the whole SDK: slow on a busy machine.
+describe('router', { timeout: 20_000 }, () => {
 	it('sends an anonymous visitor to the login form and remembers the target', async () => {
 		const router = createAppRouter(createMemoryHistory('/dcctl/'));
 
@@ -54,6 +65,23 @@ describe('router', () => {
 			expect(router.currentRoute.value.name).toBe(name);
 		}
 	});
+
+	it.each([
+		['/datacenters/dc_b', 'datacenter', 'datacenters'],
+		['/operations/0b9f', 'operation', 'operations'],
+		['/', 'overview', 'overview'],
+	])(
+		'%s keeps the %s section active in the navigation',
+		async (path, name, section) => {
+			signIn();
+			const router = createAppRouter(createMemoryHistory('/dcctl/'));
+
+			await router.push(path);
+
+			expect(router.currentRoute.value.name).toBe(name);
+			expect(router.currentRoute.value.meta.section).toBe(section);
+		},
+	);
 
 	it('does not show the login form to a signed-in user', async () => {
 		signIn();
