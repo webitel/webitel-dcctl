@@ -152,7 +152,8 @@ const en = {
 			lastKnown: 'last known',
 			stage: 'stage {n}',
 			pointOfNoReturn: 'Point of no return',
-			pointAhead: 'not reached: it can still be rolled back',
+			pointAhead: 'not passed',
+			pointRunning: 'step in progress',
 			pointPassed: 'passed: it only goes forward',
 		},
 		jobs: {
@@ -585,7 +586,8 @@ const uk: typeof en = {
 			lastKnown: 'остання відома',
 			stage: 'етап {n}',
 			pointOfNoReturn: 'Точка неповернення',
-			pointAhead: 'ще не досягнута: можна відкотити',
+			pointAhead: 'не пройдена',
+			pointRunning: 'крок виконується',
 			pointPassed: 'пройдена: далі лише вперед',
 		},
 		jobs: {

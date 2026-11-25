@@ -60,23 +60,45 @@ export const stageOfStep = (
 };
 
 /**
- * Where a step stands against the point of no return: `ahead` until it
- * starts, `passed` once it runs or has succeeded. A step that failed or was
- * skipped does not say whether the point was crossed.
+ * Where a step stands against the point of no return. Only a step that
+ * succeeded has passed it. While it runs nothing is claimed, and in a failed
+ * operation the point was not passed. A failed or skipped step in another
+ * state of the operation does not say whether it was crossed.
  */
 export const pointOfNoReturn = (
 	step: Pick<Step, 'point_of_no_return' | 'state'>,
-): 'none' | 'ahead' | 'passed' | 'unknown' => {
+	operationState?: State,
+): 'none' | 'ahead' | 'running' | 'passed' | 'unknown' => {
 	if (!step.point_of_no_return) return 'none';
+	if (step.state === 'SUCCEEDED') return 'passed';
+	if (operationState === 'FAILED') return 'ahead';
 	switch (step.state) {
 		case 'PENDING':
 			return 'ahead';
 		case 'RUNNING':
-		case 'SUCCEEDED':
-			return 'passed';
+			return 'running';
 		default:
 			return 'unknown';
 	}
+};
+
+/**
+ * The status is fresh and no longer lists the operation the page shows as
+ * unfinished: it has finished since (only RUNNING and INTERRUPTED operations
+ * are in the status). `observeTime` must be later than the page's last change,
+ * or the status simply predates the operation.
+ */
+export const isMissingFromStatus = (
+	shown: Pick<Operation, 'name' | 'state' | 'update_time'>,
+	fromStatus: Pick<Operation, 'name'> | undefined,
+	observeTime: string | undefined,
+): boolean => {
+	if (isTerminalState(shown.state)) return false;
+	if (fromStatus?.name === shown.name) return false;
+	const observed = Date.parse(observeTime ?? '');
+	const changed = Date.parse(shown.update_time ?? '');
+	if (Number.isNaN(observed) || Number.isNaN(changed)) return false;
+	return observed > changed;
 };
 
 /** Milliseconds from start to end, or to `nowMs` while it runs; `null` when it has not started. */

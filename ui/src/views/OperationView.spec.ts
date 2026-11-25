@@ -341,17 +341,39 @@ describe('point of no return', () => {
 	it('says it can still be rolled back while the step has not started', async () => {
 		const mounted = await mountWith(operation({ steps }));
 		expect(text(mounted, '[data-test="pnr-line"]')).toBe(
-			'Point of no return — not reached: it can still be rolled back',
+			'Point of no return — not passed',
 		);
 	});
 
-	it('says it was passed once the step runs or has succeeded', async () => {
+	it('says it was passed only once the step has succeeded', async () => {
 		const done = steps.map((step) =>
 			step.point_of_no_return ? { ...step, state: 'SUCCEEDED' as const } : step,
 		);
 		const mounted = await mountWith(operation({ steps: done }));
 		expect(text(mounted, '[data-test="pnr-line"]')).toBe(
 			'Point of no return — passed: it only goes forward',
+		);
+	});
+
+	it('claims nothing while the step runs', async () => {
+		const running = steps.map((step) =>
+			step.point_of_no_return ? { ...step, state: 'RUNNING' as const } : step,
+		);
+		const mounted = await mountWith(operation({ steps: running }));
+		expect(text(mounted, '[data-test="pnr-line"]')).toBe(
+			'Point of no return — step in progress',
+		);
+	});
+
+	it('says it was not passed under a failed operation', async () => {
+		const failed = steps.map((step) =>
+			step.point_of_no_return ? { ...step, state: 'FAILED' as const } : step,
+		);
+		const mounted = await mountWith(
+			operation({ state: 'FAILED', steps: failed }),
+		);
+		expect(text(mounted, '[data-test="pnr-line"]')).toBe(
+			'Point of no return — not passed',
 		);
 	});
 
@@ -413,6 +435,23 @@ describe('omitted zero values', () => {
 		expect(text(mounted, '[data-test="op-generation"]')).not.toContain(
 			'not written',
 		);
+	});
+});
+
+describe('a running step of an operation that does not run', () => {
+	it('is shown as last known in gray, with its duration stopped at the last change', async () => {
+		const mounted = await mountWith(
+			operation({ state: 'INTERRUPTED', update_time: at(-20), steps }),
+		);
+		const row = stepRows(mounted)[1];
+		expect(row?.text()).toContain('last known');
+		expect(
+			row?.find('[data-test="step-state"]').classes().join(' '),
+		).not.toContain('info');
+		expect(row?.text()).toContain('6 s');
+		await vi.advanceTimersByTimeAsync(10_000);
+		await flushPromises();
+		expect(stepRows(mounted)[1]?.text()).toContain('6 s');
 	});
 });
 
@@ -723,6 +762,55 @@ describe('the status is ahead of the page', () => {
 		answer(operation({ steps, update_time: at(9), warnings: ['fresh'] }));
 		await flushPromises();
 		expect(text(mounted, '[data-test="op-warnings"]')).toContain('fresh');
+		expect(mounted.wrapper.find('[data-test="op-behind"]').exists()).toBe(
+			false,
+		);
+	});
+
+	it('warns and reads again when a fresh status no longer lists the unfinished operation', async () => {
+		const mounted = await mountWith(operation({ steps, update_time: at(-1) }));
+		lastStream().push(operation({ steps, update_time: at(0) }));
+		await flushPromises();
+		const first = lastStream();
+		let answer: (value: Operation) => void = () => undefined;
+		getOperation.mockReturnValue(
+			new Promise<Operation>((resolve) => {
+				answer = resolve;
+			}),
+		);
+		useStatusStore(mounted.pinia).status = { observe_time: at(3) };
+		await flushPromises();
+		expect(mounted.wrapper.find('[data-test="op-behind"]').exists()).toBe(true);
+		expect(first.signal.aborted).toBe(true);
+		expect(text(mounted, '[data-test="op-connection"]')).toBe(
+			'Connection lost. Reconnecting.',
+		);
+		answer(
+			operation({
+				state: 'SUCCEEDED',
+				update_time: at(4),
+				end_time: at(4),
+				steps,
+			}),
+		);
+		await flushPromises();
+		expect(text(mounted, '[data-test="op-state"]')).toBe('Succeeded');
+		expect(mounted.wrapper.find('[data-test="op-behind"]').exists()).toBe(
+			false,
+		);
+	});
+
+	it('does not trust a status that failed to refresh or predates the page', async () => {
+		const mounted = await mountWith(operation({ steps, update_time: at(5) }));
+		const store = useStatusStore(mounted.pinia);
+		store.status = { observe_time: at(2) };
+		await flushPromises();
+		expect(mounted.wrapper.find('[data-test="op-behind"]').exists()).toBe(
+			false,
+		);
+		store.error = new Error('down');
+		store.status = { observe_time: at(30) };
+		await flushPromises();
 		expect(mounted.wrapper.find('[data-test="op-behind"]').exists()).toBe(
 			false,
 		);

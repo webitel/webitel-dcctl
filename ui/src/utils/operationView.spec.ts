@@ -4,6 +4,7 @@ import {
 	durationMs,
 	generationRange,
 	isBehind,
+	isMissingFromStatus,
 	isOlderOperation,
 	isTerminalState,
 	orderedSteps,
@@ -131,15 +132,64 @@ describe('pointOfNoReturn', () => {
 	});
 
 	it.each([
-		['PENDING', 'ahead'],
-		['RUNNING', 'passed'],
-		['SUCCEEDED', 'passed'],
-		['FAILED', 'unknown'],
-		['SKIPPED', 'unknown'],
-	])('marks a %s step as %s', (state, expected) => {
-		expect(pointOfNoReturn({ point_of_no_return: true, state } as never)).toBe(
-			expected,
+		['PENDING', undefined, 'ahead'],
+		['RUNNING', 'RUNNING', 'running'],
+		['SUCCEEDED', 'RUNNING', 'passed'],
+		['SUCCEEDED', 'SUCCEEDED', 'passed'],
+		['FAILED', 'INTERRUPTED', 'unknown'],
+		['SKIPPED', 'RUNNING', 'unknown'],
+		['PENDING', 'FAILED', 'ahead'],
+		['RUNNING', 'FAILED', 'ahead'],
+		['FAILED', 'FAILED', 'ahead'],
+	])(
+		'marks a %s step of a %s operation as %s',
+		(state, operationState, expected) => {
+			expect(
+				pointOfNoReturn(
+					{ point_of_no_return: true, state } as never,
+					operationState as never,
+				),
+			).toBe(expected);
+		},
+	);
+});
+
+describe('isMissingFromStatus', () => {
+	const shown = {
+		name: 'operations/a',
+		state: 'RUNNING' as const,
+		update_time: '2026-11-23T10:15:04Z',
+	};
+
+	it('is true when a status observed later lists no operation or another one', () => {
+		expect(isMissingFromStatus(shown, undefined, '2026-11-23T10:15:09Z')).toBe(
+			true,
 		);
+		expect(
+			isMissingFromStatus(
+				shown,
+				{ name: 'operations/b' },
+				'2026-11-23T10:15:09Z',
+			),
+		).toBe(true);
+	});
+
+	it.each([
+		['lists the operation', { name: 'operations/a' }, '2026-11-23T10:15:09Z'],
+		['was observed before the last change', undefined, '2026-11-23T10:15:01Z'],
+		['has no observe time', undefined, undefined],
+	])('is false when the status %s', (_name, fromStatus, observed) => {
+		expect(isMissingFromStatus(shown, fromStatus, observed)).toBe(false);
+	});
+
+	it('is false for a page that already shows a final state', () => {
+		expect(
+			isMissingFromStatus(
+				{ ...shown, state: 'FAILED' },
+				undefined,
+				'2026-11-23T10:15:09Z',
+			),
+		).toBe(false);
 	});
 });
 

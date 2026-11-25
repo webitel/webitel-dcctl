@@ -96,7 +96,7 @@ import OperationSteps from '@/components/operation/OperationSteps.vue';
 import { useAgeText } from '@/composables/useAgeText';
 import { useOperation } from '@/composables/useOperation';
 import { useStatusStore } from '@/stores/status';
-import { isBehind } from '@/utils/operationView';
+import { isBehind, isMissingFromStatus } from '@/utils/operationView';
 import type { StatusColor } from '@/utils/statusMapping';
 import { toChipColor } from '@/utils/statusMapping';
 
@@ -140,15 +140,22 @@ const connectionColor = computed<StatusColor>(() => {
 	}
 });
 
-// The status is polled on its own: when it already shows a later change of this
-// operation, the page is behind even if its feed claims to be live.
-const behind = computed(
-	() =>
-		operation.value !== undefined &&
-		isBehind(operation.value, statusStore.status?.operation),
-);
+// The status is polled on its own. The page is behind when the status already
+// shows a later change of this operation, or, with a fresh status, no longer
+// lists an operation the page shows as unfinished (a finished operation leaves
+// the status). A half-open feed would otherwise show a stale step as current.
+const behind = computed(() => {
+	const shown = operation.value;
+	const status = statusStore.status;
+	if (!shown || !status) return false;
+	if (isBehind(shown, status.operation)) return true;
+	const trusted = !statusStore.error && !statusStore.isStale;
+	return (
+		trusted && isMissingFromStatus(shown, status.operation, status.observe_time)
+	);
+});
 watch(
-	() => statusStore.status?.operation?.update_time,
+	() => statusStore.status,
 	() => {
 		if (behind.value) reconnect();
 	},

@@ -19,7 +19,7 @@
       :row-class="rowClass"
       :row-expansion="true"
       :row-expansion-disabled="isNotStage"
-            :sortable="false"
+      :sortable="false"
     >
       <template #step="{ item }">
         <div
@@ -31,6 +31,9 @@
             {{ $t('dcctl.operation.steps.pointOfNoReturn') }}
             <template v-if="item.pnr === 'ahead'">
               — {{ $t('dcctl.operation.steps.pointAhead') }}
+            </template>
+            <template v-else-if="item.pnr === 'running'">
+              — {{ $t('dcctl.operation.steps.pointRunning') }}
             </template>
             <template v-else-if="item.pnr === 'passed'">
               — {{ $t('dcctl.operation.steps.pointPassed') }}
@@ -135,7 +138,19 @@ const headers = computed(() => [
 
 const buildRow = (step: OrderedStep) => {
 	const stageRef = stageOfStep(step);
-	const duration = durationMs(step.start_time, step.end_time, props.nowMs);
+	// A step still marked running under an operation that does not run is not
+	// running: show it as last known and stop its clock at the last change.
+	const idleRunning =
+		step.state === 'RUNNING' &&
+		(props.stale || props.operation.state !== 'RUNNING');
+	const duration = durationMs(
+		step.start_time,
+		step.end_time ??
+			(idleRunning && props.operation.state !== 'RUNNING'
+				? props.operation.update_time
+				: undefined),
+		props.nowMs,
+	);
 	const where = [
 		step.datacenter?.split('/').pop(),
 		stageRef && t('dcctl.operation.steps.stage', { n: stageRef.stage }),
@@ -150,17 +165,15 @@ const buildRow = (step: OrderedStep) => {
 		type: step.type,
 		where,
 		state: step.state,
-		color: (props.stale && step.state === 'RUNNING'
-			? 'gray'
-			: stepColor(step)) as StatusColor,
-		lastKnown: props.stale && step.state === 'RUNNING',
+		color: (idleRunning ? 'gray' : stepColor(step)) as StatusColor,
+		lastKnown: idleRunning,
 		duration:
 			duration === null
 				? t('dcctl.operations.noValue')
 				: ageText(Math.floor(duration / 1000)),
 		detail: step.detail,
 		warnings: step.warnings ?? [],
-		pnr: pointOfNoReturn(step),
+		pnr: pointOfNoReturn(step, props.operation.state),
 		stageRef,
 	};
 };
