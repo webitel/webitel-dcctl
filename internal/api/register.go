@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 
 	"github.com/webitel/webitel-go-kit/pkg/logging"
 
@@ -22,7 +23,9 @@ type Options struct {
 	Alarms Alarms
 	// Verifier may be nil: VerifyStatus then answers Unimplemented.
 	Verifier Verifier
-	Log      *logging.Logger
+	// UI is the UI build, nil to serve no UI.
+	UI  fs.FS
+	Log *logging.Logger
 }
 
 // Register registers the API services and their gateway routes on rt. Call
@@ -54,6 +57,15 @@ func Register(ctx context.Context, rt *runtime.Runtime, opts Options) error {
 		if err := rt.RegisterGateway(ctx, h); err != nil {
 			return fmt.Errorf("api: %w", err)
 		}
+	}
+
+	if opts.UI != nil {
+		h, err := NewUI(opts.UI, opts.Log)
+		if err != nil {
+			return err
+		}
+
+		rt.HandleUI(h)
 	}
 
 	return nil
