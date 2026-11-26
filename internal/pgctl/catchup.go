@@ -11,8 +11,8 @@ import (
 // replayed_location of the demoted leader, the end of its WAL, and replayed_location of
 // target equals its received_location. Both leaders are read at every poll; the end is
 // the highest replayed_location seen. Positions on different timelines are not comparable:
-// the two leaders on different timelines fail the precondition. It sends nothing and
-// takes no guard.
+// the two leaders on different timelines fail the precondition, either leader primary
+// fails it with [*PrimaryError]. It sends nothing and takes no guard.
 func (c *Controller) Catchup(ctx context.Context, demoted, target Cluster, opts Options) (Result, error) {
 	w := &catchup{demoted: demoted, target: target}
 
@@ -57,7 +57,7 @@ func (w *catchup) observe(ctx context.Context) (Observation, bool, error) {
 
 	switch {
 	case l.Probe.Role == patroni.RolePrimary:
-		return obs, false, precondition("leader %s of %s is primary before the catchup", l.Name, w.target.Datacenter)
+		return obs, false, &PrimaryError{Datacenter: w.target.Datacenter, Where: "leader " + l.Name}
 	case l.Probe.Role != patroni.RoleStandbyLeader:
 		return obs.unmet(nil, "leader %s is %s", l.Name, l.Probe.Role)
 	case l.Probe.Timeline == nil:
@@ -94,7 +94,7 @@ func (w *catchup) readEnd(ctx context.Context) (Observation, bool, error) {
 	case l.Probe == nil:
 		return obs.unmet(l.Err, "demoted leader %s not read", l.Name)
 	case l.Probe.Role == patroni.RolePrimary:
-		return obs, false, precondition("leader %s of %s is still primary", l.Name, w.demoted.Datacenter)
+		return obs, false, &PrimaryError{Datacenter: w.demoted.Datacenter, Where: "leader " + l.Name}
 	case l.Probe.Role != patroni.RoleStandbyLeader:
 		return obs.unmet(nil, "demoted leader %s is %s", l.Name, l.Probe.Role)
 	case l.Probe.Xlog.ReplayedLocation == nil:

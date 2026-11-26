@@ -13,6 +13,7 @@ const (
 	ActionFollow     Action = "follow"
 	ActionSwitchover Action = "switchover"
 	ActionFailover   Action = "failover"
+	ActionNoPrimary  Action = "no_primary"
 )
 
 // Phase is where a primitive is.
@@ -85,4 +86,7 @@ type Result struct {
 	// FromPrimary is set by [Controller.Promote] when the leader was primary already: the
 	// request only removed standby_cluster, nothing was promoted.
 	FromPrimary bool
+	// Unread are the clusters [Controller.NoPrimary] did not read among those it does not
+	// need.
+	Unread []string
 }
