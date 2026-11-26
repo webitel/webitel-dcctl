@@ -2,6 +2,7 @@ import { fileURLToPath, URL } from 'node:url';
 import vue from '@vitejs/plugin-vue';
 import { loadEnv } from 'vite';
 import { defineConfig } from 'vitest/config';
+import { precompress } from './precompress';
 
 // The UI is served by the dcctl binary under /dcctl/ (see router base).
 const BASE = '/dcctl/';
@@ -19,7 +20,7 @@ export default defineConfig(({ mode, command }) => {
 		base: BASE,
 		// public/ holds only the msw worker, which must not reach the production bundle.
 		publicDir: command === 'build' ? false : 'public',
-		plugins: [vue()],
+		plugins: [vue(), precompress()],
 		resolve: {
 			alias: {
 				'@': fileURLToPath(new URL('./src', import.meta.url)),
@@ -42,7 +43,7 @@ export default defineConfig(({ mode, command }) => {
 			globals: false,
 			// Vitest serves from `/`; the app is served under BASE, and the API base is derived from it.
 			env: { BASE_URL: BASE },
-			include: ['src/**/*.spec.ts'],
+			include: ['src/**/*.spec.ts', '*.spec.ts'],
 			setupFiles: ['src/tests/setup.ts'],
 			server: { deps: { inline: [/@webitel\//, /primevue/] } },
 		},
