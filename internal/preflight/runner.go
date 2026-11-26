@@ -69,17 +69,31 @@ type Request struct {
 	Confirmations check.Confirmations
 }
 
+// Result is a decision of the checks of an action with the state they were decided on.
+type Result struct {
+	Verdict check.Verdict
+	// Status is the state the checks were decided on; a scenario plans the action on it.
+	Status status.Status
+}
+
 // Run collects every source anew, plans the managed jobs the action starts and decides
 // the checks of the action with its confirmations. A source that does not answer
 // within the timeout fails the checks that need it. Run fails when ctx ends, when the
 // collection does not finish within the timeout, or for an unknown action.
 func (r *Runner) Run(ctx context.Context, req Request) (check.Verdict, error) {
+	res, err := r.Evaluate(ctx, req)
+
+	return res.Verdict, err
+}
+
+// Evaluate is [Runner.Run] that also returns the state the checks were decided on.
+func (r *Runner) Evaluate(ctx context.Context, req Request) (Result, error) {
 	runCtx, cancel := context.WithTimeout(ctx, r.cfg.Timeout)
 	defer cancel()
 
 	snap, err := r.collector.Collect(runCtx)
 	if err != nil {
-		return check.Verdict{}, fmt.Errorf("collect: %w", err)
+		return Result{}, fmt.Errorf("collect: %w", err)
 	}
 
 	in := &Input{
@@ -91,15 +105,15 @@ func (r *Runner) Run(ctx context.Context, req Request) (check.Verdict, error) {
 	in.Plans = r.plan(runCtx, in.planJobs())
 
 	if err := ctx.Err(); err != nil {
-		return check.Verdict{}, err
+		return Result{}, err
 	}
 
 	checks, err := Checks(in)
 	if err != nil {
-		return check.Verdict{}, err
+		return Result{}, err
 	}
 
-	return check.Decide(checks, req.Confirmations), nil
+	return Result{Verdict: check.Decide(checks, req.Confirmations), Status: in.Status}, nil
 }
 
 // plan plans the jobs of every datacenter at once. A plan that fails or does not finish
