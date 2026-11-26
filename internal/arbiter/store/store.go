@@ -312,9 +312,11 @@ func decode(name string, v []byte) (Record, error) {
 		return Record{}, fmt.Errorf("record %q has unsupported format version %d", name, v[0])
 	}
 
+	updated := int64(binary.BigEndian.Uint64(v[9:])) // #nosec G115 -- encode writes it from UnixNano, an int64.
+
 	return Record{
 		Value:      bytes.Clone(v[headerSize:]),
 		Index:      binary.BigEndian.Uint64(v[1:]),
-		UpdateTime: time.Unix(0, int64(binary.BigEndian.Uint64(v[9:]))).UTC(),
+		UpdateTime: time.Unix(0, updated).UTC(),
 	}, nil
 }
