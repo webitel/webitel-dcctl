@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"io"
 	"path/filepath"
@@ -72,9 +73,15 @@ func (e *env) app(out, errOut *bytes.Buffer) *cli.App {
 func (e *env) run(args ...string) result {
 	e.t.Helper()
 
+	return e.runContext(context.Background(), args...)
+}
+
+func (e *env) runContext(ctx context.Context, args ...string) result {
+	e.t.Helper()
+
 	var out, errOut bytes.Buffer
 
-	err := e.app(&out, &errOut).Run(append([]string{"webitel-dcctl"}, args...))
+	err := e.app(&out, &errOut).RunContext(ctx, append([]string{"webitel-dcctl"}, args...))
 	code := Report(&errOut, err)
 
 	return result{code: code, stdout: out.String(), stderr: errOut.String()}
