@@ -61,17 +61,15 @@ func (c *Coordinator) Revert(ctx context.Context, from, to kv.State, opts Revert
 		return nil, err
 	}
 
-	uncommitted := findRecord(to, view.Uncommitted)
-
 	switch {
 	case findRecord(to, effectiveList(view), view.Conflict) != nil:
 		return nil, fmt.Errorf("%s: %w", recordName(to), ErrCommitted)
-	case findRecord(to, view.Undetermined) != nil, uncommitted != nil && mayHaveTaken(view, *uncommitted):
+	case RevertNeedsConfirmation(view, to):
 		if !opts.ConfirmUndetermined {
 			return nil, fmt.Errorf("%s may be committed on voters that do not answer or lost the key: %w",
 				recordName(to), ErrConfirmationRequired)
 		}
-	case uncommitted == nil:
+	case findRecord(to, view.Uncommitted) == nil:
 		return nil, nil
 	}
 
@@ -124,6 +122,20 @@ func (c *Coordinator) Revert(ctx context.Context, from, to kv.State, opts Revert
 	}
 
 	return out, nil
+}
+
+// RevertNeedsConfirmation reports whether [Coordinator.Revert] of to on the
+// voters of view needs [RevertOptions.ConfirmUndetermined]: the record of to
+// is undetermined, or uncommitted while the voters that may hold any record
+// and the KVs without the key would make it committed.
+func RevertNeedsConfirmation(view View, to kv.State) bool {
+	if findRecord(to, view.Undetermined) != nil {
+		return true
+	}
+
+	uncommitted := findRecord(to, view.Uncommitted)
+
+	return uncommitted != nil && mayHaveTaken(view, *uncommitted)
 }
 
 // mayHaveTaken reports whether r may be on a majority counting, besides the

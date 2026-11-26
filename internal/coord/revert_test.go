@@ -205,3 +205,77 @@ func TestRevertValidates(t *testing.T) {
 
 	requireNoCAS(t, a, b)
 }
+
+func TestRevertNeedsConfirmation(t *testing.T) {
+	tests := []struct {
+		name   string
+		voters func(t *testing.T) []*fakeVoter
+		want   bool
+	}{
+		{
+			name: "uncommitted",
+			voters: func(t *testing.T) []*fakeVoter {
+				t.Helper()
+
+				return []*fakeVoter{
+					newFake("dc_a", coord.KindKV, stateJSON(t, switchTo(false))),
+					newFake("dc_b", coord.KindKV, raw(t, 8, "dc_a", false)),
+					newFake(coord.ArbiterName, coord.KindArbiter, raw(t, 8, "dc_a", false)),
+				}
+			},
+			want: false,
+		},
+		{
+			name: "undetermined",
+			voters: func(t *testing.T) []*fakeVoter {
+				t.Helper()
+
+				b := newFake("dc_b", coord.KindKV, nil)
+				b.getErr = errUnreachable("10.0.0.2:8500")
+
+				return []*fakeVoter{
+					newFake("dc_a", coord.KindKV, stateJSON(t, switchTo(false))),
+					b,
+					newFake(coord.ArbiterName, coord.KindArbiter, raw(t, 8, "dc_a", false)),
+				}
+			},
+			want: true,
+		},
+		{
+			// dc_b may have taken generation 9 and lost its key since.
+			name: "kv_without_key",
+			voters: func(t *testing.T) []*fakeVoter {
+				t.Helper()
+
+				return []*fakeVoter{
+					newFake("dc_a", coord.KindKV, stateJSON(t, switchTo(false))),
+					newFake("dc_b", coord.KindKV, nil),
+					newFake(coord.ArbiterName, coord.KindArbiter, raw(t, 8, "dc_a", false)),
+				}
+			},
+			want: true,
+		},
+		{
+			name: "not_held",
+			voters: func(t *testing.T) []*fakeVoter {
+				t.Helper()
+
+				return []*fakeVoter{
+					newFake("dc_a", coord.KindKV, raw(t, 8, "dc_a", false)),
+					newFake("dc_b", coord.KindKV, raw(t, 8, "dc_a", false)),
+					newFake(coord.ArbiterName, coord.KindArbiter, raw(t, 8, "dc_a", false)),
+				}
+			},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			view, err := newCoordinator(t, time.Second, tt.voters(t)...).Read(t.Context())
+			require.NoError(t, err)
+
+			assert.Equal(t, tt.want, coord.RevertNeedsConfirmation(view, switchTo(false)))
+		})
+	}
+}
