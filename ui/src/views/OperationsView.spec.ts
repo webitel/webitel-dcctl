@@ -7,6 +7,7 @@ import type {
 	WebitelDcctlV1ListOperationsResponse as Page,
 } from '@/api/gen/_models';
 import { mountWithApp } from '@/tests/mountWithApp';
+import { waitForLazy } from '@/tests/waitForLazy';
 import OperationsView from './OperationsView.vue';
 
 const listOperations = vi.hoisted(() => vi.fn());
@@ -45,7 +46,7 @@ const mountList = async () => {
 };
 
 const waitForTable = (mounted: Mounted) =>
-	vi.waitFor(() =>
+	waitForLazy(() =>
 		expect(
 			mounted.wrapper.find('[data-test="ops-table"] tbody tr').exists(),
 		).toBe(true),
@@ -150,7 +151,7 @@ describe('OperationsView paging', () => {
 			{ page_size: 50, page_token: 'p2' },
 			expect.anything(),
 		);
-		await vi.waitFor(() => expect(rowTexts(mounted)).toHaveLength(2));
+		await waitForLazy(() => expect(rowTexts(mounted)).toHaveLength(2));
 		expect(button().exists()).toBe(false);
 	});
 

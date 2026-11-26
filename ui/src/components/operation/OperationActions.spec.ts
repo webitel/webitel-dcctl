@@ -1,19 +1,12 @@
 import { flushPromises } from '@vue/test-utils';
-import {
-	afterAll,
-	afterEach,
-	beforeAll,
-	describe,
-	expect,
-	it,
-	vi,
-} from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 
 import type { WebitelDcctlV1Operation as Operation } from '@/api/gen/_models';
 import { setActionVariant } from '@/mocks/actionVariants';
 import { MOCK_USER } from '@/mocks/handlers';
 import { server } from '@/mocks/server';
 import { mountWithApp } from '@/tests/mountWithApp';
+import { waitForLazy } from '@/tests/waitForLazy';
 import { encodeBasicToken } from '@/utils/basicAuth';
 import OperationActions from './OperationActions.vue';
 
@@ -57,7 +50,7 @@ const find = (mounted: Mounted, test: string) =>
 	mounted.wrapper.find(`[data-test="${test}"]`);
 
 const until = (mounted: Mounted, test: string) =>
-	vi.waitFor(() => expect(find(mounted, test).exists()).toBe(true));
+	waitForLazy(() => expect(find(mounted, test).exists()).toBe(true));
 
 const disabled = (mounted: Mounted, test: string) =>
 	find(mounted, test).attributes('disabled') !== undefined;
@@ -75,7 +68,7 @@ describe('resume', () => {
 		await find(mounted, 'action-run').trigger('click');
 		await flushPromises();
 
-		await vi.waitFor(() =>
+		await waitForLazy(() =>
 			expect(mounted.wrapper.emitted('done')).toHaveLength(1),
 		);
 		expect(find(mounted, 'action-dialog').exists()).toBe(false);
@@ -155,7 +148,7 @@ describe('abandon', () => {
 		await find(mounted, 'action-run').trigger('click');
 		await flushPromises();
 
-		await vi.waitFor(() =>
+		await waitForLazy(() =>
 			expect(mounted.wrapper.emitted('done')).toHaveLength(1),
 		);
 	});

@@ -10,6 +10,7 @@ import type {
 import { buildDatacenter } from '@/mocks/datacenterVariants';
 import { useStatusStore } from '@/stores/status';
 import { mountWithApp } from '@/tests/mountWithApp';
+import { waitForLazy } from '@/tests/waitForLazy';
 import DatacenterView from './DatacenterView.vue';
 
 const getDatacenter = vi.hoisted(() => vi.fn());
@@ -45,10 +46,10 @@ const mountPage = async (path: string): Promise<Mounted> => {
  * rendered and the tab has its table or says that it has nothing to show.
  */
 const ready = async (mounted: Mounted) => {
-	await vi.waitFor(() =>
+	await waitForLazy(() =>
 		expect(mounted.wrapper.find('[data-test="dc-state"]').exists()).toBe(true),
 	);
-	await vi.waitFor(() =>
+	await waitForLazy(() =>
 		expect(
 			mounted.wrapper.find('.wt-table, [data-test$="-empty"]').exists(),
 		).toBe(true),

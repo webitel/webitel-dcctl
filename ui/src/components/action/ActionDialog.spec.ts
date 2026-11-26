@@ -8,7 +8,6 @@ import {
 	describe,
 	expect,
 	it,
-	vi,
 } from 'vitest';
 
 import type { WebitelDcctlV1Operation as Operation } from '@/api/gen/_models';
@@ -18,6 +17,7 @@ import { MOCK_OPERATION_IDS } from '@/mocks/operationVariants';
 import { server } from '@/mocks/server';
 import { useAuthStore } from '@/stores/auth';
 import { mountWithApp } from '@/tests/mountWithApp';
+import { waitForLazy } from '@/tests/waitForLazy';
 import type { ActionKind } from '@/utils/actionAvailability';
 import { encodeBasicToken } from '@/utils/basicAuth';
 import ActionDialog from './ActionDialog.vue';
@@ -69,7 +69,7 @@ const find = (mounted: Mounted, test: string) =>
 	mounted.wrapper.find(`[data-test="${test}"]`);
 
 const until = (mounted: Mounted, test: string) =>
-	vi.waitFor(() => expect(find(mounted, test).exists()).toBe(true));
+	waitForLazy(() => expect(find(mounted, test).exists()).toBe(true));
 
 const runButton = (mounted: Mounted) => find(mounted, 'action-run');
 
@@ -193,7 +193,7 @@ describe('success', () => {
 
 		await run(mounted);
 
-		await vi.waitFor(() =>
+		await waitForLazy(() =>
 			expect(mounted.router.currentRoute.value.name).toBe('operation'),
 		);
 		expect(mounted.router.currentRoute.value.params.id).toBe(
@@ -232,7 +232,7 @@ describe('confirmations', () => {
 		expect(runDisabled(mounted)).toBe(false);
 
 		await run(mounted);
-		await vi.waitFor(() =>
+		await waitForLazy(() =>
 			expect(mounted.router.currentRoute.value.name).toBe('operation'),
 		);
 		expect(posted[1].body).toMatchObject({
@@ -268,7 +268,7 @@ describe('confirmations', () => {
 		await accept(mounted, 'max_discard_bytes');
 		expect(runDisabled(mounted)).toBe(false);
 		await run(mounted);
-		await vi.waitFor(() =>
+		await waitForLazy(() =>
 			expect(mounted.router.currentRoute.value.name).toBe('operation'),
 		);
 		expect(posted.at(-1)?.body).toMatchObject({
@@ -441,7 +441,7 @@ describe('resume and abandon', () => {
 		expect(runDisabled(mounted)).toBe(false);
 
 		await run(mounted);
-		await vi.waitFor(() =>
+		await waitForLazy(() =>
 			expect(mounted.wrapper.emitted('done')).toHaveLength(1),
 		);
 		expect(posted[1].url).toBe(
@@ -526,7 +526,7 @@ describe('facts that changed after a confirmation was given', () => {
 		await until(mounted, 'action-facts-changed');
 
 		await find(mounted, 'action-check-again').trigger('click');
-		await vi.waitFor(() =>
+		await waitForLazy(() =>
 			expect(find(mounted, 'action-refusal').exists()).toBe(false),
 		);
 		await until(mounted, 'action-outcome-confirm');
@@ -602,7 +602,7 @@ describe('refusals of the real call', () => {
 			kind: 'markRecovered',
 			datacenter: 'dc_b',
 		});
-		await vi.waitFor(() =>
+		await waitForLazy(() =>
 			expect(useAuthStore(mounted.pinia).isAuthenticated).toBe(false),
 		);
 		expect(find(mounted, 'action-refusal').exists()).toBe(false);

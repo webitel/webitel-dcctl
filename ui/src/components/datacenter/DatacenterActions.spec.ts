@@ -1,13 +1,5 @@
 import { flushPromises } from '@vue/test-utils';
-import {
-	afterAll,
-	afterEach,
-	beforeAll,
-	describe,
-	expect,
-	it,
-	vi,
-} from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 
 import type {
 	WebitelDcctlV1Datacenter as Datacenter,
@@ -19,6 +11,7 @@ import { server } from '@/mocks/server';
 import { buildStatus } from '@/mocks/statusVariants';
 import { useStatusStore } from '@/stores/status';
 import { mountWithApp } from '@/tests/mountWithApp';
+import { waitForLazy } from '@/tests/waitForLazy';
 import { encodeBasicToken } from '@/utils/basicAuth';
 import DatacenterActions from './DatacenterActions.vue';
 
@@ -176,7 +169,7 @@ describe('opening the dialog', () => {
 		await mounted.wrapper
 			.find('[data-test="action-switch"] button')
 			.trigger('click');
-		await vi.waitFor(() =>
+		await waitForLazy(() =>
 			expect(
 				mounted.wrapper.find('[data-test="action-outcome-ok"]').exists(),
 			).toBe(true),

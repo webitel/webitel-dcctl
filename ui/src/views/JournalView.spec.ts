@@ -8,6 +8,7 @@ import type {
 } from '@/api/gen/_models';
 import { apiFailure } from '@/tests/apiFailure';
 import { mountWithApp } from '@/tests/mountWithApp';
+import { waitForLazy } from '@/tests/waitForLazy';
 import JournalView from './JournalView.vue';
 
 const listJournalEntries = vi.hoisted(() => vi.fn());
@@ -41,16 +42,11 @@ const mountJournal = async () => {
 	return mounted;
 };
 
-// wt-table and routed views load lazily, which takes over a second on a busy runner.
-const LAZY_WAIT = { timeout: 5000 };
-
 const waitForTable = (mounted: Mounted) =>
-	vi.waitFor(
-		() =>
-			expect(
-				mounted.wrapper.find('[data-test="journal-table"] tbody tr').exists(),
-			).toBe(true),
-		LAZY_WAIT,
+	waitForLazy(() =>
+		expect(
+			mounted.wrapper.find('[data-test="journal-table"] tbody tr').exists(),
+		).toBe(true),
 	);
 
 const rows = (mounted: Mounted) =>
@@ -60,7 +56,7 @@ const expand = async (mounted: Mounted) => {
 	await mounted.wrapper
 		.find('[data-test="journal-table"] tbody tr button')
 		.trigger('click');
-	await vi.waitFor(() =>
+	await waitForLazy(() =>
 		expect(mounted.wrapper.find('[data-test="journal-detail"]').exists()).toBe(
 			true,
 		),
@@ -75,7 +71,7 @@ const applyOperationFilter = async (mounted: Mounted, value: string) => {
 	expect(icons).toHaveLength(3);
 	await icons[2]?.trigger('click');
 	const body = new DOMWrapper(document.body);
-	await vi.waitFor(() =>
+	await waitForLazy(() =>
 		expect(body.find('[data-test="filter-operation"] input').exists()).toBe(
 			true,
 		),
@@ -112,10 +108,8 @@ describe('JournalView', () => {
 		await wrapper.find('[data-test="journal-retry"]').trigger('click');
 		await flushPromises();
 		expect(wrapper.find('[data-test="journal-error"]').exists()).toBe(false);
-		await vi.waitFor(
-			() =>
-				expect(wrapper.find('[data-test="journal-table"]').exists()).toBe(true),
-			LAZY_WAIT,
+		await waitForLazy(() =>
+			expect(wrapper.find('[data-test="journal-table"]').exists()).toBe(true),
 		);
 	});
 
@@ -273,9 +267,8 @@ describe('JournalView', () => {
 		expect(links[0]?.text()).toBe('op-1');
 		expect(links[0]?.attributes('href')).toBe('/dcctl/operations/op-1');
 		await links[0]?.trigger('click');
-		await vi.waitFor(
-			() => expect(mounted.router.currentRoute.value.name).toBe('operation'),
-			LAZY_WAIT,
+		await waitForLazy(() =>
+			expect(mounted.router.currentRoute.value.name).toBe('operation'),
 		);
 		expect(mounted.router.currentRoute.value.params.id).toBe('op-1');
 	});
