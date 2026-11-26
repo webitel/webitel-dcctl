@@ -6,6 +6,7 @@ import (
 	"slices"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/webitel/webitel-dcctl/internal/source"
 	"github.com/webitel/webitel-dcctl/internal/source/consul"
@@ -41,7 +42,9 @@ type fakeConsul struct {
 	acquireApplied bool
 	releaseErr     error
 	renewErr       error
-	getErr         error
+	// renewDelay makes a renewal answer only after it.
+	renewDelay time.Duration
+	getErr     error
 	// casErr fails a CAS after applying it when casApplied is set.
 	casErr     error
 	casApplied bool
@@ -94,6 +97,14 @@ func (f *fakeConsul) CreateSession(ctx context.Context, _ string) (string, error
 }
 
 func (f *fakeConsul) RenewSession(ctx context.Context, id string) error {
+	f.mu.Lock()
+	delay := f.renewDelay
+	f.mu.Unlock()
+
+	if delay > 0 {
+		time.Sleep(delay)
+	}
+
 	if err := ctx.Err(); err != nil {
 		return err
 	}
