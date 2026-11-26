@@ -93,8 +93,8 @@ func validateSteps(steps []Step) error {
 	return nil
 }
 
-// pending returns the steps of p as the API shows them before they run.
-func (p Plan) pending() []*dcctlv1.Operation_Step {
+// Pending returns the steps of p as the API shows them before they run.
+func (p Plan) Pending() []*dcctlv1.Operation_Step {
 	out := make([]*dcctlv1.Operation_Step, 0, len(p.Steps))
 
 	for i, s := range p.Steps {

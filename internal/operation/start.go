@@ -51,7 +51,7 @@ func (e *Engine) Start(ctx context.Context, p Plan) (*dcctlv1.Operation, error) 
 		return nil, fmt.Errorf("preflight: %w", err)
 	}
 
-	if err := answer.Refusal(v, p.pending(), p.Mode); err != nil {
+	if err := answer.Refusal(v, p.Pending(), p.Mode); err != nil {
 		return nil, err
 	}
 
@@ -129,7 +129,7 @@ func (e *Engine) checkBase(ctx context.Context, p Plan) error {
 	}
 
 	c := preflight.BaseUnchanged(view, p.Type == dcctlv1.Operation_FAILOVER, p.PreviousGeneration, p.PreviousActive)
-	if refused := answer.Refusal(check.Decide([]check.Check{c}, check.Confirmations{}), p.pending(), p.Mode); refused != nil {
+	if refused := answer.Refusal(check.Decide([]check.Check{c}, check.Confirmations{}), p.Pending(), p.Mode); refused != nil {
 		return fmt.Errorf("%w: %w", ErrStateChanged, refused)
 	}
 
@@ -201,7 +201,7 @@ func (e *Engine) newOperation(name string, p Plan, v check.Verdict) (*dcctlv1.Op
 		PreviousGeneration: p.PreviousGeneration,
 		NewGeneration:      p.NewGeneration,
 		Checks:             checks,
-		Steps:              p.pending(),
+		Steps:              p.Pending(),
 		Warnings:           answer.Warnings(v),
 		RequestId:          p.RequestID,
 		CreateTime:         timestamppb.Now(),
