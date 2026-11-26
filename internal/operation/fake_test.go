@@ -387,6 +387,13 @@ func (f *fakeVoter) state(t *testing.T) kv.State {
 	return s
 }
 
+func (f *fakeVoter) setUnreachable() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.getErr = unreachable()
+}
+
 // fakeJournal keeps what is journaled.
 type fakeJournal struct {
 	mu      sync.Mutex
@@ -427,6 +434,38 @@ func (f *fakeJournal) events(t dcctlv1.JournalEntry_Type) []string {
 	for _, e := range f.entries {
 		if e.GetType() == t {
 			out = append(out, e.GetParams().GetFields()["event"].GetStringValue())
+		}
+	}
+
+	return out
+}
+
+// event returns the entries of type OPERATION with params.event.
+func (f *fakeJournal) event(event string) []*dcctlv1.JournalEntry {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	var out []*dcctlv1.JournalEntry
+
+	for _, e := range f.entries {
+		if e.GetType() == dcctlv1.JournalEntry_OPERATION && e.GetParams().GetFields()["event"].GetStringValue() == event {
+			out = append(out, e)
+		}
+	}
+
+	return out
+}
+
+// results returns the results of the entries of type t.
+func (f *fakeJournal) results(t dcctlv1.JournalEntry_Type) []dcctlv1.JournalEntry_Result {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	var out []dcctlv1.JournalEntry_Result
+
+	for _, e := range f.entries {
+		if e.GetType() == t {
+			out = append(out, e.GetResult())
 		}
 	}
 
@@ -492,6 +531,7 @@ type world struct {
 	journal   *fakeJournal
 	preflight *fakePreflight
 	recorder  *fakeRecorder
+	resumers  map[dcctlv1.Operation_Type]operation.Resumer
 }
 
 func newWorld(t *testing.T) *world {
@@ -510,6 +550,7 @@ func newWorld(t *testing.T) *world {
 		journal:   &fakeJournal{},
 		preflight: &fakePreflight{verdict: check.Verdict{Outcome: check.Allowed}},
 		recorder:  &fakeRecorder{},
+		resumers:  map[dcctlv1.Operation_Type]operation.Resumer{},
 	}
 }
 
@@ -545,6 +586,7 @@ func (w *world) engine(s operation.Instance) *operation.Engine {
 		Preflight:   w.preflight,
 		Journal:     w.journal,
 		Recorder:    w.recorder,
+		Resumers:    w.resumers,
 		Interval:    15 * time.Second,
 		Log:         quietLog(),
 	})

@@ -13,7 +13,7 @@
 // step marked as the point of no return or of a later one, a failed rollback,
 // an outcome that is not known, a lost lock or a stopping instance leave the
 // operation INTERRUPTED: the infrastructure is in between, and the operator
-// decides.
+// decides with [Engine.Resume] or [Engine.Abandon].
 //
 // [Engine.Run] keeps the operations of all instances moving to a decision: an
 // operation of this instance found RUNNING after a restart is interrupted at
