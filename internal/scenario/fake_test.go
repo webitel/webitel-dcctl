@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -24,12 +25,17 @@ import (
 	"github.com/webitel/webitel-dcctl/internal/kv"
 	"github.com/webitel/webitel-dcctl/internal/pgctl"
 	"github.com/webitel/webitel-dcctl/internal/preflight"
+	"github.com/webitel/webitel-dcctl/internal/source"
 	"github.com/webitel/webitel-dcctl/internal/source/consul"
 	"github.com/webitel/webitel-dcctl/internal/source/patroni"
 )
 
 func quietLog() *logging.Logger {
 	return logging.New(logging.WithProvider(logtest.NewRecorder()))
+}
+
+func unreachable() error {
+	return source.Classify("fake:8500", fmt.Errorf("dial: %w", syscall.ECONNREFUSED))
 }
 
 type fakeKey struct {
@@ -219,18 +225,33 @@ func (f *fakeConsul) lockHolder() string {
 	return ""
 }
 
+// rawOp returns dcctl/op as it is stored.
+func (f *fakeConsul) rawOp() []byte {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if k := f.keys[kv.OpKey]; k != nil {
+		return slices.Clone(k.value)
+	}
+
+	return nil
+}
+
+// setRawOp writes dcctl/op as it was stored, as before a crash.
+func (f *fakeConsul) setRawOp(b []byte) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.put(kv.OpKey, b, "")
+}
+
 func (f *fakeConsul) op(t *testing.T) *dcctlv1.Operation {
 	t.Helper()
 
-	f.mu.Lock()
-	k := f.keys[kv.OpKey]
-	f.mu.Unlock()
-
-	if k == nil {
+	b := f.rawOp()
+	if b == nil {
 		return nil
 	}
-
-	b := k.value
 
 	op := new(dcctlv1.Operation)
 	require.NoError(t, kv.DecodeProto(b, op))

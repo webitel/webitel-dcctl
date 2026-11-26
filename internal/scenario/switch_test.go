@@ -17,6 +17,7 @@ import (
 	"github.com/webitel/webitel-dcctl/internal/check"
 	"github.com/webitel/webitel-dcctl/internal/coord"
 	"github.com/webitel/webitel-dcctl/internal/kv"
+	"github.com/webitel/webitel-dcctl/internal/operation"
 	"github.com/webitel/webitel-dcctl/internal/pgctl"
 	"github.com/webitel/webitel-dcctl/internal/source/patroni"
 )
@@ -571,6 +572,131 @@ func TestSwitch_lockLostInterrupts(t *testing.T) {
 		assert.Equal(t, upTo(t, "catchup dc_b"), w.infra.allCalls(), "nothing is rolled back")
 		assert.Equal(t, failed, stepOf(t, op, dcctlv1.Operation_Step_PATRONI_CATCHUP, 0).GetState())
 		w.assertActive(5, dcA)
+	})
+}
+
+// crashAndResume runs the switch until the primitive of key, then crashes the instance
+// there: the operation stays RUNNING in dcctl/op. After the restart the operation is
+// interrupted and resumed.
+func (w *world) crashAndResume(key string) *dcctlv1.Operation {
+	w.t.Helper()
+
+	crashed := w.crashAt(key)
+
+	e := w.engine()
+	stop := start(w.t, e)
+
+	synctest.Wait()
+
+	first, err := e.Start(w.t.Context(), w.plan())
+	require.NoError(w.t, err)
+
+	synctest.Wait()
+
+	stop()
+
+	saved := crashed()
+	require.NotNil(w.t, saved, "the switch reached %s", key)
+	w.setRawOps(saved)
+	require.Equal(w.t, dcctlv1.Operation_RUNNING, w.op().GetState())
+
+	e = w.engine()
+	stop = start(w.t, e)
+
+	defer stop()
+
+	synctest.Wait()
+
+	op := w.op()
+	require.Equal(w.t, dcctlv1.Operation_INTERRUPTED, op.GetState())
+	assert.Contains(w.t, op.GetError().GetDetail(), "restarted")
+
+	_, err = e.Resume(w.t.Context(), operation.ResumeRequest{Operation: operationID(first), Initiator: initiator})
+	require.NoError(w.t, err)
+
+	synctest.Wait()
+
+	return w.op()
+}
+
+func TestSwitch_crashBetweenDemoteAndPromoteResumes(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		w := newWorld(t)
+
+		op := w.crashAndResume(noPrimary)
+
+		assert.Equal(t, dcctlv1.Operation_SUCCEEDED, op.GetState(), op.GetError().GetDetail())
+		assert.Equal(t, slices.Concat(upTo(t, noPrimary), forward[slices.Index(forward, noPrimary):]), w.infra.allCalls(),
+			"the resume runs again the step that was running and goes on")
+
+		assert.Equal(t, patroni.RolePrimary, w.infra.dc(dcB).role)
+		assert.True(t, allRunning(w.infra.dc(dcB)))
+		w.assertActive(6, dcB)
+		assert.True(t, w.lockFree())
+	})
+}
+
+func TestSwitch_resumeAfterGenerationWrite(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		w := newWorld(t)
+
+		op := w.crashAndResume("promote dc_b")
+
+		assert.Equal(t, dcctlv1.Operation_SUCCEEDED, op.GetState(), op.GetError().GetDetail())
+		assert.Equal(t, slices.Concat(upTo(t, "promote dc_b"), forward[slices.Index(forward, "no_primary dc_a"):]), w.infra.allCalls())
+
+		id := operationID(op)
+		for _, s := range w.voterStates() {
+			assert.Equal(t, kv.State{Generation: 6, Revision: 1, ActiveDatacenter: dcB, OpID: id, PatroniTimeline: 6},
+				withoutTime(s), "the generation is written once and its timeline once")
+		}
+	})
+}
+
+// The record of the switch reaches one KV, another KV leaves the outcome unknown and the
+// arbiter does not answer: the operation is interrupted, and the resume finishes the
+// record the voters hold.
+func TestSwitch_resumeFinishesUndeterminedGeneration(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		w := newWorld(t)
+		w.infra.hook(noPrimary, func(context.Context) error {
+			w.voters[1].set(func(v *fakeVoter) { v.casErr = coord.ErrOutcomeUnknown })
+			w.voters[2].set(func(v *fakeVoter) { v.getErr = unreachable() })
+
+			return nil
+		})
+
+		e := w.engine()
+		stop := start(t, e)
+
+		defer stop()
+
+		synctest.Wait()
+
+		first, err := e.Start(t.Context(), w.plan())
+		require.NoError(t, err)
+
+		synctest.Wait()
+
+		op := w.op()
+		require.Equal(t, dcctlv1.Operation_INTERRUPTED, op.GetState())
+		assert.Equal(t, failed, stepOf(t, op, dcctlv1.Operation_Step_GENERATION, 0).GetState())
+		assert.Equal(t, pending, stepOf(t, op, dcctlv1.Operation_Step_PATRONI_PROMOTE, 0).GetState())
+		assert.Equal(t, upTo(t, noPrimary), w.infra.allCalls())
+		assert.Equal(t, dcB, w.voters[0].state(t).ActiveDatacenter)
+
+		w.voters[1].set(func(v *fakeVoter) { v.casErr = nil })
+		w.voters[2].set(func(v *fakeVoter) { v.getErr = nil })
+
+		_, err = e.Resume(t.Context(), operation.ResumeRequest{Operation: operationID(first), Initiator: initiator})
+		require.NoError(t, err)
+
+		synctest.Wait()
+
+		op = w.op()
+		assert.Equal(t, dcctlv1.Operation_SUCCEEDED, op.GetState(), op.GetError().GetDetail())
+		assert.Equal(t, forward, w.infra.allCalls())
+		w.assertActive(6, dcB)
 	})
 }
 

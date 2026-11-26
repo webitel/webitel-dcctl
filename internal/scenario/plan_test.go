@@ -146,3 +146,60 @@ func TestSwitchPlan_cannotPlan(t *testing.T) {
 		})
 	}
 }
+
+// recorded returns op with the steps of p as the engine records them.
+func recorded(p operation.Plan) *dcctlv1.Operation {
+	op := &dcctlv1.Operation{Name: "operations/op1", Type: p.Type, Target: "datacenters/" + p.Target}
+
+	for i, s := range p.Steps {
+		dc := ""
+		if s.Datacenter != "" {
+			dc = "datacenters/" + s.Datacenter
+		}
+
+		op.Steps = append(op.Steps, &dcctlv1.Operation_Step{
+			Index: int32(i), Type: s.Type, Stage: s.Stage, Datacenter: dc, PointOfNoReturn: s.PointOfNoReturn, //nolint:gosec // a plan has a handful of steps
+		})
+	}
+
+	return op
+}
+
+func TestSwitchResume_rebuildsSteps(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		w := newWorld(t)
+		p := w.plan()
+
+		steps, err := w.sw.Resume(t.Context(), recorded(p))
+		require.NoError(t, err)
+		assert.Equal(t, planSteps(p.Steps), planSteps(steps))
+	})
+}
+
+func TestSwitchResume_refuses(t *testing.T) {
+	tests := []struct {
+		name   string
+		change func(op *dcctlv1.Operation)
+	}{
+		{name: "not_a_switch", change: func(op *dcctlv1.Operation) { op.Type = dcctlv1.Operation_FAILOVER }},
+		{name: "foreign_step", change: func(op *dcctlv1.Operation) {
+			op.Steps[4].Type = dcctlv1.Operation_Step_PATRONI_SWITCHOVER
+		}},
+		{name: "two_sources", change: func(op *dcctlv1.Operation) { op.Steps[3].Datacenter = "datacenters/" + dcC }},
+		{name: "no_target", change: func(op *dcctlv1.Operation) { op.Target = "" }},
+		{name: "unknown_datacenter", change: func(op *dcctlv1.Operation) { op.Steps[11].Datacenter = "datacenters/dc_x" }},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				w := newWorld(t)
+				op := recorded(w.plan())
+				tt.change(op)
+
+				_, err := w.sw.Resume(t.Context(), op)
+				require.Error(t, err)
+			})
+		})
+	}
+}

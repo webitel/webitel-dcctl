@@ -1,6 +1,8 @@
 package scenario
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"math"
 	"slices"
@@ -133,6 +135,75 @@ func stagesOf(n status.Nomad, down bool) []int {
 	}
 
 	return out
+}
+
+// Resume rebuilds the steps of the interrupted switch op from its recorded steps, see
+// [operation.Resumer].
+func (s *Switch) Resume(_ context.Context, op *dcctlv1.Operation) ([]operation.Step, error) {
+	r, err := routeOf(op)
+	if err != nil {
+		return nil, fmt.Errorf("switch %s: %w", op.GetName(), err)
+	}
+
+	if err := s.d.known(slices.Concat([]string{r.a, r.b}, r.c)...); err != nil {
+		return nil, fmt.Errorf("switch %s: %w", op.GetName(), err)
+	}
+
+	return s.steps(r), nil
+}
+
+// routeOf reads the route of a switch from its recorded steps.
+func routeOf(op *dcctlv1.Operation) (route, error) {
+	if op.GetType() != dcctlv1.Operation_SWITCH {
+		return route{}, fmt.Errorf("operation of type %s is not a switch", op.GetType())
+	}
+
+	r := route{b: datacenterID(op.GetTarget())}
+
+	setA := func(dc string) error {
+		if r.a != "" && r.a != dc {
+			return fmt.Errorf("steps act on both %s and %s as the active datacenter", r.a, dc)
+		}
+
+		r.a = dc
+
+		return nil
+	}
+
+	for i, st := range op.GetSteps() {
+		dc := datacenterID(st.GetDatacenter())
+
+		var err error
+
+		switch st.GetType() {
+		case dcctlv1.Operation_Step_APPS_STOP:
+			r.stop = append(r.stop, int(st.GetStage()))
+			err = setA(dc)
+		case dcctlv1.Operation_Step_PATRONI_DEMOTE, dcctlv1.Operation_Step_PATRONI_FOLLOW:
+			err = setA(dc)
+		case dcctlv1.Operation_Step_APPS_START:
+			r.start = append(r.start, int(st.GetStage()))
+		case dcctlv1.Operation_Step_PATRONI_REPOINT:
+			r.c = append(r.c, dc)
+		case dcctlv1.Operation_Step_PATRONI_CATCHUP, dcctlv1.Operation_Step_PATRONI_NO_PRIMARY,
+			dcctlv1.Operation_Step_GENERATION, dcctlv1.Operation_Step_PATRONI_PROMOTE, dcctlv1.Operation_Step_VERIFY:
+		case dcctlv1.Operation_Step_TYPE_UNSPECIFIED, dcctlv1.Operation_Step_APPS_PREFLIGHT,
+			dcctlv1.Operation_Step_PATRONI_SWITCHOVER, dcctlv1.Operation_Step_PATRONI_FAILOVER:
+			err = fmt.Errorf("step %d of type %s is not a step of a switch", i, st.GetType())
+		default:
+			err = fmt.Errorf("step %d of type %s is not a step of a switch", i, st.GetType())
+		}
+
+		if err != nil {
+			return route{}, err
+		}
+	}
+
+	if r.a == "" || r.b == "" || r.a == r.b || len(r.stop) == 0 || len(r.start) == 0 {
+		return route{}, errors.New("steps do not tell a switch from one datacenter to another")
+	}
+
+	return r, nil
 }
 
 // steps returns the steps of r. The last stop step stops every stage and the first one
