@@ -32,7 +32,7 @@ var (
 // has the meaning it has for dcctl/state; Lease and Version are set for
 // [StatusPresent]. A read that may not be current, such as one from a
 // Consul that answered without a known leader, is passed as
-// [StatusUnreachable]: it may hold an older lease than the voter does.
+// [StatusStale]: it may hold an older lease than the voter does.
 type VoterLease struct {
 	Name   string
 	Kind   Kind
@@ -282,7 +282,7 @@ func (c *Coordinator) writeLease(ctx context.Context, v Voter, h LeaseHolder, cu
 			res.Outcome, res.Err = LeaseWriteSkipped, cur.Err
 
 			return res
-		case StatusUnreachable:
+		case StatusUnreachable, StatusStale:
 			// After an unknown outcome the voter may still hold what was sent.
 			if sent == nil {
 				res.Outcome = LeaseWriteFailed

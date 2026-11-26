@@ -97,8 +97,19 @@ func TestBuild_voterStatuses(t *testing.T) {
 			name: "consul_without_leader",
 			edit: func(s *collect.Snapshot) { s.Voters[1].KV.Data.Meta.KnownLeader = false },
 			want: status.Voter{
-				Name: dcB, Type: status.VoterDatacenter, Datacenter: dcB, Status: coord.StatusUnreachable,
+				Name: dcB, Type: status.VoterDatacenter, Datacenter: dcB, Status: coord.StatusStale,
 				Reason: source.ReasonNoLeader, Generation: 5, ActiveDatacenter: dcA,
+			},
+		},
+		{
+			name: "consul_without_leader_newer",
+			edit: func(s *collect.Snapshot) {
+				setVoterState(s, dcB, stateEntry(6, dcB))
+				s.Voters[1].KV.Data.Meta.KnownLeader = false
+			},
+			want: status.Voter{
+				Name: dcB, Type: status.VoterDatacenter, Datacenter: dcB, Status: coord.StatusStale,
+				Reason: source.ReasonNoLeader, Generation: 6, ActiveDatacenter: dcB,
 			},
 		},
 	}
@@ -111,6 +122,23 @@ func TestBuild_voterStatuses(t *testing.T) {
 			assert.Equal(t, tt.want, status.Build(s, testConfig(), now).Voters[1])
 		})
 	}
+}
+
+// A Consul without a leader answers with what it last knew; its record never votes.
+func TestBuild_staleReadDoesNotVote(t *testing.T) {
+	s := warm()
+	setVoterState(s, dcB, stateEntry(6, dcB))
+	s.Voters[1].KV.Data.Meta.KnownLeader = false
+
+	st := status.Build(s, testConfig(), now)
+
+	require.NotNil(t, st.Effective)
+	assert.Equal(t, int64(5), st.Effective.Generation)
+	assert.Equal(t, dcA, st.Effective.ActiveDatacenter)
+	assert.Empty(t, st.View.Uncommitted)
+	assert.Empty(t, st.View.Undetermined)
+	assert.False(t, st.View.Voters[1].Stale, "a stale read is not aligned")
+	assert.Equal(t, 2, st.Quorum.ReachableCount)
 }
 
 func TestBuild_arbiterVoter(t *testing.T) {
@@ -307,6 +335,13 @@ func TestActiveKnown(t *testing.T) {
 		{
 			name:   "undetermined_other_datacenter",
 			voters: []coord.VoterState{present(dcA, 5, dcA, true), unreachable(dcB), present(coord.ArbiterName, 6, dcB, false)},
+			want:   false,
+		},
+		{
+			// The voter that does not answer and the arbiter may have
+			// committed generation 5 on dc_b next to the forced one.
+			name:   "forced_and_undetermined_of_its_generation",
+			voters: []coord.VoterState{present(dcA, 5, dcA, true), unreachable(dcB), present(coord.ArbiterName, 5, dcB, false)},
 			want:   false,
 		},
 	}

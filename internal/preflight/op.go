@@ -179,7 +179,7 @@ func (in *Input) initStateAbsent() check.Check {
 	for _, v := range in.kvVoters() {
 		switch v.Status {
 		case coord.StatusAbsent:
-		case coord.StatusUnreachable:
+		case coord.StatusUnreachable, coord.StatusStale:
 			return c.fail("Consul KV of "+v.Name+" does not answer, it may hold dcctl/state", facts)
 		case coord.StatusPresent, coord.StatusInvalid, coord.StatusUninitialized:
 			return c.fail("Consul KV of "+v.Name+" holds dcctl/state", facts)

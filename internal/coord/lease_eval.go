@@ -83,7 +83,7 @@ type leaseMark struct {
 	mismatched    bool
 	mismatchSince time.Time
 	// mismatchWith is the effective state the mismatch is measured against.
-	mismatchWith recordKey
+	mismatchWith RecordKey
 }
 
 // NewLeaseTimeline returns the empty timeline of a lease with the period T
@@ -101,7 +101,7 @@ func NewLeaseTimeline(period, acquireAfter time.Duration) (LeaseTimeline, error)
 // of dcctl/state (View.Effective). It takes the time from the monotonic clock
 // of this instance, so it is to be called right after the reads. It returns
 // the timeline to pass on the next call; tl is not changed. A read that may
-// not be current is passed as unreachable, see [VoterLease].
+// not be current is passed as stale, see [VoterLease].
 //
 // A change of a voter's lease happened between the read before it was seen
 // and the read that saw it. A voter is renewed when its lease names the
@@ -125,9 +125,9 @@ func EvaluateLease(tl LeaseTimeline, voters []VoterLease, effective *Record) (Le
 	now := time.Now()
 	next := LeaseTimeline{window: tl.window, marks: make(map[string]leaseMark, len(voters))}
 
-	var eff *recordKey
+	var eff *RecordKey
 	if effective != nil {
-		eff = &recordKey{generation: effective.State.Generation, datacenter: effective.State.ActiveDatacenter}
+		eff = new(KeyOf(effective.State))
 	}
 
 	var (
@@ -145,7 +145,7 @@ func EvaluateLease(tl LeaseTimeline, voters []VoterLease, effective *Record) (Le
 				next.marks[v.Name] = prev
 			}
 
-			if v.Status == StatusUnreachable || v.Status == StatusInvalid {
+			if v.Status.Unknown() {
 				unknown++
 			}
 
@@ -200,7 +200,7 @@ func answered(v VoterLease) bool {
 
 // observeLease returns the mark of v read at now after prev. Without an
 // effective state the mismatch is left as it was.
-func observeLease(prev leaseMark, seen bool, v VoterLease, eff *recordKey, now time.Time) leaseMark {
+func observeLease(prev leaseMark, seen bool, v VoterLease, eff *RecordKey, now time.Time) leaseMark {
 	m := prev
 	present := v.Status == StatusPresent
 
@@ -215,8 +215,8 @@ func observeLease(prev leaseMark, seen bool, v VoterLease, eff *recordKey, now t
 	}
 
 	switch {
-	case present && v.Lease.Holder == eff.datacenter && v.Lease.Generation == eff.generation:
-		m.mismatched, m.mismatchSince, m.mismatchWith = false, time.Time{}, recordKey{}
+	case present && v.Lease.Holder == eff.ActiveDatacenter && v.Lease.Generation == eff.Generation:
+		m.mismatched, m.mismatchSince, m.mismatchWith = false, time.Time{}, RecordKey{}
 	case !m.mismatched || m.mismatchWith != *eff:
 		m.mismatched, m.mismatchSince, m.mismatchWith = true, now, *eff
 	}

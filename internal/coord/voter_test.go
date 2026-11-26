@@ -337,4 +337,16 @@ func TestNewVoters(t *testing.T) {
 		_, err := coord.NewVoters(config.ProfileWarmStandby, nil, nil)
 		require.Error(t, err)
 	})
+
+	t.Run("stale_reads", func(t *testing.T) {
+		stale, err := consul.New(consul.Options{
+			Profile: config.ProfileWarmStandby, NodeMetaKey: "dc", SessionTTL: 15 * time.Second, Timeout: testTimeout,
+			Servers:    []config.ConsulServer{{Address: "10.0.0.1:8500", Datacenter: "dc_a"}},
+			AllowStale: true,
+		})
+		require.NoError(t, err)
+
+		_, err = coord.NewVoters(config.ProfileWarmStandby, stale, nil)
+		require.Error(t, err, "a read of a server without a leader would vote")
+	})
 }

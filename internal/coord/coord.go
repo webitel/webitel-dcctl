@@ -144,21 +144,27 @@ func decodeState(b []byte, s *kv.State) error {
 		return fmt.Errorf("decode %s: %w", kv.StateKey, err)
 	}
 
-	if s.ActiveDatacenter == "" {
+	switch {
+	case s.ActiveDatacenter == "":
 		return fmt.Errorf("%s has no active datacenter", kv.StateKey)
+	case s.Revision < 0:
+		return fmt.Errorf("%s has negative revision %d", kv.StateKey, s.Revision)
 	}
 
 	return nil
 }
 
-// Align writes the effective state of view to its stale voters, in
-// parallel, and returns what happened on each. It does nothing without an
+// Align writes the effective state of view to its stale voters and to the
+// voters behind it within its generation, in parallel, and returns what
+// happened on each. It does nothing without an
 // effective state, so neither an uncommitted record nor a side of a
 // conflict is ever propagated, and writes nothing while the effective
 // record is not settled.
 //
 // Every voter is read again right before its write, and the write uses the
-// version of that read, never one from view. The value written is the raw
+// version of that read, never one from view. The voter is written only when
+// what it holds then may be written over by the rules the view gave it:
+// a record or payload committed since the view is kept. The value written is the raw
 // record of the effective state, so fields this version of dcctl does not
 // know are kept. A KV without the key gets it created; an arbiter is never
 // created or initialized. Align fails only when view is not of these
@@ -179,11 +185,12 @@ func (c *Coordinator) Align(ctx context.Context, view View) ([]Alignment, error)
 	}
 
 	results := make([]*Alignment, len(c.voters))
+	rules := view.overwrite()
 
 	var wg sync.WaitGroup
 
 	for i, vs := range view.Voters {
-		if !vs.Stale {
+		if !vs.Stale && !vs.Behind {
 			continue
 		}
 
@@ -194,7 +201,7 @@ func (c *Coordinator) Align(ctx context.Context, view View) ([]Alignment, error)
 		}
 
 		wg.Go(func() {
-			a := c.alignVoter(ctx, c.voters[i], view.Effective)
+			a := c.alignVoter(ctx, c.voters[i], view.Effective, rules)
 			results[i] = &a
 		})
 	}
@@ -216,7 +223,9 @@ func (c *Coordinator) Align(ctx context.Context, view View) ([]Alignment, error)
 	return out, nil
 }
 
-func (c *Coordinator) alignVoter(ctx context.Context, v Voter, effective *Record) Alignment {
+// alignVoter writes effective to v when v, read again, holds what rules
+// allow to write over.
+func (c *Coordinator) alignVoter(ctx context.Context, v Voter, effective *Record, rules overwrite) Alignment {
 	a := Alignment{Voter: v.Name()}
 	fresh := c.readState(ctx, v)
 
@@ -224,7 +233,7 @@ func (c *Coordinator) alignVoter(ctx context.Context, v Voter, effective *Record
 
 	switch fresh.Status {
 	case StatusPresent:
-		if fresh.State.Generation >= effective.State.Generation {
+		if !rules.allows(fresh.State) {
 			a.Outcome = AlignSkipped
 
 			return a
@@ -241,7 +250,7 @@ func (c *Coordinator) alignVoter(ctx context.Context, v Voter, effective *Record
 		a.Outcome, a.Err = AlignSkipped, fresh.Err
 
 		return a
-	case StatusUnreachable:
+	case StatusUnreachable, StatusStale:
 		a.Outcome, a.Err = AlignFailed, fresh.Err
 
 		return a
@@ -250,25 +259,35 @@ func (c *Coordinator) alignVoter(ctx context.Context, v Voter, effective *Record
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 
-	err := v.CAS(ctx, KeyState, effective.Raw, version)
+	a.Outcome, a.Err = alignOutcome(v.CAS(ctx, KeyState, effective.Raw, version))
 
-	switch {
-	case err == nil:
-		a.Outcome = AlignWritten
-
+	switch a.Outcome {
+	case AlignWritten:
 		c.log.InfoCtx(ctx, "voter aligned",
 			logging.Str("voter", v.Name()),
 			logging.Int64("generation_from", fresh.State.Generation),
-			logging.Int64("generation", effective.State.Generation))
-	case errors.Is(err, ErrVersionMismatch):
-		a.Outcome, a.Err = AlignMismatch, err
-	case errors.Is(err, ErrOutcomeUnknown):
-		a.Outcome, a.Err = AlignUnknown, err
+			logging.Int64("revision_from", fresh.State.Revision),
+			logging.Int64("generation", effective.State.Generation),
+			logging.Int64("revision", effective.State.Revision))
+	case AlignUnknown:
 		c.log.WarnCtx(ctx, "voter alignment outcome is unknown",
-			logging.Str("voter", v.Name()), logging.Err(err))
-	default:
-		a.Outcome, a.Err = AlignFailed, err
+			logging.Str("voter", v.Name()), logging.Err(a.Err))
+	case AlignSkipped, AlignMismatch, AlignFailed:
 	}
 
 	return a
+}
+
+// alignOutcome returns the outcome of a CAS that copies a record to a voter.
+func alignOutcome(err error) (AlignOutcome, error) {
+	switch {
+	case err == nil:
+		return AlignWritten, nil
+	case errors.Is(err, ErrVersionMismatch):
+		return AlignMismatch, err
+	case errors.Is(err, ErrOutcomeUnknown):
+		return AlignUnknown, err
+	}
+
+	return AlignFailed, err
 }

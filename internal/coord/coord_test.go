@@ -38,7 +38,10 @@ type fakeVoter struct {
 	block bool
 	// beforeCAS runs at the start of CAS, as another writer would.
 	beforeCAS func(f *fakeVoter)
-	cas       []casCall
+	// blockCAS makes CAS wait for its context and end with an unknown
+	// outcome, as a request sent to a server that stopped answering.
+	blockCAS bool
+	cas      []casCall
 }
 
 func newFake(name string, kind coord.Kind, value []byte) *fakeVoter {
@@ -84,9 +87,15 @@ func (f *fakeVoter) Get(ctx context.Context, key coord.Key) (coord.Entry, error)
 	return coord.Entry{Value: f.value, Version: f.version}, nil
 }
 
-func (f *fakeVoter) CAS(_ context.Context, key coord.Key, value []byte, version coord.Version) error {
+func (f *fakeVoter) CAS(ctx context.Context, key coord.Key, value []byte, version coord.Version) error {
 	if key != coord.KeyState {
 		return fmt.Errorf("unexpected key %s", key)
+	}
+
+	if f.blockCAS {
+		<-ctx.Done()
+
+		return fmt.Errorf("%w: %w", coord.ErrOutcomeUnknown, ctx.Err())
 	}
 
 	if f.beforeCAS != nil {
@@ -531,6 +540,198 @@ func TestAlignSkipsUnsettledRecord(t *testing.T) {
 	assert.Equal(t, "dc_a", res[0].Voter)
 	assert.Equal(t, coord.AlignSkipped, res[0].Outcome)
 	require.ErrorIs(t, res[0].Err, coord.ErrUnsettled)
+
+	_, calls := a.state()
+	assert.Empty(t, calls)
+}
+
+// The voters an update within the generation did not reach get the
+// payload of the highest revision.
+func TestAlignWritesBehindVoter(t *testing.T) {
+	base := kv.State{Generation: 9, ActiveDatacenter: "dc_c", OpID: "op9"}
+	recovering := base
+	recovering.Revision = 1
+	recovering.NeedsRecovery = []string{"dc_a"}
+
+	a := newFake("dc_a", coord.KindKV, raw(t, 8, "dc_a", false))
+	b := newFake("dc_b", coord.KindKV, stateJSON(t, base))
+	c := newFake("dc_c", coord.KindKV, stateJSON(t, recovering))
+	co := newCoordinator(t, time.Second, a, b, c)
+
+	view, res := readAlign(t, co)
+	require.NotNil(t, view.Effective)
+	assert.True(t, view.Effective.Settled)
+	assert.ElementsMatch(t, []coord.Alignment{
+		{Voter: "dc_a", Outcome: coord.AlignWritten},
+		{Voter: "dc_b", Outcome: coord.AlignWritten},
+	}, res)
+
+	for _, f := range []*fakeVoter{a, b} {
+		value, calls := f.state()
+		assert.Equal(t, stateJSON(t, recovering), value, f.name)
+		assert.Equal(t, []casCall{{value: stateJSON(t, recovering), version: 10}}, calls, f.name)
+	}
+
+	_, res = readAlign(t, co)
+	assert.Empty(t, res)
+}
+
+// Two writers raced to one revision and the loser reached the arbiter. The
+// payload of the majority is copied over it, so that losing a voter of the
+// majority does not leave two payloads that nothing orders.
+func TestAlignRewritesLoserOfRevision(t *testing.T) {
+	x := kv.State{Generation: 9, Revision: 1, ActiveDatacenter: "dc_b", OpID: "op9", PatroniTimeline: 5}
+	y := kv.State{Generation: 9, Revision: 1, ActiveDatacenter: "dc_b", OpID: "op9", NeedsRecovery: []string{"dc_a"}}
+
+	a := newFake("dc_a", coord.KindKV, stateJSON(t, x))
+	b := newFake("dc_b", coord.KindKV, stateJSON(t, x))
+	arb := newFake(coord.ArbiterName, coord.KindArbiter, stateJSON(t, y))
+	co := newCoordinator(t, time.Second, a, b, arb)
+
+	_, res := readAlign(t, co)
+	assert.Equal(t, []coord.Alignment{{Voter: coord.ArbiterName, Outcome: coord.AlignWritten}}, res)
+
+	value, _ := arb.state()
+	assert.Equal(t, stateJSON(t, x), value)
+
+	b.mu.Lock()
+	b.getErr = source.Classify("10.0.0.2:8500", context.DeadlineExceeded)
+	b.mu.Unlock()
+
+	view, err := co.Read(t.Context())
+	require.NoError(t, err)
+	require.NotNil(t, view.Effective)
+	assert.True(t, view.Effective.Settled, "one payload is left when a voter of the majority is lost")
+	assert.Equal(t, x, view.Effective.State)
+}
+
+// A write of another operation lost generation 9 and was left on dc_b.
+func TestAlignRewritesOtherRecordOfEffectiveGeneration(t *testing.T) {
+	won := raw(t, 9, "dc_b", false)
+	a := newFake("dc_a", coord.KindKV, won)
+	b := newFake("dc_b", coord.KindKV, raw(t, 9, "dc_c", false))
+	arb := newFake(coord.ArbiterName, coord.KindArbiter, won)
+
+	_, res := readAlign(t, newCoordinator(t, time.Second, a, b, arb))
+	assert.Equal(t, []coord.Alignment{{Voter: "dc_b", Outcome: coord.AlignWritten}}, res)
+
+	value, _ := b.state()
+	assert.Equal(t, won, value)
+}
+
+// The view marks a voter for alignment by what the voters hold when read;
+// another instance may commit something else on it before the write. The
+// re-read must be judged by the same rules: what the view knew of the
+// effective record does not cover a record committed since.
+func TestAlignRereadJudgedAsTheView(t *testing.T) {
+	// The forced 9 of dc_a is on one voter of three; dc_b holds 8 and is
+	// stale. Another instance commits 9 of dc_b on dc_b and the arbiter.
+	t.Run("record_committed_meanwhile", func(t *testing.T) {
+		forcedA := kv.State{Generation: 9, ActiveDatacenter: "dc_a", OpID: "op-forced", Forced: true}
+		quorumB := stateJSON(t, kv.State{Generation: 9, ActiveDatacenter: "dc_b", OpID: "op-quorum"})
+
+		a := newFake("dc_a", coord.KindKV, stateJSON(t, forcedA))
+		b := newFake("dc_b", coord.KindKV, raw(t, 8, "dc_a", false))
+		arb := newFake(coord.ArbiterName, coord.KindArbiter, raw(t, 8, "dc_a", false))
+		arb.getErr = source.Classify("10.0.0.9:9443", context.DeadlineExceeded)
+		co := newCoordinator(t, time.Second, a, b, arb)
+
+		view, err := co.Read(t.Context())
+		require.NoError(t, err)
+		require.True(t, view.Voters[1].Stale)
+
+		b.set(quorumB)
+		arb.set(quorumB)
+
+		res, err := co.Align(t.Context(), view)
+		require.NoError(t, err)
+		assert.Equal(t, []coord.Alignment{{Voter: "dc_b", Outcome: coord.AlignSkipped}}, res)
+
+		value, calls := b.state()
+		assert.Equal(t, quorumB, value)
+		assert.Empty(t, calls)
+	})
+
+	// Revision 3 of the effective record is on two voters of five, v3 is
+	// behind at revision 2. Another writer commits another payload of
+	// revision 3 on v3, v4 and v5.
+	t.Run("payload_committed_meanwhile", func(t *testing.T) {
+		r2 := kv.State{Generation: 9, Revision: 2, ActiveDatacenter: "dc_b", OpID: "op9", PatroniTimeline: 4}
+		p1, p2 := r2, r2
+		p1.Revision, p1.PatroniTimeline = 3, 5
+		p2.Revision, p2.PatroniTimeline = 3, 6
+
+		v1 := newFake("v1", coord.KindKV, stateJSON(t, p1))
+		v2 := newFake("v2", coord.KindKV, stateJSON(t, p1))
+		v3 := newFake("v3", coord.KindKV, stateJSON(t, r2))
+		v4 := newFake("v4", coord.KindKV, stateJSON(t, r2))
+		v4.getErr = source.Classify("10.0.0.4:8500", context.DeadlineExceeded)
+		v5 := newFake("v5", coord.KindKV, stateJSON(t, r2))
+		v5.getErr = source.Classify("10.0.0.5:8500", context.DeadlineExceeded)
+		co := newCoordinator(t, time.Second, v1, v2, v3, v4, v5)
+
+		view, err := co.Read(t.Context())
+		require.NoError(t, err)
+		require.True(t, view.Voters[2].Behind)
+
+		v3.set(stateJSON(t, p2))
+
+		res, err := co.Align(t.Context(), view)
+		require.NoError(t, err)
+		assert.Equal(t, []coord.Alignment{{Voter: "v3", Outcome: coord.AlignSkipped}}, res)
+
+		value, calls := v3.state()
+		assert.Equal(t, stateJSON(t, p2), value)
+		assert.Empty(t, calls)
+	})
+
+	// The same race when the view did see the effective record on a
+	// majority: the record or payload the voter got can no longer be
+	// committed, and it is written over.
+	t.Run("effective_on_majority", func(t *testing.T) {
+		won := raw(t, 9, "dc_b", false)
+		a := newFake("dc_a", coord.KindKV, won)
+		b := newFake("dc_b", coord.KindKV, won)
+		c := newFake("dc_c", coord.KindKV, raw(t, 8, "dc_a", false))
+		co := newCoordinator(t, time.Second, a, b, c)
+
+		view, err := co.Read(t.Context())
+		require.NoError(t, err)
+
+		c.set(raw(t, 9, "dc_c", false))
+
+		res, err := co.Align(t.Context(), view)
+		require.NoError(t, err)
+		assert.Equal(t, []coord.Alignment{{Voter: "dc_c", Outcome: coord.AlignWritten}}, res)
+
+		value, _ := c.state()
+		assert.Equal(t, won, value)
+	})
+}
+
+func TestAlignSkipsBehindVoterUpdatedOnReread(t *testing.T) {
+	base := kv.State{Generation: 9, ActiveDatacenter: "dc_c", OpID: "op9"}
+	updated := base
+	updated.Revision = 1
+	updated.PatroniTimeline = 3
+
+	a := newFake("dc_a", coord.KindKV, stateJSON(t, base))
+	b := newFake("dc_b", coord.KindKV, stateJSON(t, updated))
+	c := newFake("dc_c", coord.KindKV, stateJSON(t, updated))
+	co := newCoordinator(t, time.Second, a, b, c)
+
+	view, err := co.Read(t.Context())
+	require.NoError(t, err)
+	require.True(t, view.Voters[0].Behind)
+
+	newer := updated
+	newer.Revision = 2
+	newer.NeedsRecovery = []string{"dc_a"}
+	a.set(stateJSON(t, newer))
+
+	res, err := co.Align(t.Context(), view)
+	require.NoError(t, err)
+	assert.Equal(t, []coord.Alignment{{Voter: "dc_a", Outcome: coord.AlignSkipped}}, res)
 
 	_, calls := a.state()
 	assert.Empty(t, calls)

@@ -37,8 +37,8 @@ type Voter struct {
 	Reachable bool
 	// Reason is why the voter is unreachable or its record invalid.
 	Reason source.Reason
-	// Status is how the voter counts in the evaluation; a Consul without a leader
-	// counts as unreachable.
+	// Status is how the voter counts in the evaluation: a Consul without a leader
+	// is [coord.StatusStale] and does not count.
 	Status coord.Status
 	// Generation, ActiveDatacenter and Forced are of the record read from the voter,
 	// also when it came from a Consul without a leader.
@@ -97,9 +97,7 @@ func voterStates(snap *collect.Snapshot) ([]coord.VoterState, []readVoter) {
 
 		vs := rv.read
 		if v.KV.Reachable && !v.KV.Data.Meta.KnownLeader {
-			vs = coord.VoterState{
-				Name: vs.Name, Kind: coord.KindKV, Status: coord.StatusUnreachable, Reason: source.ReasonNoLeader, Err: errNoLeader,
-			}
+			vs.Status, vs.Reason, vs.Err = coord.StatusStale, source.ReasonNoLeader, errNoLeader
 		}
 
 		eval = append(eval, vs)
@@ -161,7 +159,7 @@ func votersOf(reads []readVoter, view coord.View, initialized bool) []Voter {
 			Name:       vs.Name,
 			Type:       r.typ,
 			Datacenter: r.datacenter,
-			Reachable:  vs.Status != coord.StatusUnreachable,
+			Reachable:  vs.Status != coord.StatusUnreachable && vs.Status != coord.StatusStale,
 			Reason:     vs.Reason,
 			Status:     vs.Status,
 			Stale:      vs.Stale,

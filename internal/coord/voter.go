@@ -78,13 +78,20 @@ type Voter interface {
 
 // NewVoters returns the voters of profile: the KV of every datacenter and
 // the arbiter, if arb is not nil, in warm_standby; the one global Consul in
-// stretch.
+// stretch. The Consul clients must not allow stale reads: what a voter
+// returns is its vote.
 func NewVoters(profile config.Profile, clients *consul.Clients, arb *arbiter.Client) ([]Voter, error) {
 	if clients == nil {
 		return nil, errors.New("no consul clients")
 	}
 
 	kvs := clients.Voters()
+
+	for _, c := range kvs {
+		if c.AllowStale() {
+			return nil, fmt.Errorf("consul client of %s allows stale reads", c.Datacenter())
+		}
+	}
 
 	switch profile {
 	case config.ProfileStretch:

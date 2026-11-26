@@ -403,7 +403,9 @@ func TestEvaluateSameGenerationDivergentPayload(t *testing.T) {
 		assert.True(t, v.Voters[0].Stale)
 	})
 
-	t.Run("forced_first", func(t *testing.T) {
+	// A payload on a majority wins over a forced one of the same
+	// revision: making a record forced raises its revision.
+	t.Run("majority_before_forced", func(t *testing.T) {
 		forced := base
 		forced.Forced = true
 
@@ -414,8 +416,24 @@ func TestEvaluateSameGenerationDivergentPayload(t *testing.T) {
 		})
 
 		require.NotNil(t, v.Effective)
+		assert.Equal(t, base, v.Effective.State)
+		assert.True(t, v.Effective.Settled)
+		assert.True(t, v.Voters[2].Behind, "the forced payload of the arbiter is rewritten")
+	})
+
+	t.Run("forced_breaks_a_tie", func(t *testing.T) {
+		forced := base
+		forced.Forced = true
+
+		v := coord.Evaluate([]coord.VoterState{
+			present(t, "dc_a", coord.KindKV, base),
+			present(t, "dc_b", coord.KindKV, forced),
+		})
+
+		require.NotNil(t, v.Effective)
 		assert.Equal(t, forced, v.Effective.State)
-		assert.False(t, v.Effective.Settled, "the forced flag reached one voter of three")
+		assert.False(t, v.Effective.Settled, "no payload of the revision is on a majority")
+		assert.False(t, v.Voters[0].Behind)
 	})
 
 	t.Run("single_forced_voter", func(t *testing.T) {
@@ -444,6 +462,193 @@ func TestEvaluateSameGenerationDivergentPayload(t *testing.T) {
 		require.NotNil(t, v.Effective)
 		assert.Equal(t, later, v.Effective.State, "equal payloads, so the first voter wins")
 		assert.True(t, v.Effective.Settled)
+	})
+}
+
+// An update within a generation raises the revision, so the voters it
+// reached hold the newest payload even when they are fewer.
+func TestEvaluateRevisionOrdersPayloads(t *testing.T) {
+	base := kv.State{Generation: 8, ActiveDatacenter: "dc_b", OpID: "op8", PatroniTimeline: 4}
+	updated := base
+	updated.Revision = 1
+	updated.PatroniTimeline = 5
+
+	t.Run("highest_revision", func(t *testing.T) {
+		v := coord.Evaluate([]coord.VoterState{
+			present(t, "dc_a", coord.KindKV, base),
+			present(t, "dc_b", coord.KindKV, updated),
+			present(t, coord.ArbiterName, coord.KindArbiter, base),
+		})
+
+		require.NotNil(t, v.Effective)
+		assert.Equal(t, updated, v.Effective.State)
+		assert.Equal(t, stateJSON(t, updated), v.Effective.Raw)
+		assert.True(t, v.Effective.Settled, "one payload at the highest revision")
+		assert.Equal(t, []string{"dc_a", "dc_b", coord.ArbiterName}, v.Effective.Voters)
+		assert.True(t, v.Voters[0].Behind)
+		assert.False(t, v.Voters[1].Behind)
+		assert.True(t, v.Voters[2].Behind)
+		assert.Empty(t, summarize(v).Stale, "a voter behind within the generation is not stale")
+	})
+
+	t.Run("revision_before_forced", func(t *testing.T) {
+		forced := base
+		forced.Forced = true
+
+		v := coord.Evaluate([]coord.VoterState{
+			present(t, "dc_a", coord.KindKV, forced),
+			present(t, "dc_b", coord.KindKV, updated),
+		})
+
+		require.NotNil(t, v.Effective)
+		assert.Equal(t, updated, v.Effective.State)
+		assert.True(t, v.Effective.Settled)
+	})
+
+	t.Run("same_revision_diverging", func(t *testing.T) {
+		other := updated
+		other.NeedsRecovery = []string{"dc_a"}
+
+		v := coord.Evaluate([]coord.VoterState{
+			present(t, "dc_a", coord.KindKV, other),
+			present(t, "dc_b", coord.KindKV, updated),
+			present(t, coord.ArbiterName, coord.KindArbiter, base),
+		})
+
+		require.NotNil(t, v.Effective)
+		assert.Equal(t, other, v.Effective.State, "a tie goes to the first voter")
+		assert.False(t, v.Effective.Settled, "two payloads at the highest revision")
+		assert.True(t, v.Voters[2].Behind)
+	})
+
+	t.Run("same_revision_majority", func(t *testing.T) {
+		other := updated
+		other.NeedsRecovery = []string{"dc_a"}
+
+		v := coord.Evaluate([]coord.VoterState{
+			present(t, "dc_a", coord.KindKV, other),
+			present(t, "dc_b", coord.KindKV, updated),
+			present(t, coord.ArbiterName, coord.KindArbiter, updated),
+		})
+
+		require.NotNil(t, v.Effective)
+		assert.Equal(t, updated, v.Effective.State)
+		assert.True(t, v.Effective.Settled, "the payload is on a majority of all voters")
+		assert.True(t, v.Voters[0].Behind, "the payload a majority does not hold is rewritten")
+	})
+
+	t.Run("revision_is_payload", func(t *testing.T) {
+		other := updated
+		other.Revision = 2
+		other.NeedsRecovery = []string{"dc_a"}
+		top := updated
+		top.Revision = 2
+
+		v := coord.Evaluate([]coord.VoterState{
+			present(t, "dc_a", coord.KindKV, top),
+			present(t, "dc_b", coord.KindKV, other),
+			present(t, coord.ArbiterName, coord.KindArbiter, updated),
+		})
+
+		require.NotNil(t, v.Effective)
+		assert.False(t, v.Effective.Settled, "a lower revision of a payload does not count for it")
+	})
+}
+
+// staleRead is a record read from a Consul without a leader, as the
+// minority side of a partition answers.
+func staleRead(t *testing.T, name string, gen int64, dc string) coord.VoterState {
+	t.Helper()
+
+	vs := kvAt(t, name, gen, dc)
+	vs.Status = coord.StatusStale
+
+	return vs
+}
+
+func TestEvaluateStaleRead(t *testing.T) {
+	t.Run("never_votes", func(t *testing.T) {
+		v := coord.Evaluate([]coord.VoterState{
+			staleRead(t, "dc_a", 9, "dc_a"), kvAt(t, "dc_b", 8, "dc_b"), arbAt(t, 8, "dc_b"),
+		})
+
+		assert.Equal(t, summary{Effective: "8/dc_b", Quorum: true, Initialized: true}, summarize(v),
+			"generation 9 of the stale read is neither a record nor makes the voter stale")
+		assert.Equal(t, 2, v.Voting)
+		assert.False(t, v.Voters[0].Behind)
+	})
+
+	t.Run("counts_as_unknown", func(t *testing.T) {
+		v := coord.Evaluate([]coord.VoterState{
+			staleRead(t, "dc_a", 8, "dc_a"), kvAt(t, "dc_b", 8, "dc_a"), down("dc_c", coord.KindKV),
+		})
+
+		assert.Equal(t, summary{Undetermined: []string{"8/dc_a"}, Initialized: true}, summarize(v),
+			"the stale read holds 8 too, but only the voter it came from can count")
+	})
+
+	t.Run("only_stale_reads", func(t *testing.T) {
+		v := coord.Evaluate([]coord.VoterState{staleRead(t, "dc_a", 8, "dc_a"), staleRead(t, "dc_b", 8, "dc_a")})
+
+		assert.Equal(t, summary{}, summarize(v))
+	})
+}
+
+// A state built without decoding may still hold a negative revision; it
+// must not break the evaluation.
+func TestEvaluateNegativeRevision(t *testing.T) {
+	s := kv.State{Generation: 9, Revision: -1, ActiveDatacenter: "dc_b", OpID: "op9"}
+
+	var v coord.View
+
+	require.NotPanics(t, func() {
+		v = coord.Evaluate([]coord.VoterState{present(t, "dc_a", coord.KindKV, s), present(t, "dc_b", coord.KindKV, s)})
+	})
+	require.NotNil(t, v.Effective)
+	assert.True(t, v.Effective.Settled)
+}
+
+func TestStatusUnknown(t *testing.T) {
+	tests := []struct {
+		status coord.Status
+		want   bool
+	}{
+		{coord.StatusPresent, false},
+		{coord.StatusAbsent, false},
+		{coord.StatusUninitialized, false},
+		{coord.StatusUnreachable, true},
+		{coord.StatusInvalid, true},
+		{coord.StatusStale, true},
+	}
+
+	for _, tt := range tests {
+		assert.Equal(t, tt.want, tt.status.Unknown(), tt.status)
+	}
+}
+
+// Another record of the effective generation: a write that lost, left on a
+// voter that did not answer when it was reverted.
+func TestEvaluateOtherRecordOfEffectiveGeneration(t *testing.T) {
+	t.Run("effective_on_majority", func(t *testing.T) {
+		v := coord.Evaluate([]coord.VoterState{kvAt(t, "dc_a", 9, "dc_b"), kvAt(t, "dc_b", 9, "dc_c"), arbAt(t, 9, "dc_b")})
+
+		assert.Equal(t, summary{Effective: "9/dc_b", Stale: []string{"dc_b"}, Quorum: true, Initialized: true}, summarize(v),
+			"it cannot be committed, so the voter is aligned")
+	})
+
+	t.Run("forced_effective_undetermined", func(t *testing.T) {
+		v := coord.Evaluate([]coord.VoterState{kvForced(t, "dc_a", 9, "dc_b"), kvAt(t, "dc_b", 9, "dc_c"), down(coord.ArbiterName, coord.KindArbiter)})
+
+		assert.Equal(t, summary{Effective: "9/dc_b", Undetermined: []string{"9/dc_c"}, Quorum: true, Initialized: true}, summarize(v),
+			"with the arbiter it may be on a majority")
+	})
+
+	t.Run("forced_effective_uncommitted", func(t *testing.T) {
+		v := coord.Evaluate([]coord.VoterState{kvForced(t, "dc_a", 9, "dc_b"), kvAt(t, "dc_b", 9, "dc_c"), arbAt(t, 8, "dc_a")})
+
+		assert.Equal(t, summary{
+			Effective: "9/dc_b", Uncommitted: []string{"9/dc_c"}, Stale: []string{coord.ArbiterName}, Quorum: true, Initialized: true,
+		}, summarize(v))
 	})
 }
 

@@ -32,6 +32,7 @@ func TestPresentState_invalid(t *testing.T) {
 	}{
 		{"not_json", `{`},
 		{"no_active_datacenter", `{"generation":4}`},
+		{"negative_revision", `{"generation":4,"revision":-1,"active_datacenter":"dc_a"}`},
 	}
 
 	for _, tt := range tests {

@@ -134,7 +134,7 @@ func joined(items []any) string {
 // by: one that does not answer or holds a record that cannot be decoded may hold any.
 func (e *evaluator) votersAnswered() bool {
 	return !slices.ContainsFunc(e.st.Voters, func(v Voter) bool {
-		return v.Status == coord.StatusUnreachable || v.Status == coord.StatusInvalid
+		return v.Status.Unknown()
 	})
 }
 
@@ -223,7 +223,7 @@ func (e *evaluator) stale(v *Voter) Finding {
 	eff := e.st.Effective
 
 	switch {
-	case v.Status == coord.StatusUnreachable, v.Status == coord.StatusInvalid, eff == nil:
+	case v.Status.Unknown(), eff == nil:
 		return finding(AlarmStale, v.Datacenter, SignalUnknown)
 	case !v.Stale:
 		return finding(AlarmStale, v.Datacenter, SignalClear)
