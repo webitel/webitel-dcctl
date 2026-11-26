@@ -112,4 +112,19 @@ describe('CoordinationBlock', () => {
 
 		expect(wrapper.find('[data-test="quorum"]').classes()).toContain(chipClass);
 	});
+
+	it('offers the arbiter initialization only while the arbiter is uninitialized', async () => {
+		const without = await mountBlock(buildStatus('normal'));
+		expect(without.find('[data-test="action-initArbiter"]').exists()).toBe(
+			false,
+		);
+
+		const wrapper = await mountBlock({
+			...buildStatus('normal'),
+			alarms: [{ type: 'ARBITER_UNINITIALIZED', severity: 'CRITICAL' }],
+		});
+		expect(wrapper.find('[data-test="action-initArbiter"]').exists()).toBe(
+			true,
+		);
+	});
 });

@@ -129,4 +129,18 @@ describe('AlarmList', () => {
 
 		expect(wrapper.text()).toContain('FUTURE_THING');
 	});
+
+	it('puts the resolve action on a conflict alarm only', async () => {
+		const wrapper = await mountAlarms({
+			alarms: [
+				{ type: 'CONFLICT', severity: 'CRITICAL' },
+				{ type: 'STALE', severity: 'WARNING', datacenter: 'datacenters/dc_a' },
+			],
+		});
+
+		expect(wrapper.findAll('[data-test="action-resolve"]')).toHaveLength(1);
+		expect(
+			wrapper.find('[data-test="alarm"] [data-test="action-resolve"]').exists(),
+		).toBe(true);
+	});
 });

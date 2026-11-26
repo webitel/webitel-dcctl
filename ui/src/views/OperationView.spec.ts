@@ -827,3 +827,43 @@ describe('the status is ahead of the page', () => {
 		);
 	});
 });
+
+describe('actions', () => {
+	const button = (mounted: Mounted, kind: string) =>
+		mounted.wrapper.find(`[data-test="action-${kind}"]`);
+
+	it('offers resume and abandon for an interrupted operation', async () => {
+		const mounted = await mountWith(operation({ state: 'INTERRUPTED', steps }));
+
+		for (const kind of ['resume', 'abandon']) {
+			expect(button(mounted, kind).exists()).toBe(true);
+			expect(button(mounted, kind).attributes('data-reason')).toBeUndefined();
+			expect(button(mounted, kind).find('button').attributes('disabled')).toBe(
+				undefined,
+			);
+		}
+	});
+
+	it('shows them off, with the reason, while the operation runs', async () => {
+		const mounted = await mountWith(operation({ steps }));
+
+		for (const kind of ['resume', 'abandon']) {
+			expect(button(mounted, kind).attributes('data-reason')).toBe(
+				'notInterrupted',
+			);
+			expect(
+				button(mounted, kind).find('button').attributes('disabled'),
+			).toBeDefined();
+		}
+	});
+
+	it('has no actions for a finished operation', async () => {
+		const mounted = await mountWith(
+			operation({ state: 'SUCCEEDED', steps, end_time: at(-1) }),
+		);
+
+		expect(mounted.wrapper.find('[data-test="op-actions"]').exists()).toBe(
+			false,
+		);
+	});
+});
