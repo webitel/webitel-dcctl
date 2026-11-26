@@ -94,6 +94,18 @@ func TestRun_allowsHealthySwitch(t *testing.T) {
 	assert.ElementsMatch(t, []string{"engine", "freeswitch"}, p.calls, "every managed job of the target is planned")
 }
 
+func TestEvaluate_returnsTheStateOfTheDecision(t *testing.T) {
+	r := newRunner(&fakeCollector{snap: warm()}, map[string]Planner{dcB: &fakePlanner{}}, nil)
+
+	res, err := r.Evaluate(t.Context(), switchToB())
+	require.NoError(t, err)
+
+	assert.Equal(t, check.Allowed, res.Verdict.Outcome, "failed: %v", res.Verdict.Failed)
+	require.NotNil(t, res.Status.View.Effective)
+	assert.Equal(t, dcA, res.Status.View.Effective.State.ActiveDatacenter)
+	assert.Len(t, res.Status.Datacenters, 2)
+}
+
 // The loop still holds what dc_b showed before its Nomad stopped answering; preflight
 // decides on what it collects itself, so the switch is blocked.
 func TestRun_unreachableSourceFailsDespiteLastKnownData(t *testing.T) {
