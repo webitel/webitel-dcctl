@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	"google.golang.org/protobuf/proto"
 
@@ -31,7 +32,8 @@ type ResumeRequest struct {
 	Operation     string
 	Confirmations check.Confirmations
 	// ToForced is set when the resumed operation writes its generation
-	// forced, without a majority of voters.
+	// forced, without a majority of voters. It sets the mode of an operation
+	// whose generation step has not succeeded.
 	ToForced  bool
 	Initiator *dcctlv1.Initiator
 }
@@ -102,7 +104,7 @@ func (e *Engine) Resume(ctx context.Context, req ResumeRequest) (*dcctlv1.Operat
 		op.Leader = e.cfg.Self.proto()
 		op.Confirmation = mergeConfirmation(op.GetConfirmation(), v.Confirmed)
 
-		if req.ToForced {
+		if req.ToForced && !generationWritten(op) {
 			op.Mode = dcctlv1.Operation_FORCED
 		}
 	})
@@ -138,6 +140,14 @@ func (e *Engine) Resume(ctx context.Context, req ResumeRequest) (*dcctlv1.Operat
 	go r.execute(base, from)
 
 	return first, nil
+}
+
+// generationWritten reports whether the generation step of op succeeded: the mode it
+// wrote in stays the mode of op.
+func generationWritten(op *dcctlv1.Operation) bool {
+	return slices.ContainsFunc(op.GetSteps(), func(st *dcctlv1.Operation_Step) bool {
+		return st.GetType() == dcctlv1.Operation_Step_GENERATION && st.GetState() == dcctlv1.Operation_Step_SUCCEEDED
+	})
 }
 
 // resumable reads the operation name under the lock and returns the run that
