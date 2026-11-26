@@ -37,8 +37,7 @@ var operationModes = map[dcctlv1.Operation_Mode]string{
 	dcctlv1.Operation_FORCED: "forced",
 }
 
-// stepTypes are the step types of the registry. PATRONI_FAILOVER has no value there
-// yet.
+// stepTypes are the step types of the registry.
 var stepTypes = map[dcctlv1.Operation_Step_Type]string{
 	dcctlv1.Operation_Step_APPS_PREFLIGHT:     "apps_preflight",
 	dcctlv1.Operation_Step_APPS_STOP:          "apps_stop",
@@ -52,6 +51,7 @@ var stepTypes = map[dcctlv1.Operation_Step_Type]string{
 	dcctlv1.Operation_Step_PATRONI_REPOINT:    "patroni_repoint",
 	dcctlv1.Operation_Step_PATRONI_FOLLOW:     "patroni_follow",
 	dcctlv1.Operation_Step_PATRONI_SWITCHOVER: "patroni_switchover",
+	dcctlv1.Operation_Step_PATRONI_FAILOVER:   "patroni_failover",
 }
 
 // stepStates are the end states a step duration is recorded in.
