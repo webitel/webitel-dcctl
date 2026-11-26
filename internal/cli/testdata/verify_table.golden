@@ -1,0 +1,2 @@
+CHECK         RESULT  EFFECT              DATACENTER  DETAIL
+verify.state  PASS    EFFECT_UNSPECIFIED  -           state is in order

@@ -1,0 +1,19 @@
+Datacenter:      dc_b
+State:           STANDBY
+Health:          OK
+Needs recovery:  no
+Observed by:     dcctl-a1 (dc_a) at 2026-11-23T10:15:00Z
+
+SOURCE  ENDPOINT        REACHABLE  OBSERVED
+CONSUL  10.1.0.89:8500  yes        2026-11-23T10:15:00Z
+
+DB leader:       pg-dc_b STANDBY_LEADER
+DB timeline:     5
+DB lag bytes:    0
+DB divergence:   DIVERGENCE_STATE_UNSPECIFIED
+
+MEMBER   HOST       ROLE            STATE    REACHABLE  LAG BYTES  USABLE
+pg-dc_b  10.1.0.95  STANDBY_LEADER  running  yes        -          yes
+
+Nomad leader:    10.1.0.91:4647
+Nomad nodes:     3 ready, 0 ineligible, 0 draining, 0 down
