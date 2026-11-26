@@ -597,3 +597,77 @@ func TestExecConfirmedOfTheRun(t *testing.T) {
 		assert.Equal(t, []check.Confirmations{{}, {Isolation: true}}, seen)
 	})
 }
+
+// A resume that confirms the isolation sets the mode FORCED only while the generation
+// is still to be written; one written already keeps the mode it was written in.
+func TestResumeToForcedKeepsWrittenMode(t *testing.T) {
+	tests := []struct {
+		name string
+		// written marks the generation step succeeded before the interruption.
+		written bool
+		want    dcctlv1.Operation_Mode
+	}{
+		{name: "generation_written", written: true, want: dcctlv1.Operation_QUORUM},
+		{name: "generation_not_written", want: dcctlv1.Operation_FORCED},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				w := newWorld(t)
+
+				var runs atomic.Int32
+
+				promote := func(context.Context, *operation.Exec) error {
+					if runs.Add(1) == 1 {
+						return operation.Interrupt(errors.New("dc_a is not read"))
+					}
+
+					return nil
+				}
+
+				steps := func() []operation.Step {
+					gen := operation.Step{Type: dcctlv1.Operation_Step_GENERATION, Run: func(context.Context, *operation.Exec) error { return nil }}
+					if !tt.written {
+						gen.Run = promote
+					}
+
+					return []operation.Step{gen, {Type: dcctlv1.Operation_Step_PATRONI_PROMOTE, Run: promote}}
+				}
+
+				w.resumers[dcctlv1.Operation_SWITCH] = resumerFunc(func(context.Context, *dcctlv1.Operation) ([]operation.Step, error) {
+					return steps(), nil
+				})
+
+				e := w.engine(self)
+				stop := start(t, e)
+
+				defer stop()
+
+				synctest.Wait()
+
+				first, err := e.Start(t.Context(), switchPlan(steps()...))
+				require.NoError(t, err)
+
+				synctest.Wait()
+				require.Equal(t, dcctlv1.Operation_INTERRUPTED, w.op("dc_b").GetState())
+
+				w.preflight.mu.Lock()
+				w.preflight.verdict = check.Verdict{Outcome: check.Allowed, Confirmed: check.Confirmations{Isolation: true}}
+				w.preflight.mu.Unlock()
+
+				_, err = e.Resume(t.Context(), operation.ResumeRequest{
+					Operation: strings.TrimPrefix(first.GetName(), "operations/"), ToForced: true,
+					Confirmations: check.Confirmations{Isolation: true}, Initiator: &dcctlv1.Initiator{User: "admin"},
+				})
+				require.NoError(t, err)
+
+				synctest.Wait()
+
+				op := w.op("dc_b")
+				assert.Equal(t, dcctlv1.Operation_SUCCEEDED, op.GetState())
+				assert.Equal(t, tt.want, op.GetMode())
+			})
+		})
+	}
+}
