@@ -72,6 +72,9 @@ type Config struct {
 	Preflight   Preflight
 	Journal     Journal
 	Recorder    Recorder
+	// Resumers rebuild the steps of an interrupted operation by its type; a
+	// type without one cannot be resumed.
+	Resumers map[dcctlv1.Operation_Type]Resumer
 	// Interval is the pause between the rounds that interrupt the operations
 	// no live instance runs and align the copies of dcctl/op and the voters.
 	Interval time.Duration

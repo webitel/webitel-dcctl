@@ -20,6 +20,8 @@ const (
 	eventStart     = "start"
 	eventResume    = "resume"
 	eventEnd       = "end"
+	eventAbandon   = "abandon"
+	eventRevert    = "revert"
 	eventStep      = "step"
 	eventProgress  = "progress"
 	eventRollback  = "rollback"
@@ -118,6 +120,34 @@ func (e *Engine) journalEnd(ctx context.Context, op *dcctlv1.Operation, event st
 			entry.Result = dcctlv1.JournalEntry_WARNING
 		}
 	case dcctlv1.Operation_STATE_UNSPECIFIED, dcctlv1.Operation_RUNNING:
+	}
+
+	e.journal(ctx, entry)
+}
+
+// journalOperation journals an event of op by initiator other than its start
+// and end, as a revert, with its result and error.
+func (e *Engine) journalOperation(ctx context.Context, op *dcctlv1.Operation, event string, initiator *dcctlv1.Initiator,
+	detail string, result dcctlv1.JournalEntry_Result, err error, extra map[string]any,
+) {
+	params := map[string]any{"event": event, "revision": op.GetRevision()}
+	for k, v := range extra {
+		params[k] = v
+	}
+
+	entry := &dcctlv1.JournalEntry{
+		Type:       dcctlv1.JournalEntry_OPERATION,
+		Initiator:  initiator,
+		Datacenter: op.GetTarget(),
+		Operation:  op.GetName(),
+		Params:     structOf(ctx, e.cfg.Log, params),
+		Result:     result,
+		Action:     &dcctlv1.JournalEntry_OperationType{OperationType: op.GetType()},
+		Detail:     truncate(detail),
+	}
+
+	if err != nil {
+		entry.Error = operationError(err)
 	}
 
 	e.journal(ctx, entry)
