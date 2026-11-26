@@ -60,11 +60,11 @@ func (m *mapper) patroni(dc string, p *status.Patroni, detail bool) *dcctlv1.Dat
 	out := &dcctlv1.Datacenter_Patroni{
 		Leader:             p.Leader,
 		Role:               roleOf(p.Role),
-		Timeline:           deref(p.Timeline),
+		Timeline:           p.Timeline,
 		Paused:             p.Paused,
 		StandbyClusterHost: p.StandbyClusterHost,
 		UpstreamDatacenter: datacenterName(p.UpstreamDatacenter),
-		LagBytes:           deref(p.LagBytes),
+		LagBytes:           p.LagBytes,
 		DivergenceState:    m.divergence(dc, p.Divergence),
 	}
 
@@ -109,7 +109,7 @@ func (m *mapper) member(p *status.Member) *dcctlv1.Datacenter_Patroni_Member {
 		Error:            sourceErrorOf(p.Reason),
 		Role:             roleOf(p.Role),
 		PatroniState:     p.PatroniState,
-		Timeline:         deref(p.Timeline),
+		Timeline:         p.Timeline,
 		ReplicationState: p.ReplicationState,
 		Xlog: &dcctlv1.Datacenter_Patroni_Xlog{
 			Location:         deref(p.Xlog.Location),
@@ -117,7 +117,7 @@ func (m *mapper) member(p *status.Member) *dcctlv1.Datacenter_Patroni_Member {
 			ReplayedLocation: deref(p.Xlog.ReplayedLocation),
 			ReplayTime:       replayTime(p.Xlog.ReplayedTimestamp),
 		},
-		LagBytes:         deref(p.LagBytes),
+		LagBytes:         p.LagBytes,
 		Version:          p.Version,
 		FailoverPriority: m.i32("failover_priority", p.FailoverPriority),
 		NoFailover:       p.NoFailover,

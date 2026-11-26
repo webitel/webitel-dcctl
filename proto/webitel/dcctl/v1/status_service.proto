@@ -31,35 +31,48 @@ service StatusService {
             value:
               '{"name":"status","observer":{"node":"dcctl-a1","datacenter":"datacenters/dc_a",'
               '"address":"10.1.0.81:10023"},"observe_time":"2026-11-23T10:14:55Z","cycle_duration":"0.420s",'
-              '"interval":"5s","profile":"WARM_STANDBY","initialized":true,"detected_active_datacenter":"datacenters/dc_a",'
-              '"active_datacenter":"datacenters/dc_a","generation":"7","patroni_timeline":"5",'
-              '"update_time":"2026-11-20T16:02:11Z","voters":[{"type":"DATACENTER","datacenter":"datacenters/dc_a",'
-              '"reachable":true,"generation":"7","active_datacenter":"datacenters/dc_a",'
-              '"valid":true},{"type":"DATACENTER","datacenter":"datacenters/dc_b","reachable":true,'
-              '"generation":"7","active_datacenter":"datacenters/dc_a","valid":true},'
-              '{"type":"ARBITER","reachable":false,"error":"TIMEOUT","generation":"7",'
-              '"active_datacenter":"datacenters/dc_a","valid":true,"initialized":true}],'
+              '"interval":"5s","profile":"WARM_STANDBY","initialized":true,'
+              '"detected_active_datacenter":"datacenters/dc_a","active_datacenter":"datacenters/dc_a",'
+              '"generation":"7","patroni_timeline":"5","update_time":"2026-11-20T16:02:11Z",'
+              '"voters":[{"type":"DATACENTER","datacenter":"datacenters/dc_a","reachable":true,'
+              '"generation":"7","active_datacenter":"datacenters/dc_a","valid":true},{"type":"DATACENTER",'
+              '"datacenter":"datacenters/dc_b","reachable":true,"generation":"7",'
+              '"active_datacenter":"datacenters/dc_a","valid":true},{"type":"ARBITER","error":"TIMEOUT"}],'
               '"quorum":{"available":true,"mode":"QUORUM","reachable_count":2,"required_count":2,'
-              '"total_count":3},"lease":{"holder":"datacenters/dc_a","generation":"7",'
-              '"counter":"18342","age":"4.100s"},"alarms":[{"type":"VOTER_UNREACHABLE",'
-              '"severity":"WARNING","voter_type":"ARBITER","start_time":"2026-11-23T10:12:40Z",'
-              '"detail":"arbiter does not answer","facts":{"address":"10.9.0.10:10024",'
-              '"error":"timeout"}}],"datacenters":[{"name":"datacenters/dc_a","state":"ACTIVE",'
-              '"health":"OK","sources":[{"system":"CONSUL","endpoint":"10.1.0.89:8500",'
-              '"reachable":true,"observe_time":"2026-11-23T10:14:55Z"},{"system":"NOMAD",'
-              '"endpoint":"https://10.1.0.91:4646","reachable":true,"observe_time":"2026-11-23T10:14:55Z"},'
-              '{"system":"PATRONI","endpoint":"https://10.1.0.95:8008","reachable":true,'
-              '"observe_time":"2026-11-23T10:14:55Z"}],"patroni":{"leader":"pg-a1","role":"PRIMARY",'
-              '"timeline":"5"},"nomad":{"leader":"10.1.0.91:4647","ready_node_count":3,'
-              '"job_counts":{"healthy_count":12}}},{"name":"datacenters/dc_b","state":"STANDBY",'
-              '"health":"OK","sources":[{"system":"CONSUL","endpoint":"10.2.0.89:8500",'
+              '"total_count":3},"lease":{"holder":"datacenters/dc_a","generation":"7","counter":"18342",'
+              '"age":"4.100s"},"alarms":[{"type":"VOTER_UNREACHABLE","severity":"WARNING",'
+              '"voter_type":"ARBITER","start_time":"2026-11-23T10:12:40Z","detail":"arbiter does not answer",'
+              '"facts":{"address":"10.9.0.10:10024","error":"timeout"}}],'
+              '"datacenters":[{"name":"datacenters/dc_a","state":"ACTIVE","health":"OK",'
+              '"sources":[{"system":"CONSUL","endpoint":"10.1.0.89:8500","reachable":true,'
+              '"observe_time":"2026-11-23T10:14:55Z"},{"system":"NOMAD","endpoint":"https://10.1.0.91:4646",'
+              '"reachable":true,"observe_time":"2026-11-23T10:14:55Z"},{"system":"PATRONI",'
+              '"endpoint":"https://10.1.0.95:8008","reachable":true,"observe_time":"2026-11-23T10:14:55Z"}],'
+              '"patroni":{"leader":"pg-a1","role":"PRIMARY","timeline":"5"},"nomad":{"leader":"10.1.0.91:4647",'
+              '"ready_node_count":3,"job_counts":{"healthy_count":12}}},{"name":"datacenters/dc_b",'
+              '"state":"STANDBY","health":"OK","sources":[{"system":"CONSUL","endpoint":"10.2.0.89:8500",'
               '"reachable":true,"observe_time":"2026-11-23T10:14:55Z"},{"system":"NOMAD",'
               '"endpoint":"https://10.2.0.91:4646","reachable":true,"observe_time":"2026-11-23T10:14:55Z"},'
               '{"system":"PATRONI","endpoint":"https://10.2.0.95:8008","reachable":true,'
               '"observe_time":"2026-11-23T10:14:55Z"}],"patroni":{"leader":"pg-b1","role":"STANDBY_LEADER",'
               '"timeline":"5","standby_cluster_host":"10.1.0.95","upstream_datacenter":"datacenters/dc_a",'
-              '"lag_bytes":"0","divergence_state":"NOT_DIVERGED"},"nomad":{"leader":"10.2.0.91:4647","ready_node_count":3,'
-              '"job_counts":{"stopped_count":12}}}]}'
+              '"lag_bytes":"0","divergence_state":"NOT_DIVERGED"},"nomad":{"leader":"10.2.0.91:4647",'
+              '"ready_node_count":3,"job_counts":{"stopped_count":12}}}]}'
+          }
+        }
+      }
+      responses: {
+        key: "503"
+        value: {
+          description: "No collection cycle has finished yet: `dcctl.status.not_ready`."
+          schema: {
+            json_schema: {ref: ".webitel.dcctl.v1.Error"}
+          }
+          examples: {
+            key: "application/json"
+            value:
+              '{"id":"dcctl.status.not_ready","code":503,"status":"Service Unavailable",'
+              '"detail":"no collection cycle has finished yet"}'
           }
         }
       }
@@ -82,6 +95,21 @@ service StatusService {
               ' dc_b standby_leader follows dc_a on timeline 5"},{"id":"verify.jobs",'
               '"result":"PASS","detail":"12 jobs healthy in dc_a, stopped in dc_b"},{"id":"verify.state",'
               '"result":"PASS","detail":"generation 7 on 3 of 3 voters"}]}'
+          }
+        }
+      }
+      responses: {
+        key: "503"
+        value: {
+          description: "No collection cycle has finished yet: `dcctl.status.not_ready`."
+          schema: {
+            json_schema: {ref: ".webitel.dcctl.v1.Error"}
+          }
+          examples: {
+            key: "application/json"
+            value:
+              '{"id":"dcctl.status.not_ready","code":503,"status":"Service Unavailable",'
+              '"detail":"no collection cycle has finished yet"}'
           }
         }
       }

@@ -56,7 +56,7 @@
                 "id": "dcctl.operation.running",
                 "code": 400,
                 "status": "Bad Request",
-                "detail": "another operation is running",
+                "detail": "operation operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10 is running",
                 "metadata": {
                   "operation": "operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10"
                 }
@@ -90,6 +90,23 @@
                 "detail": "request_id was used with another body",
                 "metadata": {
                   "operation": "operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No Consul KV answered to tell whether an operation runs: `dcctl.lock.unavailable`.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Error"
+            },
+            "examples": {
+              "application/json": {
+                "id": "dcctl.lock.unavailable",
+                "code": 503,
+                "status": "Service Unavailable",
+                "detail": "dcctl/lock not taken: no kv answered (dc_a, dc_b)",
+                "metadata": {
+                  "datacenters": "dc_a,dc_b"
                 }
               }
             }
@@ -221,7 +238,7 @@
                   {
                     "type": "field",
                     "subject": "page_size",
-                    "description": "value must be greater than or equal to 0 and less than or equal to 500"
+                    "description": "must be greater than or equal to 0 and less than or equal to 500"
                   }
                 ]
               }
@@ -238,6 +255,20 @@
                 "code": 401,
                 "status": "Unauthorized",
                 "detail": "authentication required"
+              }
+            }
+          },
+          "503": {
+            "description": "No collection cycle has finished yet: `dcctl.status.not_ready`.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Error"
+            },
+            "examples": {
+              "application/json": {
+                "id": "dcctl.status.not_ready",
+                "code": 503,
+                "status": "Service Unavailable",
+                "detail": "no collection cycle has finished yet"
               }
             }
           }
@@ -322,7 +353,6 @@
                         "replayed_location": "83886176",
                         "replay_time": "2026-11-23T10:14:54Z"
                       },
-                      "lag_bytes": "0",
                       "version": "4.1.0",
                       "usable": true
                     },
@@ -406,15 +436,6 @@
                   "address": "10.1.0.81:10023"
                 },
                 "observe_time": "2026-11-23T10:14:55Z",
-                "consul": {
-                  "servers": [
-                    {
-                      "address": "10.2.0.89:8500",
-                      "reachable": true,
-                      "consul_datacenter": "dc_b"
-                    }
-                  ]
-                },
                 "info_checks": [
                   {
                     "id": "info.rabbitmq",
@@ -445,8 +466,8 @@
                 "violations": [
                   {
                     "type": "field",
-                    "subject": "page_size",
-                    "description": "value must be greater than or equal to 0 and less than or equal to 500"
+                    "subject": "name",
+                    "description": "does not match regex pattern `^datacenters/[A-Za-z0-9_-]{1,63}$`"
                   }
                 ]
               }
@@ -480,6 +501,20 @@
                 "metadata": {
                   "datacenter": "datacenters/dc_c"
                 }
+              }
+            }
+          },
+          "503": {
+            "description": "No collection cycle has finished yet: `dcctl.status.not_ready`.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Error"
+            },
+            "examples": {
+              "application/json": {
+                "id": "dcctl.status.not_ready",
+                "code": 503,
+                "status": "Service Unavailable",
+                "detail": "no collection cycle has finished yet"
               }
             }
           }
@@ -518,7 +553,7 @@
                 "id": "dcctl.operation.running",
                 "code": 400,
                 "status": "Bad Request",
-                "detail": "another operation is running",
+                "detail": "operation operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10 is running",
                 "metadata": {
                   "operation": "operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10"
                 }
@@ -566,9 +601,11 @@
                 "id": "dcctl.lock.busy",
                 "code": 409,
                 "status": "Conflict",
-                "detail": "dcctl/lock is held by another instance",
+                "detail": "dcctl/lock in dc_a is held by instance dcctl-b1 of dc_b for operation 0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10",
                 "metadata": {
-                  "holder": "dcctl-a1"
+                  "holder": "dcctl-b1",
+                  "datacenter": "datacenters/dc_b",
+                  "operation": "operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10"
                 }
               }
             }
@@ -583,7 +620,7 @@
                 "id": "dcctl.leader.unavailable",
                 "code": 503,
                 "status": "Service Unavailable",
-                "detail": "leading instance is unreachable",
+                "detail": "the leading instance is critical in Consul",
                 "metadata": {
                   "instance": "dcctl-b1"
                 }
@@ -638,7 +675,7 @@
                   {
                     "type": "confirmation",
                     "subject": "isolation",
-                    "description": "confirm that dc_a is isolated"
+                    "description": "the old primary must be isolated"
                   }
                 ],
                 "preflight": {
@@ -649,17 +686,42 @@
                       "result": "FAIL",
                       "effect": "CONFIRM",
                       "confirmation": "isolation",
-                      "detail": "dc_a is unreachable since 2026-11-23T10:02:00Z",
+                      "detail": "the old primary must be isolated",
                       "facts": {
-                        "mode": "FORCED",
-                        "last_seen_role": "primary",
-                        "last_seen_time": "2026-11-23T10:01:58Z"
+                        "mode": "forced_only",
+                        "voters": [
+                          {
+                            "name": "dc_a",
+                            "reachable": false
+                          },
+                          {
+                            "name": "dc_b",
+                            "reachable": true,
+                            "generation": 7,
+                            "active_datacenter": "dc_a"
+                          },
+                          {
+                            "name": "arbiter",
+                            "reachable": false
+                          }
+                        ],
+                        "datacenters": [
+                          {
+                            "datacenter": "dc_a",
+                            "patroni_reachable": false,
+                            "last_seen": {
+                              "time": "2026-11-23T10:01:58Z",
+                              "member": "pg-a1",
+                              "role": "primary",
+                              "xlog_location": 83886176
+                            }
+                          }
+                        ]
                       }
                     }
                   ],
                   "steps": [
                     {
-                      "index": 0,
                       "type": "GENERATION",
                       "state": "PENDING",
                       "point_of_no_return": true
@@ -788,7 +850,7 @@
                   {
                     "type": "check",
                     "subject": "patroni.target_lag",
-                    "description": "lag 52428800 B exceeds 1048576 B"
+                    "description": "dc_b lags 52428800 bytes, more than 1048576"
                   }
                 ],
                 "preflight": {
@@ -798,14 +860,17 @@
                       "id": "coord.lock_free",
                       "result": "PASS",
                       "effect": "BLOCK",
-                      "detail": "dcctl/lock is free in every reachable datacenter"
+                      "detail": "the lock is free",
+                      "facts": {
+                        "unreachable": []
+                      }
                     },
                     {
                       "id": "patroni.target_lag",
                       "result": "FAIL",
                       "effect": "BLOCK",
                       "datacenter": "datacenters/dc_b",
-                      "detail": "lag 52428800 B exceeds 1048576 B",
+                      "detail": "dc_b lags 52428800 bytes, more than 1048576",
                       "facts": {
                         "lag_bytes": 52428800,
                         "limit_bytes": 1048576
@@ -814,7 +879,6 @@
                   ],
                   "steps": [
                     {
-                      "index": 0,
                       "type": "APPS_PREFLIGHT",
                       "state": "PENDING"
                     }
@@ -864,9 +928,11 @@
                 "id": "dcctl.lock.busy",
                 "code": 409,
                 "status": "Conflict",
-                "detail": "dcctl/lock is held by another instance",
+                "detail": "dcctl/lock in dc_a is held by instance dcctl-b1 of dc_b for operation 0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10",
                 "metadata": {
-                  "holder": "dcctl-a1"
+                  "holder": "dcctl-b1",
+                  "datacenter": "datacenters/dc_b",
+                  "operation": "operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10"
                 }
               }
             }
@@ -881,7 +947,7 @@
                 "id": "dcctl.leader.unavailable",
                 "code": 503,
                 "status": "Service Unavailable",
-                "detail": "leading instance is unreachable",
+                "detail": "the leading instance is critical in Consul",
                 "metadata": {
                   "instance": "dcctl-b1"
                 }
@@ -930,7 +996,10 @@
                     "id": "coord.lock_free",
                     "result": "PASS",
                     "effect": "BLOCK",
-                    "detail": "dcctl/lock is free in every reachable datacenter"
+                    "detail": "the lock is free",
+                    "facts": {
+                      "unreachable": []
+                    }
                   },
                   {
                     "id": "patroni.divergence",
@@ -938,12 +1007,17 @@
                     "effect": "CONFIRM",
                     "confirmation": "max_discard_bytes",
                     "datacenter": "datacenters/dc_b",
-                    "detail": "dc_b did not diverge"
+                    "detail": "dc_b did not diverge from the active datacenter",
+                    "facts": {
+                      "known": true,
+                      "diverged": false,
+                      "timeline": 5,
+                      "xlog_location": "0/5000060"
+                    }
                   }
                 ],
                 "steps": [
                   {
-                    "index": 0,
                     "type": "PATRONI_REPOINT",
                     "datacenter": "datacenters/dc_b",
                     "state": "PENDING"
@@ -973,7 +1047,7 @@
                   {
                     "type": "confirmation",
                     "subject": "max_discard_bytes",
-                    "description": "dc_b diverged by 1048576 B, limit 0 B"
+                    "description": "dc_b diverged, a rewind discards 1048576 bytes; max_discard_bytes must be at least 1048576"
                   }
                 ],
                 "preflight": {
@@ -985,18 +1059,26 @@
                       "effect": "CONFIRM",
                       "confirmation": "max_discard_bytes",
                       "datacenter": "datacenters/dc_b",
-                      "detail": "dc_b diverged by 1048576 B",
+                      "detail": "dc_b diverged, a rewind discards 1048576 bytes",
                       "facts": {
+                        "known": true,
+                        "diverged": true,
+                        "timeline": 4,
+                        "xlog_location": "0/5100060",
                         "divergence_lsn": "0/5000060",
-                        "divergence_bytes": 1048576,
-                        "timeline": 4
+                        "divergence_bytes": 1048576
                       }
                     }
                   ],
                   "steps": [
                     {
-                      "index": 0,
                       "type": "PATRONI_REPOINT",
+                      "datacenter": "datacenters/dc_b",
+                      "state": "PENDING"
+                    },
+                    {
+                      "index": 1,
+                      "type": "PATRONI_FOLLOW",
                       "datacenter": "datacenters/dc_b",
                       "state": "PENDING"
                     }
@@ -1046,9 +1128,11 @@
                 "id": "dcctl.lock.busy",
                 "code": 409,
                 "status": "Conflict",
-                "detail": "dcctl/lock is held by another instance",
+                "detail": "dcctl/lock in dc_a is held by instance dcctl-b1 of dc_b for operation 0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10",
                 "metadata": {
-                  "holder": "dcctl-a1"
+                  "holder": "dcctl-b1",
+                  "datacenter": "datacenters/dc_b",
+                  "operation": "operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10"
                 }
               }
             }
@@ -1063,7 +1147,7 @@
                 "id": "dcctl.leader.unavailable",
                 "code": 503,
                 "status": "Service Unavailable",
-                "detail": "leading instance is unreachable",
+                "detail": "the leading instance is critical in Consul",
                 "metadata": {
                   "instance": "dcctl-b1"
                 }
@@ -1130,14 +1214,17 @@
                     "id": "coord.lock_free",
                     "result": "PASS",
                     "effect": "BLOCK",
-                    "detail": "dcctl/lock is free in every reachable datacenter"
+                    "detail": "the lock is free",
+                    "facts": {
+                      "unreachable": []
+                    }
                   },
                   {
                     "id": "patroni.target_lag",
                     "result": "PASS",
                     "effect": "BLOCK",
                     "datacenter": "datacenters/dc_b",
-                    "detail": "lag 0 B, limit 1048576 B",
+                    "detail": "dc_b lags 0 bytes",
                     "facts": {
                       "lag_bytes": 0,
                       "limit_bytes": 1048576
@@ -1146,7 +1233,6 @@
                 ],
                 "steps": [
                   {
-                    "index": 0,
                     "type": "APPS_PREFLIGHT",
                     "state": "SUCCEEDED",
                     "start_time": "2026-11-23T10:15:02Z",
@@ -1199,7 +1285,7 @@
                   {
                     "type": "check",
                     "subject": "patroni.target_lag",
-                    "description": "lag 52428800 B exceeds 1048576 B"
+                    "description": "dc_b lags 52428800 bytes, more than 1048576"
                   }
                 ],
                 "preflight": {
@@ -1209,14 +1295,17 @@
                       "id": "coord.lock_free",
                       "result": "PASS",
                       "effect": "BLOCK",
-                      "detail": "dcctl/lock is free in every reachable datacenter"
+                      "detail": "the lock is free",
+                      "facts": {
+                        "unreachable": []
+                      }
                     },
                     {
                       "id": "patroni.target_lag",
                       "result": "FAIL",
                       "effect": "BLOCK",
                       "datacenter": "datacenters/dc_b",
-                      "detail": "lag 52428800 B exceeds 1048576 B",
+                      "detail": "dc_b lags 52428800 bytes, more than 1048576",
                       "facts": {
                         "lag_bytes": 52428800,
                         "limit_bytes": 1048576
@@ -1225,7 +1314,6 @@
                   ],
                   "steps": [
                     {
-                      "index": 0,
                       "type": "APPS_PREFLIGHT",
                       "state": "PENDING"
                     }
@@ -1275,9 +1363,11 @@
                 "id": "dcctl.lock.busy",
                 "code": 409,
                 "status": "Conflict",
-                "detail": "dcctl/lock is held by another instance",
+                "detail": "dcctl/lock in dc_a is held by instance dcctl-b1 of dc_b for operation 0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10",
                 "metadata": {
-                  "holder": "dcctl-a1"
+                  "holder": "dcctl-b1",
+                  "datacenter": "datacenters/dc_b",
+                  "operation": "operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10"
                 }
               }
             }
@@ -1292,7 +1382,7 @@
                 "id": "dcctl.leader.unavailable",
                 "code": 503,
                 "status": "Service Unavailable",
-                "detail": "leading instance is unreachable",
+                "detail": "the leading instance is critical in Consul",
                 "metadata": {
                   "instance": "dcctl-b1"
                 }
@@ -1347,7 +1437,7 @@
                   {
                     "type": "check",
                     "subject": "init.state_absent",
-                    "description": "dcctl/state exists in dc_a"
+                    "description": "Consul KV of dc_a holds dcctl/state"
                   }
                 ],
                 "preflight": {
@@ -1356,15 +1446,27 @@
                       "id": "init.state_absent",
                       "result": "FAIL",
                       "effect": "BLOCK",
-                      "detail": "dcctl/state exists in dc_a",
+                      "detail": "Consul KV of dc_a holds dcctl/state",
                       "facts": {
-                        "datacenters": [
-                          "dc_a"
+                        "voters": [
+                          {
+                            "name": "dc_a",
+                            "reachable": true,
+                            "generation": 7,
+                            "active_datacenter": "dc_a"
+                          },
+                          {
+                            "name": "dc_b",
+                            "reachable": true
+                          },
+                          {
+                            "name": "arbiter",
+                            "reachable": true
+                          }
                         ]
                       }
                     }
-                  ],
-                  "steps": []
+                  ]
                 }
               }
             }
@@ -1460,28 +1562,56 @@
                   {
                     "type": "confirmation",
                     "subject": "isolation",
-                    "description": "confirm that dc_a is isolated"
+                    "description": "the old primary must be isolated"
                   }
                 ],
                 "preflight": {
-                  "mode": "FORCED",
+                  "mode": "QUORUM",
                   "checks": [
                     {
                       "id": "coord.isolation",
                       "result": "FAIL",
                       "effect": "CONFIRM",
                       "confirmation": "isolation",
-                      "detail": "dc_a is unreachable since 2026-11-23T10:02:00Z",
+                      "detail": "the old primary must be isolated",
                       "facts": {
-                        "mode": "FORCED",
-                        "last_seen_role": "primary",
-                        "last_seen_time": "2026-11-23T10:01:58Z"
+                        "mode": "quorum",
+                        "voters": [
+                          {
+                            "name": "dc_a",
+                            "reachable": true,
+                            "generation": 8,
+                            "active_datacenter": "dc_a"
+                          },
+                          {
+                            "name": "dc_b",
+                            "reachable": true,
+                            "generation": 8,
+                            "active_datacenter": "dc_b"
+                          },
+                          {
+                            "name": "arbiter",
+                            "reachable": false
+                          }
+                        ],
+                        "datacenters": [
+                          {
+                            "datacenter": "dc_a",
+                            "patroni_reachable": true,
+                            "role": "primary",
+                            "last_seen": {
+                              "time": "2026-11-23T10:01:58Z",
+                              "member": "pg-a1",
+                              "role": "primary",
+                              "xlog_location": 83886176
+                            }
+                          }
+                        ]
                       }
                     }
                   ],
                   "steps": [
                     {
-                      "index": 0,
                       "type": "GENERATION",
                       "state": "PENDING",
                       "point_of_no_return": true
@@ -1538,9 +1668,11 @@
                 "id": "dcctl.lock.busy",
                 "code": 409,
                 "status": "Conflict",
-                "detail": "dcctl/lock is held by another instance",
+                "detail": "dcctl/lock in dc_a is held by instance dcctl-b1 of dc_b for operation 0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10",
                 "metadata": {
-                  "holder": "dcctl-a1"
+                  "holder": "dcctl-b1",
+                  "datacenter": "datacenters/dc_b",
+                  "operation": "operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10"
                 }
               }
             }
@@ -1555,7 +1687,7 @@
                 "id": "dcctl.leader.unavailable",
                 "code": 503,
                 "status": "Service Unavailable",
-                "detail": "leading instance is unreachable",
+                "detail": "the leading instance is critical in Consul",
                 "metadata": {
                   "instance": "dcctl-b1"
                 }
@@ -1600,7 +1732,7 @@
                 "id": "dcctl.operation.running",
                 "code": 400,
                 "status": "Bad Request",
-                "detail": "another operation is running",
+                "detail": "operation operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10 is running",
                 "metadata": {
                   "operation": "operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10"
                 }
@@ -1631,9 +1763,11 @@
                 "id": "dcctl.lock.busy",
                 "code": 409,
                 "status": "Conflict",
-                "detail": "dcctl/lock is held by another instance",
+                "detail": "dcctl/lock in dc_a is held by instance dcctl-b1 of dc_b for operation 0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10",
                 "metadata": {
-                  "holder": "dcctl-a1"
+                  "holder": "dcctl-b1",
+                  "datacenter": "datacenters/dc_b",
+                  "operation": "operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10"
                 }
               }
             }
@@ -1648,7 +1782,7 @@
                 "id": "dcctl.leader.unavailable",
                 "code": 503,
                 "status": "Service Unavailable",
-                "detail": "leading instance is unreachable",
+                "detail": "the leading instance is critical in Consul",
                 "metadata": {
                   "instance": "dcctl-b1"
                 }
@@ -1769,7 +1903,7 @@
                   {
                     "type": "field",
                     "subject": "page_size",
-                    "description": "value must be greater than or equal to 0 and less than or equal to 500"
+                    "description": "must be greater than or equal to 0 and less than or equal to 500"
                   }
                 ]
               }
@@ -1786,6 +1920,23 @@
                 "code": 401,
                 "status": "Unauthorized",
                 "detail": "authentication required"
+              }
+            }
+          },
+          "503": {
+            "description": "No datacenter answers: `dcctl.kv.unavailable`.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Error"
+            },
+            "examples": {
+              "application/json": {
+                "id": "dcctl.kv.unavailable",
+                "code": 503,
+                "status": "Service Unavailable",
+                "detail": "the journal is not readable: no datacenter answers",
+                "metadata": {
+                  "datacenters": "dc_a,dc_b"
+                }
               }
             }
           }
@@ -1821,7 +1972,7 @@
     },
     "/v1/operations": {
       "get": {
-        "summary": "Lists operations from newest to oldest.",
+        "summary": "Lists operations from newest to oldest. Each Consul KV keeps only its\ncurrent or last operation in `dcctl/op`, so earlier operations are not\nlisted; their history is in the journal, entries with\n`type = \"OPERATION\"`.",
         "operationId": "ListOperations",
         "responses": {
           "200": {
@@ -1859,14 +2010,17 @@
                         "id": "coord.lock_free",
                         "result": "PASS",
                         "effect": "BLOCK",
-                        "detail": "dcctl/lock is free in every reachable datacenter"
+                        "detail": "the lock is free",
+                        "facts": {
+                          "unreachable": []
+                        }
                       },
                       {
                         "id": "patroni.target_lag",
                         "result": "PASS",
                         "effect": "BLOCK",
                         "datacenter": "datacenters/dc_b",
-                        "detail": "lag 0 B, limit 1048576 B",
+                        "detail": "dc_b lags 0 bytes",
                         "facts": {
                           "lag_bytes": 0,
                           "limit_bytes": 1048576
@@ -1875,7 +2029,6 @@
                     ],
                     "steps": [
                       {
-                        "index": 0,
                         "type": "APPS_PREFLIGHT",
                         "state": "SUCCEEDED",
                         "start_time": "2026-11-23T10:15:02Z",
@@ -1935,7 +2088,6 @@
                     "new_generation": "6",
                     "steps": [
                       {
-                        "index": 0,
                         "type": "PATRONI_DEMOTE",
                         "datacenter": "datacenters/dc_a",
                         "state": "SUCCEEDED",
@@ -1969,7 +2121,7 @@
                   {
                     "type": "field",
                     "subject": "page_size",
-                    "description": "value must be greater than or equal to 0 and less than or equal to 500"
+                    "description": "must be greater than or equal to 0 and less than or equal to 500"
                   }
                 ]
               }
@@ -1986,6 +2138,23 @@
                 "code": 401,
                 "status": "Unauthorized",
                 "detail": "authentication required"
+              }
+            }
+          },
+          "503": {
+            "description": "No copy of `dcctl/op` is readable: `dcctl.kv.unavailable`.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Error"
+            },
+            "examples": {
+              "application/json": {
+                "id": "dcctl.kv.unavailable",
+                "code": 503,
+                "status": "Service Unavailable",
+                "detail": "no copy of dcctl/op is readable",
+                "metadata": {
+                  "datacenters": "dc_a,dc_b"
+                }
               }
             }
           }
@@ -2050,14 +2219,17 @@
                     "id": "coord.lock_free",
                     "result": "PASS",
                     "effect": "BLOCK",
-                    "detail": "dcctl/lock is free in every reachable datacenter"
+                    "detail": "the lock is free",
+                    "facts": {
+                      "unreachable": []
+                    }
                   },
                   {
                     "id": "patroni.target_lag",
                     "result": "PASS",
                     "effect": "BLOCK",
                     "datacenter": "datacenters/dc_b",
-                    "detail": "lag 0 B, limit 1048576 B",
+                    "detail": "dc_b lags 0 bytes",
                     "facts": {
                       "lag_bytes": 0,
                       "limit_bytes": 1048576
@@ -2066,7 +2238,6 @@
                 ],
                 "steps": [
                   {
-                    "index": 0,
                     "type": "APPS_PREFLIGHT",
                     "state": "SUCCEEDED",
                     "start_time": "2026-11-23T10:15:02Z",
@@ -2118,8 +2289,8 @@
                 "violations": [
                   {
                     "type": "field",
-                    "subject": "page_size",
-                    "description": "value must be greater than or equal to 0 and less than or equal to 500"
+                    "subject": "name",
+                    "description": "does not match regex pattern `^operations/[A-Za-z0-9._-]{1,128}$`"
                   }
                 ]
               }
@@ -2152,6 +2323,23 @@
                 "detail": "operation not found",
                 "metadata": {
                   "operation": "operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The operation is not found, but a copy of `dcctl/op` that may hold it is not readable: `dcctl.kv.unavailable`.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Error"
+            },
+            "examples": {
+              "application/json": {
+                "id": "dcctl.kv.unavailable",
+                "code": 503,
+                "status": "Service Unavailable",
+                "detail": "the operation may be in a copy of dcctl/op that is not readable",
+                "metadata": {
+                  "datacenters": "dc_b"
                 }
               }
             }
@@ -2191,7 +2379,7 @@
                 "id": "dcctl.operation.not_interrupted",
                 "code": 400,
                 "status": "Bad Request",
-                "detail": "operation is not INTERRUPTED",
+                "detail": "operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10 is running",
                 "metadata": {
                   "operation": "operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10",
                   "state": "RUNNING"
@@ -2223,7 +2411,7 @@
                 "id": "dcctl.operation.not_found",
                 "code": 404,
                 "status": "Not Found",
-                "detail": "operation not found",
+                "detail": "operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10 is not found",
                 "metadata": {
                   "operation": "operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10"
                 }
@@ -2273,7 +2461,7 @@
                 "id": "dcctl.operation.not_interrupted",
                 "code": 400,
                 "status": "Bad Request",
-                "detail": "operation is not INTERRUPTED",
+                "detail": "operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10 is running",
                 "metadata": {
                   "operation": "operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10",
                   "state": "RUNNING"
@@ -2305,7 +2493,7 @@
                 "id": "dcctl.operation.not_found",
                 "code": 404,
                 "status": "Not Found",
-                "detail": "operation not found",
+                "detail": "operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10 is not found",
                 "metadata": {
                   "operation": "operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10"
                 }
@@ -2322,9 +2510,11 @@
                 "id": "dcctl.lock.busy",
                 "code": 409,
                 "status": "Conflict",
-                "detail": "dcctl/lock is held by another instance",
+                "detail": "dcctl/lock in dc_a is held by instance dcctl-b1 of dc_b for operation 0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10",
                 "metadata": {
-                  "holder": "dcctl-a1"
+                  "holder": "dcctl-b1",
+                  "datacenter": "datacenters/dc_b",
+                  "operation": "operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10"
                 }
               }
             }
@@ -2339,7 +2529,7 @@
                 "id": "dcctl.leader.unavailable",
                 "code": 503,
                 "status": "Service Unavailable",
-                "detail": "leading instance is unreachable",
+                "detail": "the leading instance is critical in Consul",
                 "metadata": {
                   "instance": "dcctl-b1"
                 }
@@ -2370,7 +2560,7 @@
     },
     "/v1/operations/{operation}:watch": {
       "get": {
-        "summary": "Streams the operation after every change; the first message is the\ncurrent state. Through the gateway every message is one JSON line\n`{\"result\": ...}`. After a disconnect, get the operation and watch again.",
+        "summary": "Streams the operation after every change. The first message is the\ncurrent state; the server may send the current state again as a\nkeepalive. The stream stays open until the operation is SUCCEEDED,\nFAILED or ABANDONED; an INTERRUPTED operation does not end it. Through\nthe gateway every message is one JSON line `{\"result\": ...}`. After a\ndisconnect, get the operation and watch again.",
         "operationId": "WatchOperation",
         "responses": {
           "200": {
@@ -2413,14 +2603,17 @@
                       "id": "coord.lock_free",
                       "result": "PASS",
                       "effect": "BLOCK",
-                      "detail": "dcctl/lock is free in every reachable datacenter"
+                      "detail": "the lock is free",
+                      "facts": {
+                        "unreachable": []
+                      }
                     },
                     {
                       "id": "patroni.target_lag",
                       "result": "PASS",
                       "effect": "BLOCK",
                       "datacenter": "datacenters/dc_b",
-                      "detail": "lag 0 B, limit 1048576 B",
+                      "detail": "dc_b lags 0 bytes",
                       "facts": {
                         "lag_bytes": 0,
                         "limit_bytes": 1048576
@@ -2429,7 +2622,6 @@
                   ],
                   "steps": [
                     {
-                      "index": 0,
                       "type": "APPS_PREFLIGHT",
                       "state": "SUCCEEDED",
                       "start_time": "2026-11-23T10:15:02Z",
@@ -2482,8 +2674,8 @@
                 "violations": [
                   {
                     "type": "field",
-                    "subject": "page_size",
-                    "description": "value must be greater than or equal to 0 and less than or equal to 500"
+                    "subject": "name",
+                    "description": "does not match regex pattern `^operations/[A-Za-z0-9._-]{1,128}$`"
                   }
                 ]
               }
@@ -2516,6 +2708,23 @@
                 "detail": "operation not found",
                 "metadata": {
                   "operation": "operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The operation is not found, but a copy of `dcctl/op` that may hold it is not readable: `dcctl.kv.unavailable`.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Error"
+            },
+            "examples": {
+              "application/json": {
+                "id": "dcctl.kv.unavailable",
+                "code": 503,
+                "status": "Service Unavailable",
+                "detail": "the operation may be in a copy of dcctl/op that is not readable",
+                "metadata": {
+                  "datacenters": "dc_b"
                 }
               }
             }
@@ -2581,12 +2790,7 @@
                   },
                   {
                     "type": "ARBITER",
-                    "reachable": false,
-                    "error": "TIMEOUT",
-                    "generation": "7",
-                    "active_datacenter": "datacenters/dc_a",
-                    "valid": true,
-                    "initialized": true
+                    "error": "TIMEOUT"
                   }
                 ],
                 "quorum": {
@@ -2702,21 +2906,6 @@
             "description": "Invalid request: `dcctl.request.invalid`.",
             "schema": {
               "$ref": "#/definitions/webitel.dcctl.v1.Error"
-            },
-            "examples": {
-              "application/json": {
-                "id": "dcctl.request.invalid",
-                "code": 400,
-                "status": "Bad Request",
-                "detail": "invalid request",
-                "violations": [
-                  {
-                    "type": "field",
-                    "subject": "page_size",
-                    "description": "value must be greater than or equal to 0 and less than or equal to 500"
-                  }
-                ]
-              }
             }
           },
           "401": {
@@ -2730,6 +2919,20 @@
                 "code": 401,
                 "status": "Unauthorized",
                 "detail": "authentication required"
+              }
+            }
+          },
+          "503": {
+            "description": "No collection cycle has finished yet: `dcctl.status.not_ready`.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Error"
+            },
+            "examples": {
+              "application/json": {
+                "id": "dcctl.status.not_ready",
+                "code": 503,
+                "status": "Service Unavailable",
+                "detail": "no collection cycle has finished yet"
               }
             }
           }
@@ -2775,21 +2978,6 @@
             "description": "Invalid request: `dcctl.request.invalid`.",
             "schema": {
               "$ref": "#/definitions/webitel.dcctl.v1.Error"
-            },
-            "examples": {
-              "application/json": {
-                "id": "dcctl.request.invalid",
-                "code": 400,
-                "status": "Bad Request",
-                "detail": "invalid request",
-                "violations": [
-                  {
-                    "type": "field",
-                    "subject": "page_size",
-                    "description": "value must be greater than or equal to 0 and less than or equal to 500"
-                  }
-                ]
-              }
             }
           },
           "401": {
@@ -2803,6 +2991,20 @@
                 "code": 401,
                 "status": "Unauthorized",
                 "detail": "authentication required"
+              }
+            }
+          },
+          "503": {
+            "description": "No collection cycle has finished yet: `dcctl.status.not_ready`.",
+            "schema": {
+              "$ref": "#/definitions/webitel.dcctl.v1.Error"
+            },
+            "examples": {
+              "application/json": {
+                "id": "dcctl.status.not_ready",
+                "code": 503,
+                "status": "Service Unavailable",
+                "detail": "no collection cycle has finished yet"
               }
             }
           }
@@ -2944,11 +3146,6 @@
           "description": "Reachability of each source.",
           "readOnly": true
         },
-        "consul": {
-          "$ref": "#/definitions/webitel.dcctl.v1.Datacenter.Consul",
-          "description": "Consul. GetDatacenter only.",
-          "readOnly": true
-        },
         "patroni": {
           "$ref": "#/definitions/webitel.dcctl.v1.Datacenter.Patroni",
           "description": "Patroni.",
@@ -2981,42 +3178,6 @@
         }
       },
       "description": "A datacenter as seen by the instance that answers. ListDatacenters and\nStatus fill the summary fields; the observer, members, nodes, jobs and\ninfo checks are filled by GetDatacenter only."
-    },
-    "webitel.dcctl.v1.Datacenter.Consul": {
-      "type": "object",
-      "properties": {
-        "servers": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "$ref": "#/definitions/webitel.dcctl.v1.Datacenter.Consul.Server"
-          },
-          "description": "Servers of the datacenter.",
-          "readOnly": true
-        }
-      },
-      "description": "Consul of the datacenter."
-    },
-    "webitel.dcctl.v1.Datacenter.Consul.Server": {
-      "type": "object",
-      "properties": {
-        "address": {
-          "type": "string",
-          "description": "Server address.",
-          "readOnly": true
-        },
-        "reachable": {
-          "type": "boolean",
-          "description": "The server answers.",
-          "readOnly": true
-        },
-        "consul_datacenter": {
-          "type": "string",
-          "description": "Consul datacenter reported by the server. Differs from the\ndatacenter name on a misconfiguration.",
-          "readOnly": true
-        }
-      },
-      "description": "Consul server from the config."
     },
     "webitel.dcctl.v1.Datacenter.Health": {
       "type": "string",
@@ -3305,7 +3466,7 @@
         "timeline": {
           "type": "string",
           "format": "int64",
-          "description": "Timeline of the leader.",
+          "description": "Timeline of the leader. Not set when it is not known.",
           "readOnly": true
         },
         "paused": {
@@ -3326,7 +3487,7 @@
         "lag_bytes": {
           "type": "string",
           "format": "int64",
-          "description": "Lag of the datacenter behind the active primary. Approximate between\nclusters.",
+          "description": "Lag of the datacenter behind the active primary. Approximate between\nclusters. Not set for the datacenter of the primary and when it is not\nknown.",
           "readOnly": true
         },
         "divergence_state": {
@@ -3409,7 +3570,7 @@
         "timeline": {
           "type": "string",
           "format": "int64",
-          "description": "Timeline.",
+          "description": "Timeline. Not set when it is not known.",
           "readOnly": true
         },
         "replication_state": {
@@ -3425,7 +3586,7 @@
         "lag_bytes": {
           "type": "string",
           "format": "int64",
-          "description": "Lag behind the cluster leader.",
+          "description": "Lag behind the cluster leader. Not set for the leader or the standby\nleader and when Patroni does not report it.",
           "readOnly": true
         },
         "version": {
@@ -3692,7 +3853,7 @@
         },
         "preflight": {
           "$ref": "#/definitions/webitel.dcctl.v1.Preflight",
-          "description": "Full preflight result of PREFLIGHT_FAILED and CONFIRMATION_REQUIRED.",
+          "description": "Full preflight result. Always present for `dcctl.preflight.failed` and\n`dcctl.confirmation.required`; may also come with any other refusal of a\npreflight, for example `dcctl.lock.busy`.",
           "readOnly": true
         }
       },
@@ -3969,6 +4130,14 @@
           "type": "string",
           "description": "Token of the next page. Empty on the last page.",
           "readOnly": true
+        },
+        "unreachable": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Datacenters whose journal could not be read, as\n`datacenters/{datacenter}`: entries of these datacenters may be missing\nfrom the response.",
+          "readOnly": true
         }
       },
       "description": "Response message for JournalService.ListJournalEntries."
@@ -4127,6 +4296,12 @@
           "description": "When the operation finished.",
           "readOnly": true
         },
+        "revision": {
+          "type": "string",
+          "format": "int64",
+          "description": "Revision of the operation: 1 when it is created and one more on every\nchange. Every copy of the same change carries the same revision, also\none that alignment writes to another Consul KV; an instance that takes\nthe operation over continues from the highest revision of the copies.\nA state resent as a WatchOperation keepalive keeps its revision. Order\nthe updates of an operation by revision, not by update_time: instances\nthat run it in turn do not share a clock.",
+          "readOnly": true
+        },
         "switch_datacenter": {
           "$ref": "#/definitions/webitel.dcctl.v1.SwitchDatacenterRequest",
           "description": "SWITCH request.",
@@ -4173,7 +4348,7 @@
           "readOnly": true
         }
       },
-      "description": "An action started through the API. The same message is stored as protojson\nin the Consul KV key `dcctl/op`; field names are part of that KV format,\nand the Ansible role `topology` reads `state` from it. Actions dcctl takes\nby itself (fencing, generation alignment) are not operations; they are\njournal entries of type SYSTEM."
+      "description": "An action started through the API. The same message is stored as protojson\nin the Consul KV key `dcctl/op`; field names are part of that KV format,\nand the Ansible role `topology` reads `state` from it. Each Consul KV keeps\nonly its current or last operation there; the history of operations is the\njournal, entries with `type = \"OPERATION\"`. Actions dcctl takes by itself\n(fencing, generation alignment) are not operations; they are journal\nentries of type SYSTEM."
     },
     "webitel.dcctl.v1.Operation.Mode": {
       "type": "string",
@@ -4396,7 +4571,7 @@
           "readOnly": true
         }
       },
-      "description": "Error detail `webitel.dcctl.v1.Preflight` of PREFLIGHT_FAILED and\nCONFIRMATION_REQUIRED: all checks of the action with their facts, the plan\nand the write mode."
+      "description": "Error detail `webitel.dcctl.v1.Preflight`: all checks of the action with\ntheir facts, the plan and the write mode. Always present for\nPREFLIGHT_FAILED and CONFIRMATION_REQUIRED; may also come with any other\nrefusal of a preflight, for example LOCK_BUSY."
     },
     "webitel.dcctl.v1.RepointDatacenterRequest": {
       "type": "object",
@@ -4616,7 +4791,7 @@
         },
         "operation": {
           "$ref": "#/definitions/webitel.dcctl.v1.Operation",
-          "description": "Current RUNNING or INTERRUPTED operation.",
+          "description": "Current operation, only while it is RUNNING or INTERRUPTED. A finished\noperation is not shown here; read it with GetOperation.",
           "readOnly": true
         },
         "alarms": {

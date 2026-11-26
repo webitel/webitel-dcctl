@@ -395,7 +395,8 @@ type Status struct {
 	Quorum *Status_Quorum `protobuf:"bytes,15,opt,name=quorum,proto3" json:"quorum,omitempty"`
 	// Lease.
 	Lease *Status_Lease `protobuf:"bytes,16,opt,name=lease,proto3" json:"lease,omitempty"`
-	// Current RUNNING or INTERRUPTED operation.
+	// Current operation, only while it is RUNNING or INTERRUPTED. A finished
+	// operation is not shown here; read it with GetOperation.
 	// (-- api-linter: core::0122::embedded-resource=disabled
 	//
 	//	aip.dev/not-precedent: the summary carries the current operation so

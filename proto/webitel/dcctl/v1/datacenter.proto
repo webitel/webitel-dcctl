@@ -63,25 +63,6 @@ message Datacenter {
     UNKNOWN = 4;
   }
 
-  // Consul of the datacenter.
-  message Consul {
-    // Consul server from the config.
-    message Server {
-      // Server address.
-      string address = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
-
-      // The server answers.
-      bool reachable = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
-
-      // Consul datacenter reported by the server. Differs from the
-      // datacenter name on a misconfiguration.
-      string consul_datacenter = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
-    }
-
-    // Servers of the datacenter.
-    repeated Server servers = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
-  }
-
   // Patroni cluster of the datacenter (warm_standby) or the part of the
   // cluster in it (stretch).
   message Patroni {
@@ -168,8 +149,8 @@ message Datacenter {
       // `streaming`.
       string patroni_state = 7 [(google.api.field_behavior) = OUTPUT_ONLY];
 
-      // Timeline.
-      int64 timeline = 8 [(google.api.field_behavior) = OUTPUT_ONLY];
+      // Timeline. Not set when it is not known.
+      optional int64 timeline = 8 [(google.api.field_behavior) = OUTPUT_ONLY];
 
       // Replication state as reported, for example `streaming`.
       string replication_state = 9 [(google.api.field_behavior) = OUTPUT_ONLY];
@@ -177,8 +158,9 @@ message Datacenter {
       // WAL positions.
       Xlog xlog = 10 [(google.api.field_behavior) = OUTPUT_ONLY];
 
-      // Lag behind the cluster leader.
-      int64 lag_bytes = 11 [(google.api.field_behavior) = OUTPUT_ONLY];
+      // Lag behind the cluster leader. Not set for the leader or the standby
+      // leader and when Patroni does not report it.
+      optional int64 lag_bytes = 11 [(google.api.field_behavior) = OUTPUT_ONLY];
 
       // Patroni version.
       string version = 12 [(google.api.field_behavior) = OUTPUT_ONLY];
@@ -202,8 +184,8 @@ message Datacenter {
     // Role of the leader.
     Role role = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
 
-    // Timeline of the leader.
-    int64 timeline = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+    // Timeline of the leader. Not set when it is not known.
+    optional int64 timeline = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
 
     // Patroni pause is set.
     bool paused = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
@@ -218,8 +200,9 @@ message Datacenter {
     ];
 
     // Lag of the datacenter behind the active primary. Approximate between
-    // clusters.
-    int64 lag_bytes = 7 [(google.api.field_behavior) = OUTPUT_ONLY];
+    // clusters. Not set for the datacenter of the primary and when it is not
+    // known.
+    optional int64 lag_bytes = 7 [(google.api.field_behavior) = OUTPUT_ONLY];
 
     // Whether the datacenter diverged from the active leader. Authoritative:
     // an empty divergence_lsn does not mean NOT_DIVERGED. Not set
@@ -411,9 +394,6 @@ message Datacenter {
 
   // Reachability of each source.
   repeated Source sources = 6 [(google.api.field_behavior) = OUTPUT_ONLY];
-
-  // Consul. GetDatacenter only.
-  Consul consul = 7 [(google.api.field_behavior) = OUTPUT_ONLY];
 
   // Patroni.
   Patroni patroni = 8 [(google.api.field_behavior) = OUTPUT_ONLY];

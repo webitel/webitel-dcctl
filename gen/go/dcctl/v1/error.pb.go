@@ -41,7 +41,9 @@ type Error struct {
 	Metadata map[string]string `protobuf:"bytes,5,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	// BadRequest field violations and PreconditionFailure violations.
 	Violations []*Violation `protobuf:"bytes,6,rep,name=violations,proto3" json:"violations,omitempty"`
-	// Full preflight result of PREFLIGHT_FAILED and CONFIRMATION_REQUIRED.
+	// Full preflight result. Always present for `dcctl.preflight.failed` and
+	// `dcctl.confirmation.required`; may also come with any other refusal of a
+	// preflight, for example `dcctl.lock.busy`.
 	Preflight     *Preflight `protobuf:"bytes,7,opt,name=preflight,proto3" json:"preflight,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -191,9 +193,10 @@ func (x *Violation) GetDescription() string {
 	return ""
 }
 
-// Error detail `webitel.dcctl.v1.Preflight` of PREFLIGHT_FAILED and
-// CONFIRMATION_REQUIRED: all checks of the action with their facts, the plan
-// and the write mode.
+// Error detail `webitel.dcctl.v1.Preflight`: all checks of the action with
+// their facts, the plan and the write mode. Always present for
+// PREFLIGHT_FAILED and CONFIRMATION_REQUIRED; may also come with any other
+// refusal of a preflight, for example LOCK_BUSY.
 type Preflight struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// All checks of the action.

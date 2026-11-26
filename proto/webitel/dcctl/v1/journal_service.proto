@@ -5,6 +5,7 @@ package webitel.dcctl.v1;
 import "buf/validate/validate.proto";
 import "google/api/annotations.proto";
 import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
 import "protoc-gen-openapiv2/options/annotations.proto";
 import "webitel/dcctl/v1/journal.proto";
 
@@ -40,6 +41,38 @@ service JournalService {
               '"datacenter":"datacenters/dc_a","system_action":"FENCE_APPS","params":{"jobs":["webitel-core-api",'
               '"opensips"]},"result":"OK","detail":"stopped 2 managed jobs: the effective state names dc_b as active"}],'
               '"next_page_token":"MjAyNjExMjIwODA1MTIwMDAwMDAwMDAtZTQwYjcxYzl8ZTNiMGM0NDI5OGZjMWMxNA"}'
+          }
+        }
+      }
+      responses: {
+        key: "400"
+        value: {
+          description: "Invalid request: `dcctl.request.invalid`."
+          schema: {
+            json_schema: {ref: ".webitel.dcctl.v1.Error"}
+          }
+          examples: {
+            key: "application/json"
+            value:
+              '{"id":"dcctl.request.invalid","code":400,"status":"Bad Request","detail":"invalid request",'
+              '"violations":[{"type":"field","subject":"page_size",'
+              '"description":"must be greater than or equal to 0 and less than or equal to 500"}]}'
+          }
+        }
+      }
+      responses: {
+        key: "503"
+        value: {
+          description: "No datacenter answers: `dcctl.kv.unavailable`."
+          schema: {
+            json_schema: {ref: ".webitel.dcctl.v1.Error"}
+          }
+          examples: {
+            key: "application/json"
+            value:
+              '{"id":"dcctl.kv.unavailable","code":503,"status":"Service Unavailable",'
+              '"detail":"the journal is not readable: no datacenter answers",'
+              '"metadata":{"datacenters":"dc_a,dc_b"}}'
           }
         }
       }
@@ -80,4 +113,12 @@ message ListJournalEntriesResponse {
 
   // Token of the next page. Empty on the last page.
   string next_page_token = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Datacenters whose journal could not be read, as
+  // `datacenters/{datacenter}`: entries of these datacenters may be missing
+  // from the response.
+  repeated string unreachable = 3 [
+    (google.api.field_behavior) = OUTPUT_ONLY,
+    (google.api.resource_reference).type = "dcctl.webitel.com/Datacenter"
+  ];
 }

@@ -15,7 +15,10 @@ option go_package = "github.com/webitel/webitel-dcctl/gen/go/dcctl/v1;dcctlv1";
 
 // Operations created by the actions.
 service OperationService {
-  // Lists operations from newest to oldest.
+  // Lists operations from newest to oldest. Each Consul KV keeps only its
+  // current or last operation in `dcctl/op`, so earlier operations are not
+  // listed; their history is in the journal, entries with
+  // `type = "OPERATION"`.
   rpc ListOperations(ListOperationsRequest) returns (ListOperationsResponse) {
     option (google.api.http) = {get: "/v1/operations"};
     option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
@@ -26,31 +29,63 @@ service OperationService {
           examples: {
             key: "application/json"
             value:
-              '{"operations":[{"name":"operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10",'
-              '"type":"SWITCH","state":"RUNNING","target":"datacenters/dc_b","initiator":{"user":"support",'
+              '{"operations":[{"name":"operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10","type":"SWITCH",'
+              '"state":"RUNNING","target":"datacenters/dc_b","initiator":{"user":"support",'
               '"address":"10.1.0.15","instance":{"node":"dcctl-a1","datacenter":"datacenters/dc_a",'
               '"address":"10.1.0.81:10023"}},"leader":{"node":"dcctl-b1","datacenter":"datacenters/dc_b",'
-              '"address":"10.2.0.81:10023"},"mode":"QUORUM","previous_generation":"7",'
-              '"new_generation":"8","checks":[{"id":"coord.lock_free","result":"PASS",'
-              '"effect":"BLOCK","detail":"dcctl/lock is free in every reachable datacenter"},'
-              '{"id":"patroni.target_lag","result":"PASS","effect":"BLOCK","datacenter":"datacenters/dc_b",'
-              '"detail":"lag 0 B, limit 1048576 B","facts":{"lag_bytes":0,"limit_bytes":1048576}}],'
-              '"steps":[{"index":0,"type":"APPS_PREFLIGHT","state":"SUCCEEDED","start_time":"2026-11-23T10:15:02Z",'
-              '"end_time":"2026-11-23T10:15:04Z"},{"index":1,"type":"APPS_STOP","stage":3,'
-              '"datacenter":"datacenters/dc_a","state":"RUNNING","start_time":"2026-11-23T10:15:04Z",'
-              '"detail":"stopping 1 of 3 jobs"},{"index":2,"type":"PATRONI_DEMOTE","datacenter":"datacenters/dc_a",'
-              '"state":"PENDING"},{"index":3,"type":"GENERATION","state":"PENDING","point_of_no_return":true}],'
+              '"address":"10.2.0.81:10023"},"mode":"QUORUM","previous_generation":"7","new_generation":"8",'
+              '"checks":[{"id":"coord.lock_free","result":"PASS","effect":"BLOCK","detail":"the lock is free",'
+              '"facts":{"unreachable":[]}},{"id":"patroni.target_lag","result":"PASS","effect":"BLOCK",'
+              '"datacenter":"datacenters/dc_b","detail":"dc_b lags 0 bytes","facts":{"lag_bytes":0,'
+              '"limit_bytes":1048576}}],"steps":[{"type":"APPS_PREFLIGHT","state":"SUCCEEDED",'
+              '"start_time":"2026-11-23T10:15:02Z","end_time":"2026-11-23T10:15:04Z"},{"index":1,'
+              '"type":"APPS_STOP","stage":3,"datacenter":"datacenters/dc_a","state":"RUNNING",'
+              '"start_time":"2026-11-23T10:15:04Z","detail":"stopping 1 of 3 jobs"},{"index":2,'
+              '"type":"PATRONI_DEMOTE","datacenter":"datacenters/dc_a","state":"PENDING"},{"index":3,'
+              '"type":"GENERATION","state":"PENDING","point_of_no_return":true}],'
               '"request_id":"6f1c2b9e-8d4a-4f3b-9c2e-1a7d5e3f9b40","create_time":"2026-11-23T10:15:01Z",'
               '"update_time":"2026-11-23T10:15:04Z","switch_datacenter":{"name":"datacenters/dc_b",'
-              '"request_id":"6f1c2b9e-8d4a-4f3b-9c2e-1a7d5e3f9b40"}},{"name":"operations/4e2a7d10-93c6-4b8f-a1d2-7c5e9f0b3a61",'
-              '"type":"DEMOTE","state":"SUCCEEDED","target":"datacenters/dc_a","initiator":{"user":"support",'
-              '"address":"10.2.0.15","instance":{"node":"dcctl-b1","datacenter":"datacenters/dc_b",'
-              '"address":"10.2.0.81:10023"}},"leader":{"node":"dcctl-a1","datacenter":"datacenters/dc_a",'
-              '"address":"10.1.0.81:10023"},"mode":"QUORUM","previous_generation":"6",'
-              '"new_generation":"6","steps":[{"index":0,"type":"PATRONI_DEMOTE","datacenter":"datacenters/dc_a",'
-              '"state":"SUCCEEDED","start_time":"2026-11-22T08:01:10Z","end_time":"2026-11-22T08:01:40Z"}],'
+              '"request_id":"6f1c2b9e-8d4a-4f3b-9c2e-1a7d5e3f9b40"}},'
+              '{"name":"operations/4e2a7d10-93c6-4b8f-a1d2-7c5e9f0b3a61","type":"DEMOTE","state":"SUCCEEDED",'
+              '"target":"datacenters/dc_a","initiator":{"user":"support","address":"10.2.0.15",'
+              '"instance":{"node":"dcctl-b1","datacenter":"datacenters/dc_b","address":"10.2.0.81:10023"}},'
+              '"leader":{"node":"dcctl-a1","datacenter":"datacenters/dc_a","address":"10.1.0.81:10023"},'
+              '"mode":"QUORUM","previous_generation":"6","new_generation":"6",'
+              '"steps":[{"type":"PATRONI_DEMOTE","datacenter":"datacenters/dc_a","state":"SUCCEEDED",'
+              '"start_time":"2026-11-22T08:01:10Z","end_time":"2026-11-22T08:01:40Z"}],'
               '"create_time":"2026-11-22T08:01:09Z","update_time":"2026-11-22T08:01:40Z",'
               '"end_time":"2026-11-22T08:01:40Z","demote_datacenter":{"name":"datacenters/dc_a"}}]}'
+          }
+        }
+      }
+      responses: {
+        key: "400"
+        value: {
+          description: "Invalid request: `dcctl.request.invalid`."
+          schema: {
+            json_schema: {ref: ".webitel.dcctl.v1.Error"}
+          }
+          examples: {
+            key: "application/json"
+            value:
+              '{"id":"dcctl.request.invalid","code":400,"status":"Bad Request","detail":"invalid request",'
+              '"violations":[{"type":"field","subject":"page_size",'
+              '"description":"must be greater than or equal to 0 and less than or equal to 500"}]}'
+          }
+        }
+      }
+      responses: {
+        key: "503"
+        value: {
+          description: "No copy of `dcctl/op` is readable: `dcctl.kv.unavailable`."
+          schema: {
+            json_schema: {ref: ".webitel.dcctl.v1.Error"}
+          }
+          examples: {
+            key: "application/json"
+            value:
+              '{"id":"dcctl.kv.unavailable","code":503,"status":"Service Unavailable",'
+              '"detail":"no copy of dcctl/op is readable","metadata":{"datacenters":"dc_a,dc_b"}}'
           }
         }
       }
@@ -69,20 +104,20 @@ service OperationService {
           examples: {
             key: "application/json"
             value:
-              '{"name":"operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10","type":"SWITCH",'
-              '"state":"RUNNING","target":"datacenters/dc_b","initiator":{"user":"support",'
-              '"address":"10.1.0.15","instance":{"node":"dcctl-a1","datacenter":"datacenters/dc_a",'
-              '"address":"10.1.0.81:10023"}},"leader":{"node":"dcctl-b1","datacenter":"datacenters/dc_b",'
-              '"address":"10.2.0.81:10023"},"mode":"QUORUM","previous_generation":"7",'
-              '"new_generation":"8","checks":[{"id":"coord.lock_free","result":"PASS",'
-              '"effect":"BLOCK","detail":"dcctl/lock is free in every reachable datacenter"},'
-              '{"id":"patroni.target_lag","result":"PASS","effect":"BLOCK","datacenter":"datacenters/dc_b",'
-              '"detail":"lag 0 B, limit 1048576 B","facts":{"lag_bytes":0,"limit_bytes":1048576}}],'
-              '"steps":[{"index":0,"type":"APPS_PREFLIGHT","state":"SUCCEEDED","start_time":"2026-11-23T10:15:02Z",'
-              '"end_time":"2026-11-23T10:15:04Z"},{"index":1,"type":"APPS_STOP","stage":3,'
-              '"datacenter":"datacenters/dc_a","state":"RUNNING","start_time":"2026-11-23T10:15:04Z",'
-              '"detail":"stopping 1 of 3 jobs"},{"index":2,"type":"PATRONI_DEMOTE","datacenter":"datacenters/dc_a",'
-              '"state":"PENDING"},{"index":3,"type":"GENERATION","state":"PENDING","point_of_no_return":true}],'
+              '{"name":"operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10","type":"SWITCH","state":"RUNNING",'
+              '"target":"datacenters/dc_b","initiator":{"user":"support","address":"10.1.0.15",'
+              '"instance":{"node":"dcctl-a1","datacenter":"datacenters/dc_a","address":"10.1.0.81:10023"}},'
+              '"leader":{"node":"dcctl-b1","datacenter":"datacenters/dc_b","address":"10.2.0.81:10023"},'
+              '"mode":"QUORUM","previous_generation":"7","new_generation":"8",'
+              '"checks":[{"id":"coord.lock_free","result":"PASS","effect":"BLOCK","detail":"the lock is free",'
+              '"facts":{"unreachable":[]}},{"id":"patroni.target_lag","result":"PASS","effect":"BLOCK",'
+              '"datacenter":"datacenters/dc_b","detail":"dc_b lags 0 bytes","facts":{"lag_bytes":0,'
+              '"limit_bytes":1048576}}],"steps":[{"type":"APPS_PREFLIGHT","state":"SUCCEEDED",'
+              '"start_time":"2026-11-23T10:15:02Z","end_time":"2026-11-23T10:15:04Z"},{"index":1,'
+              '"type":"APPS_STOP","stage":3,"datacenter":"datacenters/dc_a","state":"RUNNING",'
+              '"start_time":"2026-11-23T10:15:04Z","detail":"stopping 1 of 3 jobs"},{"index":2,'
+              '"type":"PATRONI_DEMOTE","datacenter":"datacenters/dc_a","state":"PENDING"},{"index":3,'
+              '"type":"GENERATION","state":"PENDING","point_of_no_return":true}],'
               '"request_id":"6f1c2b9e-8d4a-4f3b-9c2e-1a7d5e3f9b40","create_time":"2026-11-23T10:15:01Z",'
               '"update_time":"2026-11-23T10:15:04Z","switch_datacenter":{"name":"datacenters/dc_b",'
               '"request_id":"6f1c2b9e-8d4a-4f3b-9c2e-1a7d5e3f9b40"}}'
@@ -104,12 +139,47 @@ service OperationService {
           }
         }
       }
+      responses: {
+        key: "400"
+        value: {
+          description: "Invalid request: `dcctl.request.invalid`."
+          schema: {
+            json_schema: {ref: ".webitel.dcctl.v1.Error"}
+          }
+          examples: {
+            key: "application/json"
+            value:
+              '{"id":"dcctl.request.invalid","code":400,"status":"Bad Request","detail":"invalid request",'
+              '"violations":[{"type":"field","subject":"name",'
+              '"description":"does not match regex pattern `^operations/[A-Za-z0-9._-]{1,128}$`"}]}'
+          }
+        }
+      }
+      responses: {
+        key: "503"
+        value: {
+          description: "The operation is not found, but a copy of `dcctl/op` that may hold it is not readable: `dcctl.kv.unavailable`."
+          schema: {
+            json_schema: {ref: ".webitel.dcctl.v1.Error"}
+          }
+          examples: {
+            key: "application/json"
+            value:
+              '{"id":"dcctl.kv.unavailable","code":503,"status":"Service Unavailable",'
+              '"detail":"the operation may be in a copy of dcctl/op that is not readable",'
+              '"metadata":{"datacenters":"dc_b"}}'
+          }
+        }
+      }
     };
   }
 
-  // Streams the operation after every change; the first message is the
-  // current state. Through the gateway every message is one JSON line
-  // `{"result": ...}`. After a disconnect, get the operation and watch again.
+  // Streams the operation after every change. The first message is the
+  // current state; the server may send the current state again as a
+  // keepalive. The stream stays open until the operation is SUCCEEDED,
+  // FAILED or ABANDONED; an INTERRUPTED operation does not end it. Through
+  // the gateway every message is one JSON line `{"result": ...}`. After a
+  // disconnect, get the operation and watch again.
   rpc WatchOperation(WatchOperationRequest) returns (stream Operation) {
     option (google.api.http) = {get: "/v1/{name=operations/*}:watch"};
     option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
@@ -124,16 +194,16 @@ service OperationService {
               '"state":"RUNNING","target":"datacenters/dc_b","initiator":{"user":"support",'
               '"address":"10.1.0.15","instance":{"node":"dcctl-a1","datacenter":"datacenters/dc_a",'
               '"address":"10.1.0.81:10023"}},"leader":{"node":"dcctl-b1","datacenter":"datacenters/dc_b",'
-              '"address":"10.2.0.81:10023"},"mode":"QUORUM","previous_generation":"7",'
-              '"new_generation":"8","checks":[{"id":"coord.lock_free","result":"PASS",'
-              '"effect":"BLOCK","detail":"dcctl/lock is free in every reachable datacenter"},'
-              '{"id":"patroni.target_lag","result":"PASS","effect":"BLOCK","datacenter":"datacenters/dc_b",'
-              '"detail":"lag 0 B, limit 1048576 B","facts":{"lag_bytes":0,"limit_bytes":1048576}}],'
-              '"steps":[{"index":0,"type":"APPS_PREFLIGHT","state":"SUCCEEDED","start_time":"2026-11-23T10:15:02Z",'
-              '"end_time":"2026-11-23T10:15:04Z"},{"index":1,"type":"APPS_STOP","stage":3,'
-              '"datacenter":"datacenters/dc_a","state":"RUNNING","start_time":"2026-11-23T10:15:04Z",'
-              '"detail":"stopping 1 of 3 jobs"},{"index":2,"type":"PATRONI_DEMOTE","datacenter":"datacenters/dc_a",'
-              '"state":"PENDING"},{"index":3,"type":"GENERATION","state":"PENDING","point_of_no_return":true}],'
+              '"address":"10.2.0.81:10023"},"mode":"QUORUM","previous_generation":"7","new_generation":"8",'
+              '"checks":[{"id":"coord.lock_free","result":"PASS","effect":"BLOCK","detail":"the lock is free",'
+              '"facts":{"unreachable":[]}},{"id":"patroni.target_lag","result":"PASS","effect":"BLOCK",'
+              '"datacenter":"datacenters/dc_b","detail":"dc_b lags 0 bytes","facts":{"lag_bytes":0,'
+              '"limit_bytes":1048576}}],"steps":[{"type":"APPS_PREFLIGHT","state":"SUCCEEDED",'
+              '"start_time":"2026-11-23T10:15:02Z","end_time":"2026-11-23T10:15:04Z"},{"index":1,'
+              '"type":"APPS_STOP","stage":3,"datacenter":"datacenters/dc_a","state":"RUNNING",'
+              '"start_time":"2026-11-23T10:15:04Z","detail":"stopping 1 of 3 jobs"},{"index":2,'
+              '"type":"PATRONI_DEMOTE","datacenter":"datacenters/dc_a","state":"PENDING"},{"index":3,'
+              '"type":"GENERATION","state":"PENDING","point_of_no_return":true}],'
               '"request_id":"6f1c2b9e-8d4a-4f3b-9c2e-1a7d5e3f9b40","create_time":"2026-11-23T10:15:01Z",'
               '"update_time":"2026-11-23T10:15:04Z","switch_datacenter":{"name":"datacenters/dc_b",'
               '"request_id":"6f1c2b9e-8d4a-4f3b-9c2e-1a7d5e3f9b40"}}}'
@@ -152,6 +222,38 @@ service OperationService {
             value:
               '{"id":"dcctl.operation.not_found","code":404,"status":"Not Found","detail":"operation not found",'
               '"metadata":{"operation":"operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10"}}'
+          }
+        }
+      }
+      responses: {
+        key: "400"
+        value: {
+          description: "Invalid request: `dcctl.request.invalid`."
+          schema: {
+            json_schema: {ref: ".webitel.dcctl.v1.Error"}
+          }
+          examples: {
+            key: "application/json"
+            value:
+              '{"id":"dcctl.request.invalid","code":400,"status":"Bad Request","detail":"invalid request",'
+              '"violations":[{"type":"field","subject":"name",'
+              '"description":"does not match regex pattern `^operations/[A-Za-z0-9._-]{1,128}$`"}]}'
+          }
+        }
+      }
+      responses: {
+        key: "503"
+        value: {
+          description: "The operation is not found, but a copy of `dcctl/op` that may hold it is not readable: `dcctl.kv.unavailable`."
+          schema: {
+            json_schema: {ref: ".webitel.dcctl.v1.Error"}
+          }
+          examples: {
+            key: "application/json"
+            value:
+              '{"id":"dcctl.kv.unavailable","code":503,"status":"Service Unavailable",'
+              '"detail":"the operation may be in a copy of dcctl/op that is not readable",'
+              '"metadata":{"datacenters":"dc_b"}}'
           }
         }
       }
@@ -180,8 +282,8 @@ service OperationService {
             key: "application/json"
             value:
               '{"id":"dcctl.operation.not_interrupted","code":400,"status":"Bad Request",'
-              '"detail":"operation is not INTERRUPTED","metadata":{"operation":"operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10",'
-              '"state":"RUNNING"}}'
+              '"detail":"operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10 is running",'
+              '"metadata":{"operation":"operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10","state":"RUNNING"}}'
           }
         }
       }
@@ -195,7 +297,7 @@ service OperationService {
           examples: {
             key: "application/json"
             value:
-              '{"id":"dcctl.operation.not_found","code":404,"status":"Not Found","detail":"operation not found",'
+              '{"id":"dcctl.operation.not_found","code":404,"status":"Not Found","detail":"operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10 is not found",'
               '"metadata":{"operation":"operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10"}}'
           }
         }
@@ -210,8 +312,10 @@ service OperationService {
           examples: {
             key: "application/json"
             value:
-              '{"id":"dcctl.lock.busy","code":409,"status":"Conflict","detail":"dcctl/lock is held by another instance",'
-              '"metadata":{"holder":"dcctl-a1"}}'
+              '{"id":"dcctl.lock.busy","code":409,"status":"Conflict",'
+              '"detail":"dcctl/lock in dc_a is held by instance dcctl-b1 of dc_b for operation 0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10",'
+              '"metadata":{"holder":"dcctl-b1","datacenter":"datacenters/dc_b",'
+              '"operation":"operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10"}}'
           }
         }
       }
@@ -226,7 +330,7 @@ service OperationService {
             key: "application/json"
             value:
               '{"id":"dcctl.leader.unavailable","code":503,"status":"Service Unavailable",'
-              '"detail":"leading instance is unreachable","metadata":{"instance":"dcctl-b1"}}'
+              '"detail":"the leading instance is critical in Consul","metadata":{"instance":"dcctl-b1"}}'
           }
         }
       }
@@ -255,8 +359,8 @@ service OperationService {
             key: "application/json"
             value:
               '{"id":"dcctl.operation.not_interrupted","code":400,"status":"Bad Request",'
-              '"detail":"operation is not INTERRUPTED","metadata":{"operation":"operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10",'
-              '"state":"RUNNING"}}'
+              '"detail":"operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10 is running",'
+              '"metadata":{"operation":"operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10","state":"RUNNING"}}'
           }
         }
       }
@@ -270,7 +374,7 @@ service OperationService {
           examples: {
             key: "application/json"
             value:
-              '{"id":"dcctl.operation.not_found","code":404,"status":"Not Found","detail":"operation not found",'
+              '{"id":"dcctl.operation.not_found","code":404,"status":"Not Found","detail":"operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10 is not found",'
               '"metadata":{"operation":"operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10"}}'
           }
         }

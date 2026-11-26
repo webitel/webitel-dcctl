@@ -280,7 +280,8 @@ message Status {
   // Lease.
   Lease lease = 16 [(google.api.field_behavior) = OUTPUT_ONLY];
 
-  // Current RUNNING or INTERRUPTED operation.
+  // Current operation, only while it is RUNNING or INTERRUPTED. A finished
+  // operation is not shown here; read it with GetOperation.
   // (-- api-linter: core::0122::embedded-resource=disabled
   //     aip.dev/not-precedent: the summary carries the current operation so
   //     the UI renders it from one read. --)

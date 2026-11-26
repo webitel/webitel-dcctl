@@ -32,7 +32,9 @@ message Error {
   // BadRequest field violations and PreconditionFailure violations.
   repeated Violation violations = 6 [(google.api.field_behavior) = OUTPUT_ONLY];
 
-  // Full preflight result of PREFLIGHT_FAILED and CONFIRMATION_REQUIRED.
+  // Full preflight result. Always present for `dcctl.preflight.failed` and
+  // `dcctl.confirmation.required`; may also come with any other refusal of a
+  // preflight, for example `dcctl.lock.busy`.
   Preflight preflight = 7 [(google.api.field_behavior) = OUTPUT_ONLY];
 }
 
@@ -49,9 +51,10 @@ message Violation {
   string description = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
 }
 
-// Error detail `webitel.dcctl.v1.Preflight` of PREFLIGHT_FAILED and
-// CONFIRMATION_REQUIRED: all checks of the action with their facts, the plan
-// and the write mode.
+// Error detail `webitel.dcctl.v1.Preflight`: all checks of the action with
+// their facts, the plan and the write mode. Always present for
+// PREFLIGHT_FAILED and CONFIRMATION_REQUIRED; may also come with any other
+// refusal of a preflight, for example LOCK_BUSY.
 message Preflight {
   // All checks of the action.
   repeated Check checks = 1 [(google.api.field_behavior) = OUTPUT_ONLY];

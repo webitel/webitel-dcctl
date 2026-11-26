@@ -386,9 +386,11 @@ func (Operation_Step_State) EnumDescriptor() ([]byte, []int) {
 
 // An action started through the API. The same message is stored as protojson
 // in the Consul KV key `dcctl/op`; field names are part of that KV format,
-// and the Ansible role `topology` reads `state` from it. Actions dcctl takes
-// by itself (fencing, generation alignment) are not operations; they are
-// journal entries of type SYSTEM.
+// and the Ansible role `topology` reads `state` from it. Each Consul KV keeps
+// only its current or last operation there; the history of operations is the
+// journal, entries with `type = "OPERATION"`. Actions dcctl takes by itself
+// (fencing, generation alignment) are not operations; they are journal
+// entries of type SYSTEM.
 type Operation struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Resource name: `operations/{operation}`. Empty in a validate_only
@@ -431,6 +433,14 @@ type Operation struct {
 	UpdateTime *timestamppb.Timestamp `protobuf:"bytes,17,opt,name=update_time,json=updateTime,proto3" json:"update_time,omitempty"`
 	// When the operation finished.
 	EndTime *timestamppb.Timestamp `protobuf:"bytes,18,opt,name=end_time,json=endTime,proto3" json:"end_time,omitempty"`
+	// Revision of the operation: 1 when it is created and one more on every
+	// change. Every copy of the same change carries the same revision, also
+	// one that alignment writes to another Consul KV; an instance that takes
+	// the operation over continues from the highest revision of the copies.
+	// A state resent as a WatchOperation keepalive keeps its revision. Order
+	// the updates of an operation by revision, not by update_time: instances
+	// that run it in turn do not share a clock.
+	Revision int64 `protobuf:"varint,19,opt,name=revision,proto3" json:"revision,omitempty"`
 	// Request that created the operation.
 	//
 	// Types that are valid to be assigned to Request:
@@ -603,6 +613,13 @@ func (x *Operation) GetEndTime() *timestamppb.Timestamp {
 		return x.EndTime
 	}
 	return nil
+}
+
+func (x *Operation) GetRevision() int64 {
+	if x != nil {
+		return x.Revision
+	}
+	return 0
 }
 
 func (x *Operation) GetRequest() isOperation_Request {
@@ -897,7 +914,7 @@ var File_webitel_dcctl_v1_operation_proto protoreflect.FileDescriptor
 
 const file_webitel_dcctl_v1_operation_proto_rawDesc = "" +
 	"\n" +
-	" webitel/dcctl/v1/operation.proto\x12\x10webitel.dcctl.v1\x1a\x1fgoogle/api/field_behavior.proto\x1a\x1bgoogle/api/field_info.proto\x1a\x19google/api/resource.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1dwebitel/dcctl/v1/action.proto\x1a\x1cwebitel/dcctl/v1/check.proto\x1a\x1dwebitel/dcctl/v1/common.proto\"\xa7\x19\n" +
+	" webitel/dcctl/v1/operation.proto\x12\x10webitel.dcctl.v1\x1a\x1fgoogle/api/field_behavior.proto\x1a\x1bgoogle/api/field_info.proto\x1a\x19google/api/resource.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1dwebitel/dcctl/v1/action.proto\x1a\x1cwebitel/dcctl/v1/check.proto\x1a\x1dwebitel/dcctl/v1/common.proto\"\xc9\x19\n" +
 	"\tOperation\x12\x18\n" +
 	"\x04name\x18\x01 \x01(\tB\x04\xe2A\x01\bR\x04name\x12:\n" +
 	"\x04type\x18\x02 \x01(\x0e2 .webitel.dcctl.v1.Operation.TypeB\x04\xe2A\x01\x03R\x04type\x12=\n" +
@@ -921,7 +938,8 @@ const file_webitel_dcctl_v1_operation_proto_rawDesc = "" +
 	"createTime\x12A\n" +
 	"\vupdate_time\x18\x11 \x01(\v2\x1a.google.protobuf.TimestampB\x04\xe2A\x01\x03R\n" +
 	"updateTime\x12;\n" +
-	"\bend_time\x18\x12 \x01(\v2\x1a.google.protobuf.TimestampB\x04\xe2A\x01\x03R\aendTime\x12^\n" +
+	"\bend_time\x18\x12 \x01(\v2\x1a.google.protobuf.TimestampB\x04\xe2A\x01\x03R\aendTime\x12 \n" +
+	"\brevision\x18\x13 \x01(\x03B\x04\xe2A\x01\x03R\brevision\x12^\n" +
 	"\x11switch_datacenter\x18\x1e \x01(\v2).webitel.dcctl.v1.SwitchDatacenterRequestB\x04\xe2A\x01\x03H\x00R\x10switchDatacenter\x12d\n" +
 	"\x13failover_datacenter\x18\x1f \x01(\v2+.webitel.dcctl.v1.FailoverDatacenterRequestB\x04\xe2A\x01\x03H\x00R\x12failoverDatacenter\x12^\n" +
 	"\x11demote_datacenter\x18  \x01(\v2).webitel.dcctl.v1.DemoteDatacenterRequestB\x04\xe2A\x01\x03H\x00R\x10demoteDatacenter\x12a\n" +

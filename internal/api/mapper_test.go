@@ -56,7 +56,6 @@ func TestMapDatacenterSummary(t *testing.T) {
 	assert.Empty(t, got.GetInfoChecks())
 	assert.Nil(t, got.GetObserver())
 	assert.Nil(t, got.GetObserveTime())
-	assert.Nil(t, got.GetConsul())
 	assert.EqualValues(t, 12, got.GetNomad().GetJobCounts().GetStoppedCount())
 	assert.Equal(t, "pg-b1", got.GetPatroni().GetLeader())
 }

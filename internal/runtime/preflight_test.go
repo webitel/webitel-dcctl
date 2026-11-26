@@ -44,17 +44,6 @@ func swaggerExample(t *testing.T, path, code string) map[string]any {
 	var out map[string]any
 	require.NoError(t, json.Unmarshal(ex, &out))
 
-	// The examples show "index":0 of the first step, which the gateway leaves out as a
-	// zero value.
-	if pf, ok := out["preflight"].(map[string]any); ok {
-		steps, _ := pf["steps"].([]any)
-		for _, s := range steps {
-			if step, ok := s.(map[string]any); ok && step["index"] == float64(0) {
-				delete(step, "index")
-			}
-		}
-	}
-
 	return out
 }
 
@@ -77,10 +66,13 @@ func refusalBody(t *testing.T, checks []check.Check, given check.Confirmations, 
 
 func TestRefusalBody_preflightFailed(t *testing.T) {
 	checks := []check.Check{
-		{ID: check.CoordLockFree, Result: check.Pass, Effect: check.Block, Detail: "dcctl/lock is free in every reachable datacenter"},
+		{
+			ID: check.CoordLockFree, Result: check.Pass, Effect: check.Block, Detail: "the lock is free",
+			Facts: map[string]any{"unreachable": []any{}},
+		},
 		{
 			ID: check.PatroniTargetLag, Result: check.Fail, Effect: check.Block, Datacenter: "dc_b",
-			Detail: "lag 52428800 B exceeds 1048576 B", Facts: map[string]any{"lag_bytes": 52428800, "limit_bytes": 1048576},
+			Detail: "dc_b lags 52428800 bytes, more than 1048576", Facts: map[string]any{"lag_bytes": 52428800, "limit_bytes": 1048576},
 		},
 	}
 	plan := []*dcctlv1.Operation_Step{{Type: dcctlv1.Operation_Step_APPS_PREFLIGHT}}
@@ -94,8 +86,21 @@ func TestRefusalBody_preflightFailed(t *testing.T) {
 func TestRefusalBody_confirmationRequired(t *testing.T) {
 	checks := []check.Check{{
 		ID: check.CoordIsolation, Result: check.Fail, Effect: check.Confirm, Confirmation: check.ConfirmIsolation,
-		Detail: "dc_a is unreachable since 2026-11-23T10:02:00Z",
-		Facts:  map[string]any{"mode": "FORCED", "last_seen_role": "primary", "last_seen_time": "2026-11-23T10:01:58Z"},
+		Detail: "the old primary must be isolated",
+		Facts: map[string]any{
+			"mode": "forced_only",
+			"voters": []any{
+				map[string]any{"name": "dc_a", "reachable": false},
+				map[string]any{"name": "dc_b", "reachable": true, "generation": 7, "active_datacenter": "dc_a"},
+				map[string]any{"name": "arbiter", "reachable": false},
+			},
+			"datacenters": []any{map[string]any{
+				"datacenter": "dc_a", "patroni_reachable": false,
+				"last_seen": map[string]any{
+					"time": "2026-11-23T10:01:58Z", "member": "pg-a1", "role": "primary", "xlog_location": 83886176,
+				},
+			}},
+		},
 	}}
 	plan := []*dcctlv1.Operation_Step{
 		{Type: dcctlv1.Operation_Step_GENERATION, PointOfNoReturn: true},
@@ -104,13 +109,8 @@ func TestRefusalBody_confirmationRequired(t *testing.T) {
 
 	code, got := refusalBody(t, checks, check.Confirmations{}, plan, dcctlv1.Operation_FORCED)
 
-	// The description of a missing confirmation is the detail of the checks that need
-	// it; the example words it as a prompt.
-	want := swaggerExample(t, failoverPath, "400")
-	want["violations"].([]any)[0].(map[string]any)["description"] = checks[0].Detail
-
 	assert.Equal(t, http.StatusBadRequest, code)
-	assert.Equal(t, want, got)
+	assert.Equal(t, swaggerExample(t, failoverPath, "400"), got)
 }
 
 func TestRefusalBody_lockUnavailable(t *testing.T) {
@@ -134,23 +134,24 @@ func TestRefusalBody_lockUnavailable(t *testing.T) {
 func TestRefusalBody_lockBusy(t *testing.T) {
 	checks := []check.Check{{
 		ID: check.CoordLockFree, Result: check.Fail, Effect: check.Block,
-		Detail: `dcctl/lock in dc_a is held by "dcctl-a1" of dc_a`,
-		Facts:  map[string]any{"kv": "dc_a", "holder": "dcctl-a1", "datacenter": "dc_a", "operation": "op-9"},
+		Detail: `dcctl/lock in dc_a is held by "dcctl-b1" of dc_b`,
+		Facts: map[string]any{
+			"kv": "dc_a", "holder": "dcctl-b1", "datacenter": "dc_b", "operation": "0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10",
+		},
 	}}
 
 	code, got := refusalBody(t, checks, check.Confirmations{}, nil, dcctlv1.Operation_MODE_UNSPECIFIED)
 
-	want := swaggerExample(t, switchPath, "409")
-
 	assert.Equal(t, http.StatusConflict, code)
-	assert.Equal(t, want["id"], got["id"])
-	assert.Equal(t, want["code"], got["code"])
-	assert.Equal(t, want["status"], got["status"])
-	assert.Equal(t, map[string]any{"holder": "dcctl-a1", "datacenter": "datacenters/dc_a", "operation": "operations/op-9"}, got["metadata"])
+	assert.NotEmpty(t, got["violations"])
+	assert.NotEmpty(t, got["preflight"])
+
+	delete(got, "violations")
+	delete(got, "preflight")
+	assert.Equal(t, swaggerExample(t, switchPath, "409"), got)
 }
 
-// TestRefusalBody_reasons compares the reasons whose examples carry only metadata; the
-// detail is the one of the check.
+// TestRefusalBody_reasons compares the reasons whose examples carry only metadata.
 func TestRefusalBody_reasons(t *testing.T) {
 	const op = "operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10"
 
@@ -201,7 +202,7 @@ func TestRefusalBody_reasons(t *testing.T) {
 
 			assert.EqualValues(t, want["code"], code)
 
-			for _, key := range []string{"id", "code", "status", "metadata"} {
+			for _, key := range []string{"id", "code", "status", "detail", "metadata"} {
 				assert.Equal(t, want[key], got[key], key)
 			}
 		})
