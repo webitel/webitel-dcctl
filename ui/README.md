@@ -1,6 +1,7 @@
 # dcctl UI
 
-Vue 3 + `@webitel/ui-sdk` 26.10. Served by the dcctl binary under `/dcctl/`.
+Vue 3 + `@webitel/ui-sdk` 26.10. Served by the dcctl binary under `/dcctl/`; shipped as the
+`webitel-dcctl-ui` package (see [Shipping](#shipping)).
 
 ```sh
 npm ci
@@ -18,3 +19,8 @@ npm run gen:api       # regenerate src/api/gen from ../api/dcctl.swagger.json
   responses are the examples of `api/dcctl.swagger.json`; the mock is not part
   of the production build.
 - `src/api/gen` is generated and committed; do not edit it by hand.
+
+## Shipping
+
+The UI is not embedded in the binary: the `webitel-dcctl-ui` package installs the build to
+`/usr/share/webitel-dcctl/ui`, and dcctl serves it when `ui.dir` points there.
