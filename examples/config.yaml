@@ -38,6 +38,7 @@ coordination:
   lease_period: 30s
   lease_acquire_after: 30s
 apps:
+  # Per stop: every stage in F1 and apps sync, each stop step of a switch.
   stop_timeout: 120s
   stage_start_timeout: 180s
   failover_stop_timeout: 30s
