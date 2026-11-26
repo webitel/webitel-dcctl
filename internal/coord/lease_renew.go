@@ -18,7 +18,8 @@ import (
 // fit several voter timeouts.
 //
 // A round that does not reach a majority, or finds the effective state
-// undetermined, is logged and the next round tries again. RenewLease
+// undetermined or not telling the active datacenter (see [ActiveKnown]),
+// writes nothing more, is logged and the next round tries again. RenewLease
 // returns nil when ctx ends and an error matching [ErrNotLeaseHolder] when
 // the effective state names another datacenter or a higher generation: a
 // new generation comes with an operation, which takes the lease itself.
@@ -39,7 +40,7 @@ func (c *Coordinator) RenewLease(ctx context.Context, h LeaseHolder, period time
 
 	for {
 		roundCtx, cancel := context.WithTimeout(ctx, interval)
-		w, err := c.AcquireLease(roundCtx, h)
+		w, err := c.writeLeaseOf(roundCtx, h, true)
 
 		cancel()
 
