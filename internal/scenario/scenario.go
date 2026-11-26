@@ -21,6 +21,7 @@ import (
 	"github.com/webitel/webitel-dcctl/internal/operation"
 	"github.com/webitel/webitel-dcctl/internal/pgctl"
 	"github.com/webitel/webitel-dcctl/internal/preflight"
+	"github.com/webitel/webitel-dcctl/internal/source/patroni"
 )
 
 // ErrCannotPlan means the state the preflight was decided on gives no plan for the
@@ -32,6 +33,7 @@ var ErrCannotPlan = errors.New("action cannot be planned")
 type Apps interface {
 	StopFrom(ctx context.Context, dc apps.Datacenter, from int, opts apps.Options) (apps.Result, error)
 	StartUpTo(ctx context.Context, dc apps.Datacenter, to int, opts apps.Options) (apps.Result, error)
+	StopFromFailover(ctx context.Context, dc apps.Datacenter, from int, opts apps.Options) (apps.Result, error)
 }
 
 // Patroni changes the Patroni clusters; [*pgctl.Controller] is one.
@@ -42,6 +44,8 @@ type Patroni interface {
 	Promote(ctx context.Context, cl pgctl.Cluster, opts pgctl.Options) (pgctl.Result, error)
 	Repoint(ctx context.Context, standby, primary pgctl.Cluster, opts pgctl.Options) (pgctl.Result, error)
 	Follow(ctx context.Context, standby, primary pgctl.Cluster, opts pgctl.Options) (pgctl.Result, error)
+	Leader(ctx context.Context, cl pgctl.Cluster) (patroni.Member, error)
+	Divergence(ctx context.Context, standby, primary pgctl.Cluster) (patroni.Divergence, error)
 }
 
 // Coordinator reads and writes dcctl/state on the voters; [*coord.Coordinator] is one.
