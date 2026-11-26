@@ -2,7 +2,11 @@ import type { MaybeRefOrGetter } from 'vue';
 import { computed, onScopeDispose, ref, shallowRef, toValue, watch } from 'vue';
 
 import { getApiError, isUnauthorized } from '@/api/client/apiError';
-import { WatchHttpError, watchOperation } from '@/api/client/watchStream';
+import {
+	WatchHttpError,
+	WatchProtocolError,
+	watchOperation,
+} from '@/api/client/watchStream';
 import type { WebitelDcctlV1Operation as Operation } from '@/api/gen/_models';
 import { getOperationService } from '@/api/gen/operation-service/operation-service';
 import { useAuthStore } from '@/stores/auth';
@@ -46,7 +50,8 @@ const isUnauthorizedWatch = (cause: unknown) =>
 
 const isNotFound = (cause: unknown) =>
 	getApiError(cause)?.id === NOT_FOUND_ID ||
-	(cause instanceof WatchHttpError && cause.apiErrorId === NOT_FOUND_ID);
+	((cause instanceof WatchHttpError || cause instanceof WatchProtocolError) &&
+		cause.apiErrorId === NOT_FOUND_ID);
 
 /**
  * One operation, kept current from `WatchOperation`. It reads the operation,
