@@ -314,6 +314,12 @@ func TestUnknownOutcomeInterrupts(t *testing.T) {
 			},
 		},
 		{
+			name: "operator_decides",
+			run: func(context.Context, *operation.Exec) error {
+				return operation.Interrupt(errors.New("dc_c is primary"))
+			},
+		},
+		{
 			name: "patroni_outcome_unknown",
 			run: func(context.Context, *operation.Exec) error {
 				return fmt.Errorf("promote dc_b: %w", pgctl.ErrOutcomeUnknown)
@@ -348,6 +354,37 @@ func TestUnknownOutcomeInterrupts(t *testing.T) {
 			})
 		})
 	}
+}
+
+func TestInterruptKeepsTheErrorAsDetail(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		w := newWorld(t)
+		e := w.engine(self)
+		stop := start(t, e)
+
+		defer stop()
+
+		synctest.Wait()
+
+		var tr trace
+
+		_, err := e.Start(t.Context(), switchPlan(
+			tr.step(dcctlv1.Operation_Step_APPS_STOP, "stop", nil),
+			operation.Step{Type: dcctlv1.Operation_Step_PATRONI_NO_PRIMARY, Run: func(context.Context, *operation.Exec) error {
+				return operation.Interrupt(errors.New("dc_c is primary"))
+			}},
+		))
+		require.NoError(t, err)
+
+		synctest.Wait()
+
+		op := w.op("dc_a")
+
+		assert.Equal(t, []string{"run stop"}, tr.all(), "nothing is rolled back")
+		assert.Equal(t, dcctlv1.Operation_INTERRUPTED, op.GetState())
+		assert.Equal(t, "dc_c is primary", op.GetError().GetDetail())
+		assert.Equal(t, "dc_c is primary", op.GetSteps()[1].GetDetail())
+	})
 }
 
 func TestConfirmationRecheckFails(t *testing.T) {
