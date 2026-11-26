@@ -50,7 +50,8 @@ func Checks(in *Input) ([]check.Check, error) {
 		return concat(in.common(""), []check.Check{in.quorum(check.Block), in.dcNeedsRecovery(), in.dcRecovered()}), nil
 	case Resume:
 		cs := []check.Check{
-			in.opInterrupted(), in.lockFree(), in.leaderReachable(), in.noConflict(), in.quorum(check.WarnOnly),
+			in.opInterrupted(), in.opStepsKnown(), in.opNotRolledBack(), in.lockFree(), in.leaderReachable(),
+			in.noConflict(), in.quorum(check.WarnOnly),
 		}
 		if in.Params.ToForced {
 			cs = append(cs, in.isolation())
@@ -58,7 +59,7 @@ func Checks(in *Input) ([]check.Check, error) {
 
 		return cs, nil
 	case Abandon:
-		return []check.Check{in.opInterrupted(), in.pointOfNoReturn()}, nil
+		return []check.Check{in.opInterrupted(), in.opGenerationDetermined(), in.pointOfNoReturn()}, nil
 	case Resolve:
 		return []check.Check{
 			in.resolveConflict(), in.resolveWinner(), in.noOperation(), in.lockFree(), in.leaderReachable(),

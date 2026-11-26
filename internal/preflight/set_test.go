@@ -173,6 +173,8 @@ func TestChecks_sets(t *testing.T) {
 			name: "resume", snap: warm, action: Resume, params: Params{Operation: "op-2"},
 			want: []item{
 				{check.OpInterrupted, "", b},
+				{check.OpStepsKnown, "", b},
+				{check.OpNotRolledBack, "", b},
 				{check.CoordLockFree, "", b},
 				{check.CoordLeaderReachable, "", b},
 				{check.CoordNoConflict, "", b},
@@ -183,6 +185,8 @@ func TestChecks_sets(t *testing.T) {
 			name: "resume_to_forced", snap: warm, action: Resume, params: Params{Operation: "op-2", ToForced: true},
 			want: []item{
 				{check.OpInterrupted, "", b},
+				{check.OpStepsKnown, "", b},
+				{check.OpNotRolledBack, "", b},
 				{check.CoordLockFree, "", b},
 				{check.CoordLeaderReachable, "", b},
 				{check.CoordNoConflict, "", b},
@@ -192,7 +196,7 @@ func TestChecks_sets(t *testing.T) {
 		},
 		{
 			name: "abandon", snap: warm, action: Abandon, params: Params{Operation: "op-2"},
-			want: []item{{check.OpInterrupted, "", b}, {check.OpPointOfNoReturn, "", w}},
+			want: []item{{check.OpInterrupted, "", b}, {check.OpGenerationDetermined, "", c}, {check.OpPointOfNoReturn, "", w}},
 		},
 		{
 			name: "resolve", snap: warm, action: Resolve, params: Params{Datacenter: dcB},

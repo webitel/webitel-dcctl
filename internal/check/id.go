@@ -68,20 +68,30 @@ const (
 
 // Checks of operations, conflict resolution, initialization and verify.
 const (
-	OpInterrupted        ID = "op.interrupted"
-	OpPointOfNoReturn    ID = "op.point_of_no_return"
-	ResolveConflict      ID = "resolve.conflict"
-	ResolveWinner        ID = "resolve.winner"
-	InitStateAbsent      ID = "init.state_absent"
-	InitAllReachable     ID = "init.all_reachable"
-	InitActiveValid      ID = "init.active_valid"
-	InitActiveHasPrimary ID = "init.active_has_primary"
-	ArbiterReachable     ID = "arbiter.reachable"
-	ArbiterEmpty         ID = "arbiter.empty"
-	ArbiterStatesEqual   ID = "arbiter.states_equal"
-	VerifyPatroni        ID = "verify.patroni"
-	VerifyJobs           ID = "verify.jobs"
-	VerifyState          ID = "verify.state"
+	OpInterrupted ID = "op.interrupted"
+	// OpStepsKnown fails on an operation with a step of a type this dcctl does not
+	// know, written by a newer version: it cannot be resumed here.
+	OpStepsKnown ID = "op.steps_known"
+	// OpNotRolledBack fails on an operation some of whose steps were rolled back, or
+	// whose rollback failed: running it forward would skip the undone steps.
+	OpNotRolledBack ID = "op.not_rolled_back"
+	// OpGenerationDetermined needs [ConfirmIsolation] to abandon an operation whose
+	// new generation voters that do not answer may hold, which would make it
+	// committed.
+	OpGenerationDetermined ID = "op.generation_determined"
+	OpPointOfNoReturn      ID = "op.point_of_no_return"
+	ResolveConflict        ID = "resolve.conflict"
+	ResolveWinner          ID = "resolve.winner"
+	InitStateAbsent        ID = "init.state_absent"
+	InitAllReachable       ID = "init.all_reachable"
+	InitActiveValid        ID = "init.active_valid"
+	InitActiveHasPrimary   ID = "init.active_has_primary"
+	ArbiterReachable       ID = "arbiter.reachable"
+	ArbiterEmpty           ID = "arbiter.empty"
+	ArbiterStatesEqual     ID = "arbiter.states_equal"
+	VerifyPatroni          ID = "verify.patroni"
+	VerifyJobs             ID = "verify.jobs"
+	VerifyState            ID = "verify.state"
 )
 
 // Informational checks. They affect neither state, health, alarms nor preflight.
