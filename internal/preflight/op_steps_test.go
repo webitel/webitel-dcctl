@@ -101,3 +101,28 @@ func TestOpGenerationDetermined(t *testing.T) {
 	assert.Equal(t, check.ConfirmIsolation, c.Confirmation)
 	assert.Equal(t, check.Allowed, check.Decide([]check.Check{c}, check.Confirmations{Isolation: true}).Outcome)
 }
+
+func TestBaseUnchanged(t *testing.T) {
+	tests := []struct {
+		name       string
+		generation int64
+		active     string
+		want       check.Result
+	}{
+		{name: "unchanged", generation: 5, active: dcA, want: check.Pass},
+		{name: "generation_only", generation: 5, want: check.Pass},
+		{name: "generation_changed", generation: 4, active: dcA, want: check.Fail},
+		{name: "active_changed", generation: 5, active: dcB, want: check.Fail},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			in := newInput(warm(), Switch, Params{Datacenter: dcB})
+			c := BaseUnchanged(in.Status.View, false, tt.generation, tt.active)
+
+			assert.Equal(t, tt.want, c.Result, c.Detail)
+			assert.Equal(t, check.Block, c.Effect)
+			requireStruct(t, c)
+		})
+	}
+}

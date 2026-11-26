@@ -14,6 +14,7 @@ import (
 	dcctlv1 "github.com/webitel/webitel-dcctl/gen/go/dcctl/v1"
 	"github.com/webitel/webitel-dcctl/internal/check"
 	"github.com/webitel/webitel-dcctl/internal/coord"
+	"github.com/webitel/webitel-dcctl/internal/preflight"
 	"github.com/webitel/webitel-dcctl/internal/preflight/answer"
 )
 
@@ -71,6 +72,10 @@ func (e *Engine) Start(ctx context.Context, p Plan) (*dcctlv1.Operation, error) 
 		err = view.CheckIdle()
 	}
 
+	if err == nil {
+		err = e.checkBase(ctx, p)
+	}
+
 	if err != nil {
 		e.release(ctx, lk, op.GetName())
 
@@ -107,6 +112,28 @@ func (e *Engine) Start(ctx context.Context, p Plan) (*dcctlv1.Operation, error) 
 	go r.execute(base, 0)
 
 	return first, nil
+}
+
+// checkBase checks under the lock that the voters still hold the record p
+// starts from, see [coord.Base], and refuses with coord.base_unchanged
+// otherwise. The preflight ran before the lock was taken, so another
+// operation may have changed the state since.
+func (e *Engine) checkBase(ctx context.Context, p Plan) error {
+	if p.PreviousGeneration == 0 && p.PreviousActive == "" {
+		return nil
+	}
+
+	view, err := e.cfg.Coordinator.Read(ctx)
+	if err != nil {
+		return err
+	}
+
+	c := preflight.BaseUnchanged(view, p.Type == dcctlv1.Operation_FAILOVER, p.PreviousGeneration, p.PreviousActive)
+	if refused := answer.Refusal(check.Decide([]check.Check{c}, check.Confirmations{}), p.pending(), p.Mode); refused != nil {
+		return fmt.Errorf("%w: %w", ErrStateChanged, refused)
+	}
+
+	return nil
 }
 
 // abort ends an operation that cannot run its first step FAILED, as nothing

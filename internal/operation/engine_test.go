@@ -654,3 +654,84 @@ func TestUnrecordedChangeNotPublished(t *testing.T) {
 		assert.True(t, w.lockFree())
 	})
 }
+
+func TestStartRefusedWhenStateChanged(t *testing.T) {
+	tests := []struct {
+		name     string
+		previous int64
+		active   string
+	}{
+		{name: "generation", previous: 4, active: "dc_a"},
+		{name: "active_datacenter", previous: 5, active: "dc_b"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				w := newWorld(t)
+				e := w.engine(self)
+				stop := start(t, e)
+
+				defer stop()
+
+				synctest.Wait()
+
+				var tr trace
+
+				// The voters hold generation 5 of dc_a.
+				p := switchPlan(tr.step(dcctlv1.Operation_Step_APPS_STOP, "stop", nil))
+				p.PreviousGeneration, p.PreviousActive = tt.previous, tt.active
+
+				_, err := e.Start(t.Context(), p)
+
+				require.ErrorIs(t, err, operation.ErrStateChanged)
+				assert.Equal(t, codes.FailedPrecondition, statusOf(err).Code())
+				assert.Equal(t, "PREFLIGHT_FAILED", reasonOf(err))
+				assert.True(t, slices.ContainsFunc(statusOf(err).Details(), func(d any) bool {
+					p, ok := d.(*dcctlv1.Preflight)
+
+					return ok && len(p.GetChecks()) == 1 && p.GetChecks()[0].GetId() == "coord.base_unchanged"
+				}), "the refusal has the Preflight detail")
+
+				synctest.Wait()
+
+				assert.Empty(t, tr.all())
+				assert.Nil(t, w.op("dc_a"))
+				assert.True(t, w.lockFree())
+			})
+		})
+	}
+}
+
+// The preflight plans a failover from an undetermined record of the same
+// generation as a forced effective one; the engine starts from the same record.
+func TestFailoverStartsFromUndeterminedOfForcedGeneration(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		w := newWorld(t)
+		w.voters[0] = newVoter(t, "dc_a", coord.KindKV, kv.State{Generation: 6, ActiveDatacenter: "dc_a", OpID: "forced", Forced: true})
+		w.voters[1].setUnreachable()
+		w.voters[2] = newVoter(t, coord.ArbiterName, coord.KindArbiter, kv.State{Generation: 6, ActiveDatacenter: "dc_b", OpID: "sw"})
+
+		e := w.engine(self)
+		stop := start(t, e)
+
+		defer stop()
+
+		synctest.Wait()
+
+		var tr trace
+
+		p := switchPlan(tr.step(dcctlv1.Operation_Step_PATRONI_PROMOTE, "promote", nil))
+		p.Type, p.Request, p.Target = dcctlv1.Operation_FAILOVER, &dcctlv1.FailoverDatacenterRequest{Name: "datacenters/dc_a"}, "dc_a"
+		p.Mode = dcctlv1.Operation_FORCED
+		p.PreviousGeneration, p.PreviousActive, p.NewGeneration = 6, "dc_b", 7
+
+		_, err := e.Start(t.Context(), p)
+		require.NoError(t, err)
+
+		synctest.Wait()
+
+		assert.Equal(t, []string{"run promote"}, tr.all())
+		assert.Equal(t, dcctlv1.Operation_SUCCEEDED, w.op("dc_a").GetState())
+	})
+}
