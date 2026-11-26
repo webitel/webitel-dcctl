@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"io"
 	"io/fs"
 	"os"
 	"testing"
@@ -12,6 +13,7 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
 
 	"github.com/webitel/webitel-dcctl/internal/buildinfo"
+	dcctlcli "github.com/webitel/webitel-dcctl/internal/cli"
 	"github.com/webitel/webitel-dcctl/internal/config"
 )
 
@@ -95,5 +97,30 @@ func TestServiceResource(t *testing.T) {
 			assert.Equal(t, host, got[semconv.HostNameKey])
 			assert.Equal(t, buildinfo.Version, got[semconv.ServiceVersionKey])
 		})
+	}
+}
+
+// urfave/cli exits with 3 on an unknown command, which is INTERRUPTED for
+// the operation commands.
+func TestUnknownCommandIsAUsageError(t *testing.T) {
+	for _, args := range [][]string{{"nope"}, {"serve", "--nope"}, {"help", "nope"}, {"apps", "nope"}} {
+		app := newApp()
+		app.Writer = io.Discard
+		app.ErrWriter = io.Discard
+
+		err := app.Run(append([]string{"webitel-dcctl"}, args...))
+
+		assert.Equal(t, dcctlcli.ExitUsage, dcctlcli.ExitCode(err), args)
+	}
+}
+
+func TestCLICommandsAreRegistered(t *testing.T) {
+	want := []string{
+		"status", "datacenters", "verify", "ops", "watch", "switch", "failover", "demote", "repoint",
+		"mark-recovered", "resolve", "init", "init-arbiter", "apps", "resume", "abandon", "journal",
+	}
+
+	for _, name := range want {
+		assert.NotNil(t, newApp().Command(name), name)
 	}
 }
