@@ -112,13 +112,14 @@ func (s *Switch) Plan(req *dcctlv1.SwitchDatacenterRequest, initiator *dcctlv1.I
 	}, nil
 }
 
-// stagesOf returns the valid stages of the managed jobs of n, the highest first when
-// down; one stage when there is none, whose step still handles every job found then.
+// stagesOf returns the valid stages of the managed jobs of n, which fit the
+// int32 stage of a step, the highest first when down; one stage when there is
+// none, whose step still handles every job found then.
 func stagesOf(n status.Nomad, down bool) []int {
 	out := make([]int, 0, len(n.Stages))
 
 	for _, st := range n.Stages {
-		if st.Stage > 0 {
+		if st.Stage > 0 && st.Stage <= math.MaxInt32 {
 			out = append(out, st.Stage)
 		}
 	}
@@ -223,7 +224,7 @@ func (s *Switch) steps(r route) []operation.Step {
 		}
 
 		steps = append(steps, operation.Step{
-			Type: dcctlv1.Operation_Step_APPS_STOP, Stage: int32(stage), Datacenter: r.a, //nolint:gosec // a Nomad stage is small
+			Type: dcctlv1.Operation_Step_APPS_STOP, Stage: int32(stage), Datacenter: r.a, // #nosec G115 -- stages come from stagesOf or a recorded int32
 			Run:      s.stopApps(r, from),
 			Rollback: s.startApps(r, r.a, to, beforeGeneration),
 		})
@@ -253,7 +254,7 @@ func (s *Switch) steps(r route) []operation.Step {
 		}
 
 		steps = append(steps, operation.Step{
-			Type: dcctlv1.Operation_Step_APPS_START, Stage: int32(stage), Datacenter: r.b, //nolint:gosec // a Nomad stage is small
+			Type: dcctlv1.Operation_Step_APPS_START, Stage: int32(stage), Datacenter: r.b, // #nosec G115 -- stages come from stagesOf or a recorded int32
 			Run: s.startApps(r, r.b, to, afterGeneration),
 		})
 	}
