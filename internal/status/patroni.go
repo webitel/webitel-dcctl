@@ -405,11 +405,7 @@ func (b *builder) lag(dc string, p dcPatroni) *int64 {
 }
 
 // divergence tells whether the timeline of the datacenter left the history of the
-// active datacenter. A datacenter on an older timeline diverged when it holds WAL past
-// the point the active one switched from that timeline; one on a newer timeline
-// branched off the active timeline at the point its own history gives. Two leaders on
-// the same timeline diverged when they switched to it at different points, as after
-// two promotions from one timeline.
+// active datacenter, see [patroni.Diverge].
 func (b *builder) divergence(dc string, p dcPatroni) Divergence {
 	if !b.warm() || dc == b.active() {
 		return Divergence{Known: true}
@@ -429,50 +425,13 @@ func (b *builder) divergence(dc string, p dcPatroni) Divergence {
 		return Divergence{}
 	}
 
-	if *ta == *td && *ta <= 1 {
-		return Divergence{Known: true}
-	}
-
-	pos := walPosition(p.leader)
-	if pos == nil {
-		return Divergence{}
-	}
-
-	if *ta == *td {
-		la, okA := switchPoint(a.cluster.Patroni.Data.History, *ta-1)
-		ld, okD := switchPoint(p.cluster.Patroni.Data.History, *td-1)
-
-		switch {
-		case !okA || !okD:
-			return Divergence{}
-		case la == ld:
-			return Divergence{Known: true}
-		}
-
-		lsn := min(la, ld)
-
-		return Divergence{Known: true, Diverged: true, LSN: lsn, Bytes: max(0, *pos-lsn)}
-	}
-
-	if *td < *ta {
-		lsn, ok := switchPoint(a.cluster.Patroni.Data.History, *td)
-		if !ok {
-			return Divergence{}
-		}
-
-		if *pos <= lsn {
-			return Divergence{Known: true}
-		}
-
-		return Divergence{Known: true, Diverged: true, LSN: lsn, Bytes: *pos - lsn}
-	}
-
-	lsn, ok := switchPoint(p.cluster.Patroni.Data.History, *ta)
+	d, ok := patroni.Diverge(*ta, history(a.cluster.Patroni.Data.History), *td, history(p.cluster.Patroni.Data.History),
+		walPosition(p.leader))
 	if !ok {
 		return Divergence{}
 	}
 
-	return Divergence{Known: true, Diverged: true, LSN: lsn, Bytes: max(0, *pos-lsn)}
+	return Divergence{Known: true, Diverged: d.Diverged, LSN: d.LSN, Bytes: d.Bytes}
 }
 
 // walPosition is the WAL a member holds: written by a primary, received by a replica.
@@ -488,18 +447,13 @@ func walPosition(m *collect.Member) *int64 {
 	return m.Probe.Xlog.ReceivedLocation
 }
 
-// switchPoint returns where the cluster left timeline, by its history.
-func switchPoint(h collect.Source[[]patroni.HistoryEntry], timeline int64) (int64, bool) {
+// history is the history of a cluster, none when it was not read.
+func history(h collect.Source[[]patroni.HistoryEntry]) []patroni.HistoryEntry {
 	if !h.Reachable {
-		return 0, false
+		return nil
 	}
 
-	i := slices.IndexFunc(h.Data, func(e patroni.HistoryEntry) bool { return e.Timeline == timeline })
-	if i < 0 {
-		return 0, false
-	}
-
-	return h.Data[i].LSN, true
+	return h.Data
 }
 
 // detectedActive returns the datacenter of the one primary of the clusters, or ""
