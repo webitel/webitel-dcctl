@@ -155,6 +155,9 @@ func (s Status) RabbitMQServiceFor(datacenter string) string {
 type Journal struct {
 	// MaxEntries caps the journal entries kept in the KV of each datacenter.
 	MaxEntries int `yaml:"max_entries"`
+	// AlignInterval is the pause between the rounds that copy the entries a
+	// datacenter misses and trim the oldest.
+	AlignInterval time.Duration `yaml:"align_interval"`
 }
 
 // ArbiterClient is the arbiter serve connects to; empty Address means no arbiter.
@@ -201,7 +204,7 @@ func defaultServe() Serve {
 			RabbitMQService: "rabbitmq",
 			InfoServices:    []string{"opensips", "engine", "storage", "grafana"},
 		},
-		Journal: Journal{MaxEntries: 1000},
+		Journal: Journal{MaxEntries: 1000, AlignInterval: time.Minute},
 	}
 }
 
