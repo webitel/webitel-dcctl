@@ -10,8 +10,8 @@ import (
 	dcctlv1 "github.com/webitel/webitel-dcctl/gen/go/dcctl/v1"
 )
 
-// DatacenterServer implements the reads of DatacenterService; the actions
-// answer Unimplemented.
+// DatacenterServer implements DatacenterService. Without actions, see
+// [Options.Actions], the actions answer Unimplemented.
 type DatacenterServer struct {
 	dcctlv1.UnimplementedDatacenterServiceServer
 
@@ -19,6 +19,7 @@ type DatacenterServer struct {
 	address string
 	log     *logging.Logger
 	now     func() time.Time
+	actions *actionServer
 }
 
 // NewDatacenterServer returns the DatacenterService of src. address is

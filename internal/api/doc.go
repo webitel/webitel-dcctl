@@ -1,6 +1,9 @@
 // Package api implements the gRPC services of dcctl that the UI, the CLI and
 // external systems use, and serves the UI.
 //
+// Actions run on the instance that leads them; another instance forwards the
+// call to it over listen.peer, see [Actions].
+//
 // Reads answer with the view of the instance that receives them, named in
 // observer; they are never forwarded to another instance. Status and
 // datacenters come from the last collection cycle, operations from the copies
