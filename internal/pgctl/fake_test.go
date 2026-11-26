@@ -130,6 +130,9 @@ type fakeCluster struct {
 	membersErr error
 	readErr    map[string]error
 	primaryErr error
+	// history answers GET /history, historyErr fails it.
+	history    []patroni.HistoryEntry
+	historyErr error
 
 	patches []patchCall
 	posts   []string
@@ -257,6 +260,15 @@ func (f *fakeCluster) Config(context.Context, string) (map[string]any, error) {
 	f.tick()
 
 	return maps.Clone(f.config), nil
+}
+
+func (f *fakeCluster) History(context.Context, string) ([]patroni.HistoryEntry, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.tick()
+
+	return slices.Clone(f.history), f.historyErr
 }
 
 func (f *fakeCluster) PatchConfig(ctx context.Context, endpoint string, patch map[string]any) (map[string]any, error) {

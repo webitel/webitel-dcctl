@@ -51,6 +51,16 @@ type State struct {
 	Pause bool
 }
 
+// WALPosition is the WAL the member holds: written by a primary, received by a replica;
+// nil when it is not known.
+func (s *State) WALPosition() *int64 {
+	if s.Xlog.Location != nil {
+		return s.Xlog.Location
+	}
+
+	return s.Xlog.ReceivedLocation
+}
+
 // Xlog holds the WAL positions of a member as byte offsets.
 type Xlog struct {
 	// Location is the write position of a primary.
