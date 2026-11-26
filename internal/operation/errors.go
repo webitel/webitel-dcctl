@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -173,15 +172,10 @@ func operationError(err error) *dcctlv1.OperationError {
 		return oe
 	}
 
-	st := gs.GRPCStatus()
-	oe.Detail = truncate(st.Message())
+	oe.Detail = truncate(gs.GRPCStatus().Message())
 
-	for _, d := range st.Details() {
-		if info, ok := d.(*errdetails.ErrorInfo); ok {
-			oe.Reason, oe.Id, oe.Metadata = info.GetReason(), apierr.Reason(info.GetReason()).ID(), info.GetMetadata()
-
-			break
-		}
+	if info := apierr.InfoOf(err); info != nil {
+		oe.Reason, oe.Id, oe.Metadata = info.GetReason(), apierr.Reason(info.GetReason()).ID(), info.GetMetadata()
 	}
 
 	return oe
