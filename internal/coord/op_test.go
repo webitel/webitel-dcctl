@@ -566,3 +566,63 @@ func TestViewOfMissing(t *testing.T) {
 
 	assert.Nil(t, v.Of("operations/1"))
 }
+
+func TestWriteKeepsNewerRevision(t *testing.T) {
+	withRevision := func(rev int64, state dcctlv1.Operation_State, leader string) *dcctlv1.Operation {
+		op := operation("op-a", state, leader)
+		op.Revision = rev
+
+		return op
+	}
+
+	tests := []struct {
+		name   string
+		stored *dcctlv1.Operation
+		write  *dcctlv1.Operation
+		want   coord.OpWriteOutcome
+	}{
+		{
+			// A write that started under the lock lands after another
+			// instance interrupted the operation.
+			name:   "older",
+			stored: withRevision(6, dcctlv1.Operation_INTERRUPTED, "dc_b"),
+			write:  withRevision(5, dcctlv1.Operation_RUNNING, "dc_a"),
+			want:   coord.OpConflict,
+		},
+		{
+			name:   "same_revision_other_change",
+			stored: withRevision(6, dcctlv1.Operation_INTERRUPTED, "dc_b"),
+			write:  withRevision(6, dcctlv1.Operation_INTERRUPTED, "dc_a"),
+			want:   coord.OpConflict,
+		},
+		{
+			name:   "newer",
+			stored: withRevision(6, dcctlv1.Operation_RUNNING, "dc_a"),
+			write:  withRevision(7, dcctlv1.Operation_RUNNING, "dc_a"),
+			want:   coord.OpWritten,
+		},
+		{
+			name:   "written_before_revisions",
+			stored: withRevision(0, dcctlv1.Operation_RUNNING, "dc_a"),
+			write:  withRevision(0, dcctlv1.Operation_INTERRUPTED, "dc_a"),
+			want:   coord.OpWritten,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := newFakeConsul()
+			a.set(kv.OpKey, opJSON(t, tt.stored))
+
+			ws, err := newOpStore(t, coord.KV{Name: "dc_a", Client: a}).Write(t.Context(), tt.write)
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, ws[0].Outcome)
+
+			if tt.want == coord.OpConflict {
+				require.ErrorIs(t, ws[0].Err, coord.ErrOpSuperseded)
+				assert.Equal(t, tt.stored.GetRevision(), storedOp(t, a).GetRevision())
+				assert.Equal(t, tt.stored.GetLeader().GetNode(), storedOp(t, a).GetLeader().GetNode())
+			}
+		})
+	}
+}
