@@ -121,7 +121,11 @@ type Coordination struct {
 
 // Apps holds the Nomad job timings.
 type Apps struct {
-	StopTimeout         time.Duration `yaml:"stop_timeout"`
+	// StopTimeout bounds one stop of the apps of a datacenter: every stage of it in F1
+	// and apps sync, each stop step of a switch, which stops one stage and the ones
+	// above it.
+	StopTimeout time.Duration `yaml:"stop_timeout"`
+	// StageStartTimeout bounds the start of one stage.
 	StageStartTimeout   time.Duration `yaml:"stage_start_timeout"`
 	FailoverStopTimeout time.Duration `yaml:"failover_stop_timeout"`
 	MinHealthyTime      time.Duration `yaml:"min_healthy_time"`
