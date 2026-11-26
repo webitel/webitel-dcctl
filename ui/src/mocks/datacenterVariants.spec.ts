@@ -110,7 +110,7 @@ describe('datacenter variants', () => {
 });
 
 describe('mock GET /v1/datacenters/{dc}', () => {
-	beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
+	beforeAll(() => server.listen({ onUnhandledFrame: 'error' }));
 	afterEach(() => {
 		server.resetHandlers();
 		setStatusVariant('normal');

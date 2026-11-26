@@ -18,7 +18,7 @@ import { server } from '@/mocks/server';
 import { AUTH_STORAGE_KEY, useAuthStore } from './auth';
 
 beforeAll(() => {
-	server.listen({ onUnhandledRequest: 'error' });
+	server.listen({ onUnhandledFrame: 'error' });
 });
 afterEach(() => server.resetHandlers());
 afterAll(() => server.close());

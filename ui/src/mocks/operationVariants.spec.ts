@@ -90,7 +90,7 @@ describe('operation fixtures', () => {
 });
 
 describe('operation handlers', () => {
-	beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
+	beforeAll(() => server.listen({ onUnhandledFrame: 'error' }));
 	beforeEach(() => resetScenarios(5));
 	afterEach(() => {
 		server.resetHandlers();
