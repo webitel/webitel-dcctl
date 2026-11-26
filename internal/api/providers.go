@@ -8,6 +8,7 @@ import (
 	"github.com/webitel/webitel-dcctl/internal/collect"
 	"github.com/webitel/webitel-dcctl/internal/coord"
 	"github.com/webitel/webitel-dcctl/internal/journal"
+	"github.com/webitel/webitel-dcctl/internal/operation"
 	"github.com/webitel/webitel-dcctl/internal/status"
 )
 
@@ -87,6 +88,31 @@ type Verifier interface {
 type Operations interface {
 	Read(ctx context.Context) (coord.OpView, error)
 }
+
+// OperationEvents tells which operations this instance runs and streams their
+// changes; [FromEngine] gives it.
+type OperationEvents interface {
+	// Runs reports whether this instance runs the operation name now.
+	Runs(name string) bool
+	// Subscribe returns the changes of the operation name, see
+	// [operation.Subscription].
+	Subscribe(name string) OperationSubscription
+}
+
+// OperationSubscription is [*operation.Subscription].
+type OperationSubscription interface {
+	C() <-chan *dcctlv1.Operation
+	Close()
+}
+
+// FromEngine returns the events of the operations e runs.
+func FromEngine(e *operation.Engine) OperationEvents { return engineEvents{e} }
+
+type engineEvents struct{ e *operation.Engine }
+
+func (v engineEvents) Runs(name string) bool { return v.e.Runs(name) }
+
+func (v engineEvents) Subscribe(name string) OperationSubscription { return v.e.Subscribe(name) }
 
 // Journal lists journal entries; [*journal.Journal] implements it.
 type Journal interface {
