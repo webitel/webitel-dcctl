@@ -11,15 +11,18 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/protoadapt"
 
 	"github.com/webitel/webitel-go-kit/pkg/logging"
 
 	dcctlv1 "github.com/webitel/webitel-dcctl/gen/go/dcctl/v1"
+	"github.com/webitel/webitel-dcctl/internal/apierr"
 	"github.com/webitel/webitel-dcctl/internal/auth"
 	"github.com/webitel/webitel-dcctl/internal/check"
 	"github.com/webitel/webitel-dcctl/internal/operation"
 	"github.com/webitel/webitel-dcctl/internal/preflight"
 	"github.com/webitel/webitel-dcctl/internal/preflight/answer"
+	"github.com/webitel/webitel-dcctl/internal/scenario"
 )
 
 // Engine runs operations; [*operation.Engine] is one.
@@ -29,18 +32,20 @@ type Engine interface {
 	Abandon(ctx context.Context, req operation.AbandonRequest) (*dcctlv1.Operation, error)
 }
 
-// Preflight runs the checks of an action; [*preflight.Runner] is one.
+// Preflight runs the checks of an action and tells the state they were
+// decided on; [*preflight.Runner] is one.
 type Preflight interface {
-	Run(ctx context.Context, req preflight.Request) (check.Verdict, error)
+	Evaluate(ctx context.Context, req preflight.Request) (preflight.Result, error)
 }
 
 // Planner plans the operation of the action with requests of type R. It plans
-// on the state v was decided on whatever v allows, so that a refusal shows
-// the plan too, and fails when that state gives no plan. A plan sets
-// PreviousGeneration and PreviousActive, the state it starts from, so that
-// the engine does not start it on a state changed since the preflight.
+// on the state pre was decided on whatever its verdict allows, so that a
+// refusal shows the plan too, and fails with [scenario.ErrCannotPlan] when
+// that state gives no plan. A plan sets PreviousGeneration and
+// PreviousActive, the state it starts from, so that the engine does not
+// start it on a state changed since the preflight. [*scenario.Switch] is one.
 type Planner[R proto.Message] interface {
-	Plan(req R, initiator *dcctlv1.Initiator, v check.Verdict) (operation.Plan, error)
+	Plan(req R, initiator *dcctlv1.Initiator, pre preflight.Result) (operation.Plan, error)
 }
 
 // Planners plan the actions; an action without one answers Unimplemented.
@@ -207,12 +212,14 @@ func runAction[R actionRequest](ctx context.Context, s *actionServer, a action[R
 func runLocal[R actionRequest](ctx context.Context, s *actionServer, a action[R], ini *dcctlv1.Initiator) (*dcctlv1.Operation, error) {
 	pre := a.preflight()
 
-	v, err := s.cfg.Preflight.Run(ctx, pre)
+	res, err := s.cfg.Preflight.Evaluate(ctx, pre)
 	if err != nil {
 		return nil, rpcError(ctx, s.log, "preflight cannot run", err)
 	}
 
-	plan, planErr := a.planner.Plan(a.req, ini, v)
+	v := res.Verdict
+
+	plan, planErr := a.planner.Plan(a.req, ini, res)
 	if planErr == nil {
 		planErr = completePlan(&plan, a.typ, a.req, pre, ini)
 	}
@@ -231,7 +238,7 @@ func runLocal[R actionRequest](ctx context.Context, s *actionServer, a action[R]
 	}
 
 	if planErr != nil {
-		return nil, rpcError(ctx, s.log, "action cannot be planned", planErr)
+		return nil, s.cannotPlan(ctx, v, planErr)
 	}
 
 	if a.req.GetValidateOnly() {
@@ -264,6 +271,23 @@ func completePlan(plan *operation.Plan, typ dcctlv1.Operation_Type, req actionRe
 	}
 
 	return nil
+}
+
+// cannotPlan answers an action the checks allow and the planner does not:
+// [scenario.ErrCannotPlan] with PREFLIGHT_FAILED and the checks in the
+// Preflight detail, as the state gives no plan, and any other error as
+// [rpcError] does.
+func (s *actionServer) cannotPlan(ctx context.Context, v check.Verdict, err error) error {
+	if !errors.Is(err, scenario.ErrCannotPlan) {
+		return rpcError(ctx, s.log, "action cannot be planned", err)
+	}
+
+	checks, cerr := answer.Checks(v.Checks)
+	if cerr != nil {
+		return rpcError(ctx, s.log, "preflight answer cannot be built", cerr)
+	}
+
+	return apierr.New(apierr.ReasonPreflightFailed, err.Error(), protoadapt.MessageV1Of(&dcctlv1.Preflight{Checks: checks}))
 }
 
 // dryRun answers validate_only with the operation plan would start, without a

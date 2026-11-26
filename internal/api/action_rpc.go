@@ -174,12 +174,12 @@ func (s *OperationServer) AbandonOperation(ctx context.Context, req *dcctlv1.Aba
 // dryRunOf answers validate_only of an action that has no plan of its own:
 // the checks of pre and mode, or the refusal the engine would give.
 func (s *actionServer) dryRunOf(ctx context.Context, pre preflight.Request, mode dcctlv1.Operation_Mode) (*dcctlv1.Operation, error) {
-	v, err := s.cfg.Preflight.Run(ctx, pre)
+	res, err := s.cfg.Preflight.Evaluate(ctx, pre)
 	if err != nil {
 		return nil, rpcError(ctx, s.log, "preflight cannot run", err)
 	}
 
-	op, err := answer.DryRun(v, nil, mode)
+	op, err := answer.DryRun(res.Verdict, nil, mode)
 	if err != nil {
 		return nil, rpcError(ctx, s.log, "preflight answer cannot be built", err)
 	}

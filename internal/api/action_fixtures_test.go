@@ -29,6 +29,7 @@ import (
 	"github.com/webitel/webitel-dcctl/internal/operation"
 	"github.com/webitel/webitel-dcctl/internal/preflight"
 	"github.com/webitel/webitel-dcctl/internal/source/consul"
+	dcstatus "github.com/webitel/webitel-dcctl/internal/status"
 )
 
 const (
@@ -77,20 +78,22 @@ func (m *memOperations) put(op *dcctlv1.Operation) {
 type fakePreflight struct {
 	mu     sync.Mutex
 	checks map[preflight.Action][]check.Check
+	// status is the state the checks are decided on.
+	status dcstatus.Status
 	err    error
 	runs   []preflight.Request
 }
 
-func (f *fakePreflight) Run(_ context.Context, req preflight.Request) (check.Verdict, error) {
+func (f *fakePreflight) Evaluate(_ context.Context, req preflight.Request) (preflight.Result, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
 	f.runs = append(f.runs, req)
 	if f.err != nil {
-		return check.Verdict{}, f.err
+		return preflight.Result{}, f.err
 	}
 
-	return check.Decide(f.checks[req.Action], req.Confirmations), nil
+	return preflight.Result{Verdict: check.Decide(f.checks[req.Action], req.Confirmations), Status: f.status}, nil
 }
 
 func (f *fakePreflight) refuse(a preflight.Action, cs ...check.Check) {
@@ -194,7 +197,7 @@ type fakePlanner[R actionRequest] struct {
 	err    error
 }
 
-func (p fakePlanner[R]) Plan(req R, ini *dcctlv1.Initiator, _ check.Verdict) (operation.Plan, error) {
+func (p fakePlanner[R]) Plan(req R, ini *dcctlv1.Initiator, _ preflight.Result) (operation.Plan, error) {
 	if p.err != nil {
 		return operation.Plan{}, p.err
 	}
