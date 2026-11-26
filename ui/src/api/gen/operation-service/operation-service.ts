@@ -20,8 +20,11 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 export const getOperationService = () => {
 	/**
-	 * @summary Lists operations from newest to oldest.
-	 */
+ * @summary Lists operations from newest to oldest. Each Consul KV keeps only its
+current or last operation in `dcctl/op`, so earlier operations are not
+listed; their history is in the journal, entries with
+`type = "OPERATION"`.
+ */
 	const listOperations = (
 		params?: ListOperationsParams,
 		options?: SecondParameter<
@@ -82,9 +85,12 @@ export const getOperationService = () => {
 		);
 	};
 	/**
- * @summary Streams the operation after every change; the first message is the
-current state. Through the gateway every message is one JSON line
-`{"result": ...}`. After a disconnect, get the operation and watch again.
+ * @summary Streams the operation after every change. The first message is the
+current state; the server may send the current state again as a
+keepalive. The stream stays open until the operation is SUCCEEDED,
+FAILED or ABANDONED; an INTERRUPTED operation does not end it. Through
+the gateway every message is one JSON line `{"result": ...}`. After a
+disconnect, get the operation and watch again.
  */
 	const watchOperation = (
 		operation: string,

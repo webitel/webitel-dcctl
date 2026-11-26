@@ -4,6 +4,8 @@
 package apierr
 
 import (
+	"strings"
+
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -31,6 +33,8 @@ const (
 	ReasonRequestIDMismatch       Reason = "REQUEST_ID_MISMATCH"
 	ReasonLeaderUnavailable       Reason = "LEADER_UNAVAILABLE"
 	ReasonLockUnavailable         Reason = "LOCK_UNAVAILABLE"
+	ReasonStatusNotReady          Reason = "STATUS_NOT_READY"
+	ReasonKVUnavailable           Reason = "KV_UNAVAILABLE"
 	ReasonEtagMismatch            Reason = "ETAG_MISMATCH"
 	ReasonArbiterUninitialized    Reason = "ARBITER_UNINITIALIZED"
 	ReasonRecordNotFound          Reason = "RECORD_NOT_FOUND"
@@ -56,6 +60,8 @@ var contract = []entry{
 	{ReasonRequestIDMismatch, "dcctl.request_id.mismatch", codes.AlreadyExists},
 	{ReasonLeaderUnavailable, "dcctl.leader.unavailable", codes.Unavailable},
 	{ReasonLockUnavailable, "dcctl.lock.unavailable", codes.Unavailable},
+	{ReasonStatusNotReady, "dcctl.status.not_ready", codes.Unavailable},
+	{ReasonKVUnavailable, "dcctl.kv.unavailable", codes.Unavailable},
 	{ReasonEtagMismatch, "", codes.Aborted},
 	{ReasonArbiterUninitialized, "", codes.FailedPrecondition},
 	{ReasonRecordNotFound, "", codes.NotFound},
@@ -104,6 +110,19 @@ func (r Reason) Code() codes.Code {
 // after an ErrorInfo with r.
 func New(r Reason, msg string, details ...protoadapt.MessageV1) error {
 	return Status(r, msg, nil, details...).Err()
+}
+
+// KVUnavailable returns the KV_UNAVAILABLE error with msg. datacenters are
+// the datacenters whose Consul KV could not be read; the metadata lists them
+// in `datacenters`, comma separated, and leaves the key out when there are
+// none.
+func KVUnavailable(msg string, datacenters []string) error {
+	var md map[string]string
+	if len(datacenters) > 0 {
+		md = map[string]string{"datacenters": strings.Join(datacenters, ",")}
+	}
+
+	return Status(ReasonKVUnavailable, msg, md).Err()
 }
 
 // Status returns the gRPC status of [New] with metadata in its ErrorInfo,

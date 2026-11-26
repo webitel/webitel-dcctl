@@ -11,13 +11,12 @@ import (
 	"strings"
 
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
 	"github.com/webitel/webitel-go-kit/pkg/logging"
 
 	dcctlv1 "github.com/webitel/webitel-dcctl/gen/go/dcctl/v1"
 	"github.com/webitel/webitel-dcctl/internal/apierr"
+	"github.com/webitel/webitel-dcctl/internal/coord"
 	"github.com/webitel/webitel-dcctl/internal/kv"
 )
 
@@ -33,8 +32,9 @@ const (
 // It reads the journal of every KV that answers and merges the copies by
 // key, so an entry that only one datacenter holds is listed, and the
 // answer is the most complete one: it does not depend on which instance
-// serves the request, nor on whether alignment has run. It fails with
-// Unavailable only when no KV answers.
+// serves the request, nor on whether alignment has run. The datacenters
+// whose KV does not answer are in unreachable, as their entries may be
+// missing. It fails with KV_UNAVAILABLE only when no KV answers.
 //
 // The page token holds the key of the last entry returned and a hash of the
 // filter; the next page continues below that key, so entries journaled or
@@ -53,12 +53,15 @@ func (j *Journal) List(ctx context.Context, req *dcctlv1.ListJournalEntriesReque
 		return nil, fmt.Errorf("list journal: %w", err)
 	}
 
-	merged, err := j.merge(ctx, snaps)
+	merged, unreachable, err := j.merge(ctx, snaps)
 	if err != nil {
 		return nil, err
 	}
 
 	resp := &dcctlv1.ListJournalEntriesResponse{}
+	for _, dc := range unreachable {
+		resp.Unreachable = append(resp.Unreachable, "datacenters/"+dc)
+	}
 
 	for _, c := range merged {
 		if after != "" && c.suffix >= after {
@@ -120,13 +123,16 @@ type candidate struct {
 	value  []byte
 }
 
-// merge returns the entries of all answering KVs by key, newest first. The
-// value of a key is the one of the first KV that holds it.
-func (j *Journal) merge(ctx context.Context, snaps []snapshot) ([]candidate, error) {
+// merge returns the entries of all answering KVs by key, newest first, and
+// the datacenters whose KV did not answer. The value of a key is the one of
+// the first KV that holds it. The global Consul of stretch is not a
+// datacenter and is never listed.
+func (j *Journal) merge(ctx context.Context, snaps []snapshot) ([]candidate, []string, error) {
 	var (
-		out      []candidate
-		answered int
-		errs     []error
+		out         []candidate
+		unreachable []string
+		answered    int
+		errs        []error
 	)
 
 	seen := make(map[string]bool)
@@ -134,6 +140,9 @@ func (j *Journal) merge(ctx context.Context, snaps []snapshot) ([]candidate, err
 	for _, s := range snaps {
 		if s.Err != nil {
 			errs = append(errs, s.Err)
+			if s.DC != coord.StretchName {
+				unreachable = append(unreachable, s.DC)
+			}
 
 			continue
 		}
@@ -154,7 +163,7 @@ func (j *Journal) merge(ctx context.Context, snaps []snapshot) ([]candidate, err
 	if answered == 0 {
 		j.log.ErrorCtx(ctx, "journal cannot be read", logging.Err(errors.Join(errs...)))
 
-		return nil, status.Error(codes.Unavailable, "the journal is not readable: no datacenter answers")
+		return nil, nil, apierr.KVUnavailable("the journal is not readable: no datacenter answers", unreachable)
 	}
 
 	if len(errs) > 0 {
@@ -163,7 +172,7 @@ func (j *Journal) merge(ctx context.Context, snaps []snapshot) ([]candidate, err
 
 	slices.SortFunc(out, func(a, b candidate) int { return strings.Compare(b.suffix, a.suffix) })
 
-	return out, nil
+	return out, unreachable, nil
 }
 
 func requestInvalid(field, description string) error {

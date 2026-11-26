@@ -267,5 +267,11 @@ export const ListJournalEntriesResponse = zod
 			.string()
 			.optional()
 			.describe('Token of the next page. Empty on the last page.'),
+		unreachable: zod
+			.array(zod.string())
+			.optional()
+			.describe(
+				'Datacenters whose journal could not be read, as\n`datacenters/{datacenter}`: entries of these datacenters may be missing\nfrom the response.',
+			),
 	})
 	.describe('Response message for JournalService.ListJournalEntries.');

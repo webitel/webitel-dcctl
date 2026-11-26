@@ -30,10 +30,6 @@ option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_swagger) = {
       schema: {
         json_schema: {ref: ".webitel.dcctl.v1.Error"}
       }
-      examples: {
-        key: "application/json"
-        value: '{"id":"dcctl.request.invalid","code":400,"status":"Bad Request","detail":"invalid request","violations":[{"type":"field","subject":"page_size","description":"value must be greater than or equal to 0 and less than or equal to 500"}]}'
-      }
     }
   }
   responses: {

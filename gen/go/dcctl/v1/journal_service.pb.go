@@ -97,6 +97,10 @@ type ListJournalEntriesResponse struct {
 	JournalEntries []*JournalEntry `protobuf:"bytes,1,rep,name=journal_entries,json=journalEntries,proto3" json:"journal_entries,omitempty"`
 	// Token of the next page. Empty on the last page.
 	NextPageToken string `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
+	// Datacenters whose journal could not be read, as
+	// `datacenters/{datacenter}`: entries of these datacenters may be missing
+	// from the response.
+	Unreachable   []string `protobuf:"bytes,3,rep,name=unreachable,proto3" json:"unreachable,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -145,26 +149,43 @@ func (x *ListJournalEntriesResponse) GetNextPageToken() string {
 	return ""
 }
 
+func (x *ListJournalEntriesResponse) GetUnreachable() []string {
+	if x != nil {
+		return x.Unreachable
+	}
+	return nil
+}
+
 var File_webitel_dcctl_v1_journal_service_proto protoreflect.FileDescriptor
 
 const file_webitel_dcctl_v1_journal_service_proto_rawDesc = "" +
 	"\n" +
-	"&webitel/dcctl/v1/journal_service.proto\x12\x10webitel.dcctl.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/api/field_behavior.proto\x1a.protoc-gen-openapiv2/options/annotations.proto\x1a\x1ewebitel/dcctl/v1/journal.proto\"\x9b\x01\n" +
+	"&webitel/dcctl/v1/journal_service.proto\x12\x10webitel.dcctl.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/api/field_behavior.proto\x1a\x19google/api/resource.proto\x1a.protoc-gen-openapiv2/options/annotations.proto\x1a\x1ewebitel/dcctl/v1/journal.proto\"\x9b\x01\n" +
 	"\x19ListJournalEntriesRequest\x12+\n" +
 	"\tpage_size\x18\x01 \x01(\x05B\x0e\xe2A\x01\x01\xbaH\a\x1a\x05\x18\xf4\x03(\x00R\bpageSize\x12+\n" +
 	"\n" +
 	"page_token\x18\x02 \x01(\tB\f\xe2A\x01\x01\xbaH\x05r\x03\x18\x80\bR\tpageToken\x12$\n" +
-	"\x06filter\x18\x03 \x01(\tB\f\xe2A\x01\x01\xbaH\x05r\x03\x18\x80\bR\x06filter\"\x99\x01\n" +
+	"\x06filter\x18\x03 \x01(\tB\f\xe2A\x01\x01\xbaH\x05r\x03\x18\x80\bR\x06filter\"\xe2\x01\n" +
 	"\x1aListJournalEntriesResponse\x12M\n" +
 	"\x0fjournal_entries\x18\x01 \x03(\v2\x1e.webitel.dcctl.v1.JournalEntryB\x04\xe2A\x01\x03R\x0ejournalEntries\x12,\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tB\x04\xe2A\x01\x03R\rnextPageToken2\xc2\f\n" +
-	"\x0eJournalService\x12\xaf\f\n" +
-	"\x12ListJournalEntries\x12+.webitel.dcctl.v1.ListJournalEntriesRequest\x1a,.webitel.dcctl.v1.ListJournalEntriesResponse\"\xbd\v\x92A\x9f\vJ\x9c\v\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tB\x04\xe2A\x01\x03R\rnextPageToken\x12G\n" +
+	"\vunreachable\x18\x03 \x03(\tB%\xe2A\x01\x03\xfaA\x1e\n" +
+	"\x1cdcctl.webitel.com/DatacenterR\vunreachable2\xab\x11\n" +
+	"\x0eJournalService\x12\x98\x11\n" +
+	"\x12ListJournalEntries\x12+.webitel.dcctl.v1.ListJournalEntriesRequest\x1a,.webitel.dcctl.v1.ListJournalEntriesResponse\"\xa6\x10\x92A\x88\x10J\x9c\v\n" +
 	"\x03200\x12\x94\v\n" +
 	"\x16Entries, newest first.\"\xf9\n" +
 	"\n" +
 	"\x10application/json\x12\xe4\n" +
-	"{\"journal_entries\":[{\"name\":\"journalEntries/20261123101501000000000-5c1e9a2b\",\"create_time\":\"2026-11-23T10:15:01Z\",\"type\":\"OPERATION\",\"initiator\":{\"user\":\"support\",\"address\":\"10.1.0.15\",\"instance\":{\"node\":\"dcctl-a1\",\"datacenter\":\"datacenters/dc_a\",\"address\":\"10.1.0.81:10023\"}},\"datacenter\":\"datacenters/dc_b\",\"operation\":\"operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10\",\"operation_type\":\"SWITCH\",\"params\":{\"name\":\"datacenters/dc_b\",\"mode\":\"QUORUM\",\"previous_generation\":7,\"new_generation\":8},\"result\":\"OK\",\"detail\":\"switch to dc_b started\"},{\"name\":\"journalEntries/20261123101240000000000-a91c03d7\",\"create_time\":\"2026-11-23T10:12:40Z\",\"type\":\"ALARM\",\"initiator\":{\"instance\":{\"node\":\"dcctl-a1\",\"datacenter\":\"datacenters/dc_a\",\"address\":\"10.1.0.81:10023\"},\"system\":true},\"alarm_type\":\"VOTER_UNREACHABLE\",\"result\":\"WARNING\",\"detail\":\"arbiter does not answer\"},{\"name\":\"journalEntries/20261122080512000000000-e40b71c9\",\"create_time\":\"2026-11-22T08:05:12Z\",\"type\":\"SYSTEM\",\"initiator\":{\"instance\":{\"node\":\"dcctl-a1\",\"datacenter\":\"datacenters/dc_a\",\"address\":\"10.1.0.81:10023\"},\"system\":true},\"datacenter\":\"datacenters/dc_a\",\"system_action\":\"FENCE_APPS\",\"params\":{\"jobs\":[\"webitel-core-api\",\"opensips\"]},\"result\":\"OK\",\"detail\":\"stopped 2 managed jobs: the effective state names dc_b as active\"}],\"next_page_token\":\"MjAyNjExMjIwODA1MTIwMDAwMDAwMDAtZTQwYjcxYzl8ZTNiMGM0NDI5OGZjMWMxNA\"}\x82\xd3\xe4\x93\x02\x14\x12\x12/v1/journalEntriesB:Z8github.com/webitel/webitel-dcctl/gen/go/dcctl/v1;dcctlv1b\x06proto3"
+	"{\"journal_entries\":[{\"name\":\"journalEntries/20261123101501000000000-5c1e9a2b\",\"create_time\":\"2026-11-23T10:15:01Z\",\"type\":\"OPERATION\",\"initiator\":{\"user\":\"support\",\"address\":\"10.1.0.15\",\"instance\":{\"node\":\"dcctl-a1\",\"datacenter\":\"datacenters/dc_a\",\"address\":\"10.1.0.81:10023\"}},\"datacenter\":\"datacenters/dc_b\",\"operation\":\"operations/0b9f3c2e-5d1a-4c55-9a7e-2f4d8c1b6a10\",\"operation_type\":\"SWITCH\",\"params\":{\"name\":\"datacenters/dc_b\",\"mode\":\"QUORUM\",\"previous_generation\":7,\"new_generation\":8},\"result\":\"OK\",\"detail\":\"switch to dc_b started\"},{\"name\":\"journalEntries/20261123101240000000000-a91c03d7\",\"create_time\":\"2026-11-23T10:12:40Z\",\"type\":\"ALARM\",\"initiator\":{\"instance\":{\"node\":\"dcctl-a1\",\"datacenter\":\"datacenters/dc_a\",\"address\":\"10.1.0.81:10023\"},\"system\":true},\"alarm_type\":\"VOTER_UNREACHABLE\",\"result\":\"WARNING\",\"detail\":\"arbiter does not answer\"},{\"name\":\"journalEntries/20261122080512000000000-e40b71c9\",\"create_time\":\"2026-11-22T08:05:12Z\",\"type\":\"SYSTEM\",\"initiator\":{\"instance\":{\"node\":\"dcctl-a1\",\"datacenter\":\"datacenters/dc_a\",\"address\":\"10.1.0.81:10023\"},\"system\":true},\"datacenter\":\"datacenters/dc_a\",\"system_action\":\"FENCE_APPS\",\"params\":{\"jobs\":[\"webitel-core-api\",\"opensips\"]},\"result\":\"OK\",\"detail\":\"stopped 2 managed jobs: the effective state names dc_b as active\"}],\"next_page_token\":\"MjAyNjExMjIwODA1MTIwMDAwMDAwMDAtZTQwYjcxYzl8ZTNiMGM0NDI5OGZjMWMxNA\"}J\xca\x02\n" +
+	"\x03400\x12\xc2\x02\n" +
+	")Invalid request: `dcctl.request.invalid`.\x12\x1b\n" +
+	"\x19\x1a\x17.webitel.dcctl.v1.Error\"\xf7\x01\n" +
+	"\x10application/json\x12\xe2\x01{\"id\":\"dcctl.request.invalid\",\"code\":400,\"status\":\"Bad Request\",\"detail\":\"invalid request\",\"violations\":[{\"type\":\"field\",\"subject\":\"page_size\",\"description\":\"must be greater than or equal to 0 and less than or equal to 500\"}]}J\x99\x02\n" +
+	"\x03503\x12\x91\x02\n" +
+	".No datacenter answers: `dcctl.kv.unavailable`.\x12\x1b\n" +
+	"\x19\x1a\x17.webitel.dcctl.v1.Error\"\xc1\x01\n" +
+	"\x10application/json\x12\xac\x01{\"id\":\"dcctl.kv.unavailable\",\"code\":503,\"status\":\"Service Unavailable\",\"detail\":\"the journal is not readable: no datacenter answers\",\"metadata\":{\"datacenters\":\"dc_a,dc_b\"}}\x82\xd3\xe4\x93\x02\x14\x12\x12/v1/journalEntriesB:Z8github.com/webitel/webitel-dcctl/gen/go/dcctl/v1;dcctlv1b\x06proto3"
 
 var (
 	file_webitel_dcctl_v1_journal_service_proto_rawDescOnce sync.Once

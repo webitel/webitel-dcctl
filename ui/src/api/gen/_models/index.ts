@@ -17,8 +17,6 @@ export * from './webitelDcctlV1CheckFacts';
 export * from './webitelDcctlV1CheckResult';
 export * from './webitelDcctlV1Confirmation';
 export * from './webitelDcctlV1Datacenter';
-export * from './webitelDcctlV1DatacenterConsul';
-export * from './webitelDcctlV1DatacenterConsulServer';
 export * from './webitelDcctlV1DatacenterHealth';
 export * from './webitelDcctlV1DatacenterNomad';
 export * from './webitelDcctlV1DatacenterNomadJob';

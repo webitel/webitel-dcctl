@@ -415,6 +415,10 @@ export const getListOperationsResponseMock = (
 				},
 				undefined,
 			]),
+			revision: faker.helpers.arrayElement([
+				faker.string.alpha({ length: { min: 10, max: 20 } }),
+				undefined,
+			]),
 			state: faker.helpers.arrayElement([
 				faker.helpers.arrayElement(Object.values(WebitelDcctlV1OperationState)),
 				undefined,
@@ -903,6 +907,10 @@ export const getGetOperationResponseMock = (
 		},
 		undefined,
 	]),
+	revision: faker.helpers.arrayElement([
+		faker.string.alpha({ length: { min: 10, max: 20 } }),
+		undefined,
+	]),
 	state: faker.helpers.arrayElement([
 		faker.helpers.arrayElement(Object.values(WebitelDcctlV1OperationState)),
 		undefined,
@@ -1382,6 +1390,10 @@ export const getAbandonOperationResponseMock = (
 		},
 		undefined,
 	]),
+	revision: faker.helpers.arrayElement([
+		faker.string.alpha({ length: { min: 10, max: 20 } }),
+		undefined,
+	]),
 	state: faker.helpers.arrayElement([
 		faker.helpers.arrayElement(Object.values(WebitelDcctlV1OperationState)),
 		undefined,
@@ -1859,6 +1871,10 @@ export const getResumeOperationResponseMock = (
 			]),
 			winner: faker.string.alpha({ length: { min: 10, max: 20 } }),
 		},
+		undefined,
+	]),
+	revision: faker.helpers.arrayElement([
+		faker.string.alpha({ length: { min: 10, max: 20 } }),
 		undefined,
 	]),
 	state: faker.helpers.arrayElement([
@@ -2370,6 +2386,10 @@ export const getWatchOperationResponseMock = (
 					]),
 					winner: faker.string.alpha({ length: { min: 10, max: 20 } }),
 				},
+				undefined,
+			]),
+			revision: faker.helpers.arrayElement([
+				faker.string.alpha({ length: { min: 10, max: 20 } }),
 				undefined,
 			]),
 			state: faker.helpers.arrayElement([

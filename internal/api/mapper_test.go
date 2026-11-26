@@ -37,7 +37,7 @@ func TestMapDatacenterExample(t *testing.T) {
 	require.NoError(t, m.err)
 
 	assertExample(t, swaggerExample(t, "/v1/datacenters/{datacenter}", "get", "200"), gatewayJSON(t, got),
-		prefixed("", skipEndpoint, skipDetail))
+		prefixed("", skipEndpoint))
 }
 
 func TestMapDatacenterSummary(t *testing.T) {
@@ -56,9 +56,32 @@ func TestMapDatacenterSummary(t *testing.T) {
 	assert.Empty(t, got.GetInfoChecks())
 	assert.Nil(t, got.GetObserver())
 	assert.Nil(t, got.GetObserveTime())
-	assert.Nil(t, got.GetConsul())
 	assert.EqualValues(t, 12, got.GetNomad().GetJobCounts().GetStoppedCount())
 	assert.Equal(t, "pg-b1", got.GetPatroni().GetLeader())
+}
+
+func TestMapPatroniUnknownNumbers(t *testing.T) {
+	st := exampleStatus()
+	dc := exampleDCB()
+	dc.Patroni.Timeline = nil
+	dc.Patroni.LagBytes = nil
+	dc.Patroni.Members[1].Timeline = nil
+	dc.Patroni.Members[1].LagBytes = nil
+
+	got := newMapper(&st, observerAddress).datacenter(&dc, true).GetPatroni()
+
+	assert.Nil(t, got.Timeline, "an unknown timeline is not 0")
+	assert.Nil(t, got.LagBytes, "an unknown lag is not 0")
+	assert.Nil(t, got.GetMembers()[1].Timeline)
+	assert.Nil(t, got.GetMembers()[1].LagBytes)
+
+	known := exampleDCB()
+	got = newMapper(&st, observerAddress).datacenter(&known, true).GetPatroni()
+
+	require.NotNil(t, got.LagBytes, "a lag of 0 is known")
+	assert.Zero(t, got.GetLagBytes())
+	require.NotNil(t, got.GetMembers()[1].LagBytes)
+	assert.Zero(t, got.GetMembers()[1].GetLagBytes())
 }
 
 func TestMapDivergence(t *testing.T) {

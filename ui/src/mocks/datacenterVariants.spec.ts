@@ -80,22 +80,25 @@ describe('datacenter variants', () => {
 		expect(standby.patroni?.members?.length).toBeGreaterThan(0);
 	});
 
+	// The optional Patroni numbers are sent whenever they are known, 0 too.
+	const optional = new Set(['lag_bytes', 'timeline']);
+
 	it.each(['normal', 'alarm', 'unreachable', 'stale', 'stretch'] as const)(
 		'%s: sends no zero, empty or false value, like the gateway',
 		(variant) => {
 			for (const id of ['dc_a', 'dc_b']) {
 				const body = JSON.parse(JSON.stringify(build(variant, id, NOW)));
 				const explicit: string[] = [];
-				const walk = (value: unknown, path: string) => {
+				const walk = (value: unknown, path: string, key: string) => {
 					if (value === 0 || value === '0' || value === false || value === '') {
-						explicit.push(path);
+						if (!optional.has(key)) explicit.push(path);
 					} else if (value && typeof value === 'object') {
-						for (const [key, child] of Object.entries(value)) {
-							walk(child, `${path}.${key}`);
+						for (const [child, inner] of Object.entries(value)) {
+							walk(inner, `${path}.${child}`, child);
 						}
 					}
 				};
-				walk(body, id);
+				walk(body, id, '');
 				expect(explicit).toEqual([]);
 			}
 		},

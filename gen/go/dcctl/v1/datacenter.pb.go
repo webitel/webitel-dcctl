@@ -231,7 +231,7 @@ func (x Datacenter_Patroni_Role) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use Datacenter_Patroni_Role.Descriptor instead.
 func (Datacenter_Patroni_Role) EnumDescriptor() ([]byte, []int) {
-	return file_webitel_dcctl_v1_datacenter_proto_rawDescGZIP(), []int{0, 1, 0}
+	return file_webitel_dcctl_v1_datacenter_proto_rawDescGZIP(), []int{0, 0, 0}
 }
 
 // Why a member cannot be used.
@@ -288,7 +288,7 @@ func (x Datacenter_Patroni_UnusableReason) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use Datacenter_Patroni_UnusableReason.Descriptor instead.
 func (Datacenter_Patroni_UnusableReason) EnumDescriptor() ([]byte, []int) {
-	return file_webitel_dcctl_v1_datacenter_proto_rawDescGZIP(), []int{0, 1, 1}
+	return file_webitel_dcctl_v1_datacenter_proto_rawDescGZIP(), []int{0, 0, 1}
 }
 
 // Whether the timeline of the datacenter left the history of the active
@@ -349,7 +349,7 @@ func (x Datacenter_Patroni_DivergenceState) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use Datacenter_Patroni_DivergenceState.Descriptor instead.
 func (Datacenter_Patroni_DivergenceState) EnumDescriptor() ([]byte, []int) {
-	return file_webitel_dcctl_v1_datacenter_proto_rawDescGZIP(), []int{0, 1, 2}
+	return file_webitel_dcctl_v1_datacenter_proto_rawDescGZIP(), []int{0, 0, 2}
 }
 
 // Why the node does not run managed jobs normally.
@@ -411,7 +411,7 @@ func (x Datacenter_Nomad_Node_Reason) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use Datacenter_Nomad_Node_Reason.Descriptor instead.
 func (Datacenter_Nomad_Node_Reason) EnumDescriptor() ([]byte, []int) {
-	return file_webitel_dcctl_v1_datacenter_proto_rawDescGZIP(), []int{0, 2, 0, 0}
+	return file_webitel_dcctl_v1_datacenter_proto_rawDescGZIP(), []int{0, 1, 0, 0}
 }
 
 // Job state.
@@ -473,7 +473,7 @@ func (x Datacenter_Nomad_Job_State) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use Datacenter_Nomad_Job_State.Descriptor instead.
 func (Datacenter_Nomad_Job_State) EnumDescriptor() ([]byte, []int) {
-	return file_webitel_dcctl_v1_datacenter_proto_rawDescGZIP(), []int{0, 2, 2, 0}
+	return file_webitel_dcctl_v1_datacenter_proto_rawDescGZIP(), []int{0, 1, 2, 0}
 }
 
 // Nomad job type.
@@ -534,7 +534,7 @@ func (x Datacenter_Nomad_Job_Type) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use Datacenter_Nomad_Job_Type.Descriptor instead.
 func (Datacenter_Nomad_Job_Type) EnumDescriptor() ([]byte, []int) {
-	return file_webitel_dcctl_v1_datacenter_proto_rawDescGZIP(), []int{0, 2, 2, 1}
+	return file_webitel_dcctl_v1_datacenter_proto_rawDescGZIP(), []int{0, 1, 2, 1}
 }
 
 // System the source belongs to.
@@ -696,8 +696,6 @@ type Datacenter struct {
 	NeedsRecovery bool `protobuf:"varint,5,opt,name=needs_recovery,json=needsRecovery,proto3" json:"needs_recovery,omitempty"`
 	// Reachability of each source.
 	Sources []*Source `protobuf:"bytes,6,rep,name=sources,proto3" json:"sources,omitempty"`
-	// Consul. GetDatacenter only.
-	Consul *Datacenter_Consul `protobuf:"bytes,7,opt,name=consul,proto3" json:"consul,omitempty"`
 	// Patroni.
 	Patroni *Datacenter_Patroni `protobuf:"bytes,8,opt,name=patroni,proto3" json:"patroni,omitempty"`
 	// Nomad.
@@ -781,13 +779,6 @@ func (x *Datacenter) GetNeedsRecovery() bool {
 func (x *Datacenter) GetSources() []*Source {
 	if x != nil {
 		return x.Sources
-	}
-	return nil
-}
-
-func (x *Datacenter) GetConsul() *Datacenter_Consul {
-	if x != nil {
-		return x.Consul
 	}
 	return nil
 }
@@ -919,52 +910,6 @@ func (x *Source) GetObserveTime() *timestamppb.Timestamp {
 	return nil
 }
 
-// Consul of the datacenter.
-type Datacenter_Consul struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Servers of the datacenter.
-	Servers       []*Datacenter_Consul_Server `protobuf:"bytes,1,rep,name=servers,proto3" json:"servers,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *Datacenter_Consul) Reset() {
-	*x = Datacenter_Consul{}
-	mi := &file_webitel_dcctl_v1_datacenter_proto_msgTypes[2]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *Datacenter_Consul) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*Datacenter_Consul) ProtoMessage() {}
-
-func (x *Datacenter_Consul) ProtoReflect() protoreflect.Message {
-	mi := &file_webitel_dcctl_v1_datacenter_proto_msgTypes[2]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use Datacenter_Consul.ProtoReflect.Descriptor instead.
-func (*Datacenter_Consul) Descriptor() ([]byte, []int) {
-	return file_webitel_dcctl_v1_datacenter_proto_rawDescGZIP(), []int{0, 0}
-}
-
-func (x *Datacenter_Consul) GetServers() []*Datacenter_Consul_Server {
-	if x != nil {
-		return x.Servers
-	}
-	return nil
-}
-
 // Patroni cluster of the datacenter (warm_standby) or the part of the
 // cluster in it (stretch).
 type Datacenter_Patroni struct {
@@ -973,8 +918,8 @@ type Datacenter_Patroni struct {
 	Leader string `protobuf:"bytes,1,opt,name=leader,proto3" json:"leader,omitempty"`
 	// Role of the leader.
 	Role Datacenter_Patroni_Role `protobuf:"varint,2,opt,name=role,proto3,enum=webitel.dcctl.v1.Datacenter_Patroni_Role" json:"role,omitempty"`
-	// Timeline of the leader.
-	Timeline int64 `protobuf:"varint,3,opt,name=timeline,proto3" json:"timeline,omitempty"`
+	// Timeline of the leader. Not set when it is not known.
+	Timeline *int64 `protobuf:"varint,3,opt,name=timeline,proto3,oneof" json:"timeline,omitempty"`
 	// Patroni pause is set.
 	Paused bool `protobuf:"varint,4,opt,name=paused,proto3" json:"paused,omitempty"`
 	// `standby_cluster.host` from the leader config.
@@ -982,8 +927,9 @@ type Datacenter_Patroni struct {
 	// Datacenter whose nodes standby_cluster_host points at.
 	UpstreamDatacenter string `protobuf:"bytes,6,opt,name=upstream_datacenter,json=upstreamDatacenter,proto3" json:"upstream_datacenter,omitempty"`
 	// Lag of the datacenter behind the active primary. Approximate between
-	// clusters.
-	LagBytes int64 `protobuf:"varint,7,opt,name=lag_bytes,json=lagBytes,proto3" json:"lag_bytes,omitempty"`
+	// clusters. Not set for the datacenter of the primary and when it is not
+	// known.
+	LagBytes *int64 `protobuf:"varint,7,opt,name=lag_bytes,json=lagBytes,proto3,oneof" json:"lag_bytes,omitempty"`
 	// Whether the datacenter diverged from the active leader. Authoritative:
 	// an empty divergence_lsn does not mean NOT_DIVERGED. Not set
 	// (UNSPECIFIED) for the active datacenter and in stretch, where there is
@@ -1003,7 +949,7 @@ type Datacenter_Patroni struct {
 
 func (x *Datacenter_Patroni) Reset() {
 	*x = Datacenter_Patroni{}
-	mi := &file_webitel_dcctl_v1_datacenter_proto_msgTypes[3]
+	mi := &file_webitel_dcctl_v1_datacenter_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1015,7 +961,7 @@ func (x *Datacenter_Patroni) String() string {
 func (*Datacenter_Patroni) ProtoMessage() {}
 
 func (x *Datacenter_Patroni) ProtoReflect() protoreflect.Message {
-	mi := &file_webitel_dcctl_v1_datacenter_proto_msgTypes[3]
+	mi := &file_webitel_dcctl_v1_datacenter_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1028,7 +974,7 @@ func (x *Datacenter_Patroni) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Datacenter_Patroni.ProtoReflect.Descriptor instead.
 func (*Datacenter_Patroni) Descriptor() ([]byte, []int) {
-	return file_webitel_dcctl_v1_datacenter_proto_rawDescGZIP(), []int{0, 1}
+	return file_webitel_dcctl_v1_datacenter_proto_rawDescGZIP(), []int{0, 0}
 }
 
 func (x *Datacenter_Patroni) GetLeader() string {
@@ -1046,8 +992,8 @@ func (x *Datacenter_Patroni) GetRole() Datacenter_Patroni_Role {
 }
 
 func (x *Datacenter_Patroni) GetTimeline() int64 {
-	if x != nil {
-		return x.Timeline
+	if x != nil && x.Timeline != nil {
+		return *x.Timeline
 	}
 	return 0
 }
@@ -1074,8 +1020,8 @@ func (x *Datacenter_Patroni) GetUpstreamDatacenter() string {
 }
 
 func (x *Datacenter_Patroni) GetLagBytes() int64 {
-	if x != nil {
-		return x.LagBytes
+	if x != nil && x.LagBytes != nil {
+		return *x.LagBytes
 	}
 	return 0
 }
@@ -1135,7 +1081,7 @@ type Datacenter_Nomad struct {
 
 func (x *Datacenter_Nomad) Reset() {
 	*x = Datacenter_Nomad{}
-	mi := &file_webitel_dcctl_v1_datacenter_proto_msgTypes[4]
+	mi := &file_webitel_dcctl_v1_datacenter_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1147,7 +1093,7 @@ func (x *Datacenter_Nomad) String() string {
 func (*Datacenter_Nomad) ProtoMessage() {}
 
 func (x *Datacenter_Nomad) ProtoReflect() protoreflect.Message {
-	mi := &file_webitel_dcctl_v1_datacenter_proto_msgTypes[4]
+	mi := &file_webitel_dcctl_v1_datacenter_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1160,7 +1106,7 @@ func (x *Datacenter_Nomad) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Datacenter_Nomad.ProtoReflect.Descriptor instead.
 func (*Datacenter_Nomad) Descriptor() ([]byte, []int) {
-	return file_webitel_dcctl_v1_datacenter_proto_rawDescGZIP(), []int{0, 2}
+	return file_webitel_dcctl_v1_datacenter_proto_rawDescGZIP(), []int{0, 1}
 }
 
 func (x *Datacenter_Nomad) GetLeader() string {
@@ -1226,71 +1172,6 @@ func (x *Datacenter_Nomad) GetUnmanagedJobs() []*Datacenter_Nomad_UnmanagedJob {
 	return nil
 }
 
-// Consul server from the config.
-type Datacenter_Consul_Server struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Server address.
-	Address string `protobuf:"bytes,1,opt,name=address,proto3" json:"address,omitempty"`
-	// The server answers.
-	Reachable bool `protobuf:"varint,2,opt,name=reachable,proto3" json:"reachable,omitempty"`
-	// Consul datacenter reported by the server. Differs from the
-	// datacenter name on a misconfiguration.
-	ConsulDatacenter string `protobuf:"bytes,3,opt,name=consul_datacenter,json=consulDatacenter,proto3" json:"consul_datacenter,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
-}
-
-func (x *Datacenter_Consul_Server) Reset() {
-	*x = Datacenter_Consul_Server{}
-	mi := &file_webitel_dcctl_v1_datacenter_proto_msgTypes[5]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *Datacenter_Consul_Server) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*Datacenter_Consul_Server) ProtoMessage() {}
-
-func (x *Datacenter_Consul_Server) ProtoReflect() protoreflect.Message {
-	mi := &file_webitel_dcctl_v1_datacenter_proto_msgTypes[5]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use Datacenter_Consul_Server.ProtoReflect.Descriptor instead.
-func (*Datacenter_Consul_Server) Descriptor() ([]byte, []int) {
-	return file_webitel_dcctl_v1_datacenter_proto_rawDescGZIP(), []int{0, 0, 0}
-}
-
-func (x *Datacenter_Consul_Server) GetAddress() string {
-	if x != nil {
-		return x.Address
-	}
-	return ""
-}
-
-func (x *Datacenter_Consul_Server) GetReachable() bool {
-	if x != nil {
-		return x.Reachable
-	}
-	return false
-}
-
-func (x *Datacenter_Consul_Server) GetConsulDatacenter() string {
-	if x != nil {
-		return x.ConsulDatacenter
-	}
-	return ""
-}
-
 // WAL positions of a member, in bytes.
 type Datacenter_Patroni_Xlog struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -1308,7 +1189,7 @@ type Datacenter_Patroni_Xlog struct {
 
 func (x *Datacenter_Patroni_Xlog) Reset() {
 	*x = Datacenter_Patroni_Xlog{}
-	mi := &file_webitel_dcctl_v1_datacenter_proto_msgTypes[6]
+	mi := &file_webitel_dcctl_v1_datacenter_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1320,7 +1201,7 @@ func (x *Datacenter_Patroni_Xlog) String() string {
 func (*Datacenter_Patroni_Xlog) ProtoMessage() {}
 
 func (x *Datacenter_Patroni_Xlog) ProtoReflect() protoreflect.Message {
-	mi := &file_webitel_dcctl_v1_datacenter_proto_msgTypes[6]
+	mi := &file_webitel_dcctl_v1_datacenter_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1333,7 +1214,7 @@ func (x *Datacenter_Patroni_Xlog) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Datacenter_Patroni_Xlog.ProtoReflect.Descriptor instead.
 func (*Datacenter_Patroni_Xlog) Descriptor() ([]byte, []int) {
-	return file_webitel_dcctl_v1_datacenter_proto_rawDescGZIP(), []int{0, 1, 0}
+	return file_webitel_dcctl_v1_datacenter_proto_rawDescGZIP(), []int{0, 0, 0}
 }
 
 func (x *Datacenter_Patroni_Xlog) GetLocation() int64 {
@@ -1382,14 +1263,15 @@ type Datacenter_Patroni_Member struct {
 	// Patroni member state as reported, for example `running`,
 	// `streaming`.
 	PatroniState string `protobuf:"bytes,7,opt,name=patroni_state,json=patroniState,proto3" json:"patroni_state,omitempty"`
-	// Timeline.
-	Timeline int64 `protobuf:"varint,8,opt,name=timeline,proto3" json:"timeline,omitempty"`
+	// Timeline. Not set when it is not known.
+	Timeline *int64 `protobuf:"varint,8,opt,name=timeline,proto3,oneof" json:"timeline,omitempty"`
 	// Replication state as reported, for example `streaming`.
 	ReplicationState string `protobuf:"bytes,9,opt,name=replication_state,json=replicationState,proto3" json:"replication_state,omitempty"`
 	// WAL positions.
 	Xlog *Datacenter_Patroni_Xlog `protobuf:"bytes,10,opt,name=xlog,proto3" json:"xlog,omitempty"`
-	// Lag behind the cluster leader.
-	LagBytes int64 `protobuf:"varint,11,opt,name=lag_bytes,json=lagBytes,proto3" json:"lag_bytes,omitempty"`
+	// Lag behind the cluster leader. Not set for the leader or the standby
+	// leader and when Patroni does not report it.
+	LagBytes *int64 `protobuf:"varint,11,opt,name=lag_bytes,json=lagBytes,proto3,oneof" json:"lag_bytes,omitempty"`
 	// Patroni version.
 	Version string `protobuf:"bytes,12,opt,name=version,proto3" json:"version,omitempty"`
 	// Patroni failover_priority tag.
@@ -1406,7 +1288,7 @@ type Datacenter_Patroni_Member struct {
 
 func (x *Datacenter_Patroni_Member) Reset() {
 	*x = Datacenter_Patroni_Member{}
-	mi := &file_webitel_dcctl_v1_datacenter_proto_msgTypes[7]
+	mi := &file_webitel_dcctl_v1_datacenter_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1418,7 +1300,7 @@ func (x *Datacenter_Patroni_Member) String() string {
 func (*Datacenter_Patroni_Member) ProtoMessage() {}
 
 func (x *Datacenter_Patroni_Member) ProtoReflect() protoreflect.Message {
-	mi := &file_webitel_dcctl_v1_datacenter_proto_msgTypes[7]
+	mi := &file_webitel_dcctl_v1_datacenter_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1431,7 +1313,7 @@ func (x *Datacenter_Patroni_Member) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Datacenter_Patroni_Member.ProtoReflect.Descriptor instead.
 func (*Datacenter_Patroni_Member) Descriptor() ([]byte, []int) {
-	return file_webitel_dcctl_v1_datacenter_proto_rawDescGZIP(), []int{0, 1, 1}
+	return file_webitel_dcctl_v1_datacenter_proto_rawDescGZIP(), []int{0, 0, 1}
 }
 
 func (x *Datacenter_Patroni_Member) GetMember() string {
@@ -1484,8 +1366,8 @@ func (x *Datacenter_Patroni_Member) GetPatroniState() string {
 }
 
 func (x *Datacenter_Patroni_Member) GetTimeline() int64 {
-	if x != nil {
-		return x.Timeline
+	if x != nil && x.Timeline != nil {
+		return *x.Timeline
 	}
 	return 0
 }
@@ -1505,8 +1387,8 @@ func (x *Datacenter_Patroni_Member) GetXlog() *Datacenter_Patroni_Xlog {
 }
 
 func (x *Datacenter_Patroni_Member) GetLagBytes() int64 {
-	if x != nil {
-		return x.LagBytes
+	if x != nil && x.LagBytes != nil {
+		return *x.LagBytes
 	}
 	return 0
 }
@@ -1559,7 +1441,7 @@ type Datacenter_Nomad_Node struct {
 
 func (x *Datacenter_Nomad_Node) Reset() {
 	*x = Datacenter_Nomad_Node{}
-	mi := &file_webitel_dcctl_v1_datacenter_proto_msgTypes[8]
+	mi := &file_webitel_dcctl_v1_datacenter_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1571,7 +1453,7 @@ func (x *Datacenter_Nomad_Node) String() string {
 func (*Datacenter_Nomad_Node) ProtoMessage() {}
 
 func (x *Datacenter_Nomad_Node) ProtoReflect() protoreflect.Message {
-	mi := &file_webitel_dcctl_v1_datacenter_proto_msgTypes[8]
+	mi := &file_webitel_dcctl_v1_datacenter_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1584,7 +1466,7 @@ func (x *Datacenter_Nomad_Node) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Datacenter_Nomad_Node.ProtoReflect.Descriptor instead.
 func (*Datacenter_Nomad_Node) Descriptor() ([]byte, []int) {
-	return file_webitel_dcctl_v1_datacenter_proto_rawDescGZIP(), []int{0, 2, 0}
+	return file_webitel_dcctl_v1_datacenter_proto_rawDescGZIP(), []int{0, 1, 0}
 }
 
 func (x *Datacenter_Nomad_Node) GetNode() string {
@@ -1618,7 +1500,7 @@ type Datacenter_Nomad_JobCounts struct {
 
 func (x *Datacenter_Nomad_JobCounts) Reset() {
 	*x = Datacenter_Nomad_JobCounts{}
-	mi := &file_webitel_dcctl_v1_datacenter_proto_msgTypes[9]
+	mi := &file_webitel_dcctl_v1_datacenter_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1630,7 +1512,7 @@ func (x *Datacenter_Nomad_JobCounts) String() string {
 func (*Datacenter_Nomad_JobCounts) ProtoMessage() {}
 
 func (x *Datacenter_Nomad_JobCounts) ProtoReflect() protoreflect.Message {
-	mi := &file_webitel_dcctl_v1_datacenter_proto_msgTypes[9]
+	mi := &file_webitel_dcctl_v1_datacenter_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1643,7 +1525,7 @@ func (x *Datacenter_Nomad_JobCounts) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Datacenter_Nomad_JobCounts.ProtoReflect.Descriptor instead.
 func (*Datacenter_Nomad_JobCounts) Descriptor() ([]byte, []int) {
-	return file_webitel_dcctl_v1_datacenter_proto_rawDescGZIP(), []int{0, 2, 1}
+	return file_webitel_dcctl_v1_datacenter_proto_rawDescGZIP(), []int{0, 1, 1}
 }
 
 func (x *Datacenter_Nomad_JobCounts) GetStoppedCount() int32 {
@@ -1704,7 +1586,7 @@ type Datacenter_Nomad_Job struct {
 
 func (x *Datacenter_Nomad_Job) Reset() {
 	*x = Datacenter_Nomad_Job{}
-	mi := &file_webitel_dcctl_v1_datacenter_proto_msgTypes[10]
+	mi := &file_webitel_dcctl_v1_datacenter_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1716,7 +1598,7 @@ func (x *Datacenter_Nomad_Job) String() string {
 func (*Datacenter_Nomad_Job) ProtoMessage() {}
 
 func (x *Datacenter_Nomad_Job) ProtoReflect() protoreflect.Message {
-	mi := &file_webitel_dcctl_v1_datacenter_proto_msgTypes[10]
+	mi := &file_webitel_dcctl_v1_datacenter_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1729,7 +1611,7 @@ func (x *Datacenter_Nomad_Job) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Datacenter_Nomad_Job.ProtoReflect.Descriptor instead.
 func (*Datacenter_Nomad_Job) Descriptor() ([]byte, []int) {
-	return file_webitel_dcctl_v1_datacenter_proto_rawDescGZIP(), []int{0, 2, 2}
+	return file_webitel_dcctl_v1_datacenter_proto_rawDescGZIP(), []int{0, 1, 2}
 }
 
 func (x *Datacenter_Nomad_Job) GetJob() string {
@@ -1817,7 +1699,7 @@ type Datacenter_Nomad_Stage struct {
 
 func (x *Datacenter_Nomad_Stage) Reset() {
 	*x = Datacenter_Nomad_Stage{}
-	mi := &file_webitel_dcctl_v1_datacenter_proto_msgTypes[11]
+	mi := &file_webitel_dcctl_v1_datacenter_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1829,7 +1711,7 @@ func (x *Datacenter_Nomad_Stage) String() string {
 func (*Datacenter_Nomad_Stage) ProtoMessage() {}
 
 func (x *Datacenter_Nomad_Stage) ProtoReflect() protoreflect.Message {
-	mi := &file_webitel_dcctl_v1_datacenter_proto_msgTypes[11]
+	mi := &file_webitel_dcctl_v1_datacenter_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1842,7 +1724,7 @@ func (x *Datacenter_Nomad_Stage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Datacenter_Nomad_Stage.ProtoReflect.Descriptor instead.
 func (*Datacenter_Nomad_Stage) Descriptor() ([]byte, []int) {
-	return file_webitel_dcctl_v1_datacenter_proto_rawDescGZIP(), []int{0, 2, 3}
+	return file_webitel_dcctl_v1_datacenter_proto_rawDescGZIP(), []int{0, 1, 3}
 }
 
 func (x *Datacenter_Nomad_Stage) GetStage() int32 {
@@ -1879,7 +1761,7 @@ type Datacenter_Nomad_UnmanagedJob struct {
 
 func (x *Datacenter_Nomad_UnmanagedJob) Reset() {
 	*x = Datacenter_Nomad_UnmanagedJob{}
-	mi := &file_webitel_dcctl_v1_datacenter_proto_msgTypes[12]
+	mi := &file_webitel_dcctl_v1_datacenter_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1891,7 +1773,7 @@ func (x *Datacenter_Nomad_UnmanagedJob) String() string {
 func (*Datacenter_Nomad_UnmanagedJob) ProtoMessage() {}
 
 func (x *Datacenter_Nomad_UnmanagedJob) ProtoReflect() protoreflect.Message {
-	mi := &file_webitel_dcctl_v1_datacenter_proto_msgTypes[12]
+	mi := &file_webitel_dcctl_v1_datacenter_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1904,7 +1786,7 @@ func (x *Datacenter_Nomad_UnmanagedJob) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Datacenter_Nomad_UnmanagedJob.ProtoReflect.Descriptor instead.
 func (*Datacenter_Nomad_UnmanagedJob) Descriptor() ([]byte, []int) {
-	return file_webitel_dcctl_v1_datacenter_proto_rawDescGZIP(), []int{0, 2, 4}
+	return file_webitel_dcctl_v1_datacenter_proto_rawDescGZIP(), []int{0, 1, 4}
 }
 
 func (x *Datacenter_Nomad_UnmanagedJob) GetJob() string {
@@ -1925,7 +1807,7 @@ var File_webitel_dcctl_v1_datacenter_proto protoreflect.FileDescriptor
 
 const file_webitel_dcctl_v1_datacenter_proto_rawDesc = "" +
 	"\n" +
-	"!webitel/dcctl/v1/datacenter.proto\x12\x10webitel.dcctl.v1\x1a\x1fgoogle/api/field_behavior.proto\x1a\x19google/api/resource.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1cwebitel/dcctl/v1/check.proto\x1a\x1dwebitel/dcctl/v1/common.proto\"\xe0(\n" +
+	"!webitel/dcctl/v1/datacenter.proto\x12\x10webitel.dcctl.v1\x1a\x1fgoogle/api/field_behavior.proto\x1a\x19google/api/resource.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1cwebitel/dcctl/v1/check.proto\x1a\x1dwebitel/dcctl/v1/common.proto\"\x8f'\n" +
 	"\n" +
 	"Datacenter\x12\x18\n" +
 	"\x04name\x18\x01 \x01(\tB\x04\xe2A\x01\bR\x04name\x12>\n" +
@@ -1933,30 +1815,23 @@ const file_webitel_dcctl_v1_datacenter_proto_rawDesc = "" +
 	"\x06health\x18\x03 \x01(\x0e2#.webitel.dcctl.v1.Datacenter.HealthB\x04\xe2A\x01\x03R\x06health\x12+\n" +
 	"\x0ehealth_reasons\x18\x04 \x03(\tB\x04\xe2A\x01\x03R\rhealthReasons\x12+\n" +
 	"\x0eneeds_recovery\x18\x05 \x01(\bB\x04\xe2A\x01\x03R\rneedsRecovery\x128\n" +
-	"\asources\x18\x06 \x03(\v2\x18.webitel.dcctl.v1.SourceB\x04\xe2A\x01\x03R\asources\x12A\n" +
-	"\x06consul\x18\a \x01(\v2#.webitel.dcctl.v1.Datacenter.ConsulB\x04\xe2A\x01\x03R\x06consul\x12D\n" +
+	"\asources\x18\x06 \x03(\v2\x18.webitel.dcctl.v1.SourceB\x04\xe2A\x01\x03R\asources\x12D\n" +
 	"\apatroni\x18\b \x01(\v2$.webitel.dcctl.v1.Datacenter.PatroniB\x04\xe2A\x01\x03R\apatroni\x12>\n" +
 	"\x05nomad\x18\t \x01(\v2\".webitel.dcctl.v1.Datacenter.NomadB\x04\xe2A\x01\x03R\x05nomad\x12>\n" +
 	"\vinfo_checks\x18\n" +
 	" \x03(\v2\x17.webitel.dcctl.v1.CheckB\x04\xe2A\x01\x03R\n" +
 	"infoChecks\x12<\n" +
 	"\bobserver\x18\v \x01(\v2\x1a.webitel.dcctl.v1.InstanceB\x04\xe2A\x01\x03R\bobserver\x12C\n" +
-	"\fobserve_time\x18\f \x01(\v2\x1a.google.protobuf.TimestampB\x04\xe2A\x01\x03R\vobserveTime\x1a\xd5\x01\n" +
-	"\x06Consul\x12J\n" +
-	"\aservers\x18\x01 \x03(\v2*.webitel.dcctl.v1.Datacenter.Consul.ServerB\x04\xe2A\x01\x03R\aservers\x1a\x7f\n" +
-	"\x06Server\x12\x1e\n" +
-	"\aaddress\x18\x01 \x01(\tB\x04\xe2A\x01\x03R\aaddress\x12\"\n" +
-	"\treachable\x18\x02 \x01(\bB\x04\xe2A\x01\x03R\treachable\x121\n" +
-	"\x11consul_datacenter\x18\x03 \x01(\tB\x04\xe2A\x01\x03R\x10consulDatacenter\x1a\xde\x0e\n" +
+	"\fobserve_time\x18\f \x01(\v2\x1a.google.protobuf.TimestampB\x04\xe2A\x01\x03R\vobserveTime\x1a\xa8\x0f\n" +
 	"\aPatroni\x12\x1c\n" +
 	"\x06leader\x18\x01 \x01(\tB\x04\xe2A\x01\x03R\x06leader\x12C\n" +
-	"\x04role\x18\x02 \x01(\x0e2).webitel.dcctl.v1.Datacenter.Patroni.RoleB\x04\xe2A\x01\x03R\x04role\x12 \n" +
-	"\btimeline\x18\x03 \x01(\x03B\x04\xe2A\x01\x03R\btimeline\x12\x1c\n" +
+	"\x04role\x18\x02 \x01(\x0e2).webitel.dcctl.v1.Datacenter.Patroni.RoleB\x04\xe2A\x01\x03R\x04role\x12%\n" +
+	"\btimeline\x18\x03 \x01(\x03B\x04\xe2A\x01\x03H\x00R\btimeline\x88\x01\x01\x12\x1c\n" +
 	"\x06paused\x18\x04 \x01(\bB\x04\xe2A\x01\x03R\x06paused\x126\n" +
 	"\x14standby_cluster_host\x18\x05 \x01(\tB\x04\xe2A\x01\x03R\x12standbyClusterHost\x12V\n" +
 	"\x13upstream_datacenter\x18\x06 \x01(\tB%\xe2A\x01\x03\xfaA\x1e\n" +
-	"\x1cdcctl.webitel.com/DatacenterR\x12upstreamDatacenter\x12!\n" +
-	"\tlag_bytes\x18\a \x01(\x03B\x04\xe2A\x01\x03R\blagBytes\x12e\n" +
+	"\x1cdcctl.webitel.com/DatacenterR\x12upstreamDatacenter\x12&\n" +
+	"\tlag_bytes\x18\a \x01(\x03B\x04\xe2A\x01\x03H\x01R\blagBytes\x88\x01\x01\x12e\n" +
 	"\x10divergence_state\x18\v \x01(\x0e24.webitel.dcctl.v1.Datacenter.Patroni.DivergenceStateB\x04\xe2A\x01\x03R\x0fdivergenceState\x12+\n" +
 	"\x0edivergence_lsn\x18\b \x01(\tB\x04\xe2A\x01\x03R\rdivergenceLsn\x12/\n" +
 	"\x10divergence_bytes\x18\t \x01(\x03B\x04\xe2A\x01\x03R\x0fdivergenceBytes\x12K\n" +
@@ -1967,7 +1842,7 @@ const file_webitel_dcctl_v1_datacenter_proto_rawDesc = "" +
 	"\x11received_location\x18\x02 \x01(\x03B\x04\xe2A\x01\x03R\x10receivedLocation\x121\n" +
 	"\x11replayed_location\x18\x03 \x01(\x03B\x04\xe2A\x01\x03R\x10replayedLocation\x12A\n" +
 	"\vreplay_time\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampB\x04\xe2A\x01\x03R\n" +
-	"replayTime\x1a\xe8\x05\n" +
+	"replayTime\x1a\x8d\x06\n" +
 	"\x06Member\x12\x1c\n" +
 	"\x06member\x18\x01 \x01(\tB\x04\xe2A\x01\x03R\x06member\x12\x18\n" +
 	"\x04host\x18\x02 \x01(\tB\x04\xe2A\x01\x03R\x04host\x12\x1d\n" +
@@ -1975,18 +1850,21 @@ const file_webitel_dcctl_v1_datacenter_proto_rawDesc = "" +
 	"\treachable\x18\x04 \x01(\bB\x04\xe2A\x01\x03R\treachable\x12:\n" +
 	"\x05error\x18\x05 \x01(\x0e2\x1e.webitel.dcctl.v1.Source.ErrorB\x04\xe2A\x01\x03R\x05error\x12C\n" +
 	"\x04role\x18\x06 \x01(\x0e2).webitel.dcctl.v1.Datacenter.Patroni.RoleB\x04\xe2A\x01\x03R\x04role\x12)\n" +
-	"\rpatroni_state\x18\a \x01(\tB\x04\xe2A\x01\x03R\fpatroniState\x12 \n" +
-	"\btimeline\x18\b \x01(\x03B\x04\xe2A\x01\x03R\btimeline\x121\n" +
+	"\rpatroni_state\x18\a \x01(\tB\x04\xe2A\x01\x03R\fpatroniState\x12%\n" +
+	"\btimeline\x18\b \x01(\x03B\x04\xe2A\x01\x03H\x00R\btimeline\x88\x01\x01\x121\n" +
 	"\x11replication_state\x18\t \x01(\tB\x04\xe2A\x01\x03R\x10replicationState\x12C\n" +
 	"\x04xlog\x18\n" +
-	" \x01(\v2).webitel.dcctl.v1.Datacenter.Patroni.XlogB\x04\xe2A\x01\x03R\x04xlog\x12!\n" +
-	"\tlag_bytes\x18\v \x01(\x03B\x04\xe2A\x01\x03R\blagBytes\x12\x1e\n" +
+	" \x01(\v2).webitel.dcctl.v1.Datacenter.Patroni.XlogB\x04\xe2A\x01\x03R\x04xlog\x12&\n" +
+	"\tlag_bytes\x18\v \x01(\x03B\x04\xe2A\x01\x03H\x01R\blagBytes\x88\x01\x01\x12\x1e\n" +
 	"\aversion\x18\f \x01(\tB\x04\xe2A\x01\x03R\aversion\x121\n" +
 	"\x11failover_priority\x18\r \x01(\x05B\x04\xe2A\x01\x03R\x10failoverPriority\x12%\n" +
 	"\vno_failover\x18\x0e \x01(\bB\x04\xe2A\x01\x03R\n" +
 	"noFailover\x12\x1c\n" +
 	"\x06usable\x18\x0f \x01(\bB\x04\xe2A\x01\x03R\x06usable\x12b\n" +
-	"\x0funusable_reason\x18\x10 \x01(\x0e23.webitel.dcctl.v1.Datacenter.Patroni.UnusableReasonB\x04\xe2A\x01\x03R\x0eunusableReason\"p\n" +
+	"\x0funusable_reason\x18\x10 \x01(\x0e23.webitel.dcctl.v1.Datacenter.Patroni.UnusableReasonB\x04\xe2A\x01\x03R\x0eunusableReasonB\v\n" +
+	"\t_timelineB\f\n" +
+	"\n" +
+	"_lag_bytes\"p\n" +
 	"\x04Role\x12\x14\n" +
 	"\x10ROLE_UNSPECIFIED\x10\x00\x12\v\n" +
 	"\aPRIMARY\x10\x01\x12\x12\n" +
@@ -2003,7 +1881,10 @@ const file_webitel_dcctl_v1_datacenter_proto_rawDesc = "" +
 	"\x1cDIVERGENCE_STATE_UNSPECIFIED\x10\x00\x12\x10\n" +
 	"\fNOT_DIVERGED\x10\x01\x12\f\n" +
 	"\bDIVERGED\x10\x02\x12\v\n" +
-	"\aUNKNOWN\x10\x03\x1a\x88\x10\n" +
+	"\aUNKNOWN\x10\x03B\v\n" +
+	"\t_timelineB\f\n" +
+	"\n" +
+	"_lag_bytes\x1a\x88\x10\n" +
 	"\x05Nomad\x12\x1c\n" +
 	"\x06leader\x18\x01 \x01(\tB\x04\xe2A\x01\x03R\x06leader\x12.\n" +
 	"\x10ready_node_count\x18\x02 \x01(\x05B\x04\xe2A\x01\x03R\x0ereadyNodeCount\x128\n" +
@@ -2124,7 +2005,7 @@ func file_webitel_dcctl_v1_datacenter_proto_rawDescGZIP() []byte {
 }
 
 var file_webitel_dcctl_v1_datacenter_proto_enumTypes = make([]protoimpl.EnumInfo, 10)
-var file_webitel_dcctl_v1_datacenter_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
+var file_webitel_dcctl_v1_datacenter_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
 var file_webitel_dcctl_v1_datacenter_proto_goTypes = []any{
 	(Datacenter_State)(0),                   // 0: webitel.dcctl.v1.Datacenter.State
 	(Datacenter_Health)(0),                  // 1: webitel.dcctl.v1.Datacenter.Health
@@ -2138,61 +2019,57 @@ var file_webitel_dcctl_v1_datacenter_proto_goTypes = []any{
 	(Source_Error)(0),                       // 9: webitel.dcctl.v1.Source.Error
 	(*Datacenter)(nil),                      // 10: webitel.dcctl.v1.Datacenter
 	(*Source)(nil),                          // 11: webitel.dcctl.v1.Source
-	(*Datacenter_Consul)(nil),               // 12: webitel.dcctl.v1.Datacenter.Consul
-	(*Datacenter_Patroni)(nil),              // 13: webitel.dcctl.v1.Datacenter.Patroni
-	(*Datacenter_Nomad)(nil),                // 14: webitel.dcctl.v1.Datacenter.Nomad
-	(*Datacenter_Consul_Server)(nil),        // 15: webitel.dcctl.v1.Datacenter.Consul.Server
-	(*Datacenter_Patroni_Xlog)(nil),         // 16: webitel.dcctl.v1.Datacenter.Patroni.Xlog
-	(*Datacenter_Patroni_Member)(nil),       // 17: webitel.dcctl.v1.Datacenter.Patroni.Member
-	(*Datacenter_Nomad_Node)(nil),           // 18: webitel.dcctl.v1.Datacenter.Nomad.Node
-	(*Datacenter_Nomad_JobCounts)(nil),      // 19: webitel.dcctl.v1.Datacenter.Nomad.JobCounts
-	(*Datacenter_Nomad_Job)(nil),            // 20: webitel.dcctl.v1.Datacenter.Nomad.Job
-	(*Datacenter_Nomad_Stage)(nil),          // 21: webitel.dcctl.v1.Datacenter.Nomad.Stage
-	(*Datacenter_Nomad_UnmanagedJob)(nil),   // 22: webitel.dcctl.v1.Datacenter.Nomad.UnmanagedJob
-	nil,                                     // 23: webitel.dcctl.v1.Datacenter.Nomad.Job.AllocationCountsEntry
-	(*Check)(nil),                           // 24: webitel.dcctl.v1.Check
-	(*Instance)(nil),                        // 25: webitel.dcctl.v1.Instance
-	(*timestamppb.Timestamp)(nil),           // 26: google.protobuf.Timestamp
+	(*Datacenter_Patroni)(nil),              // 12: webitel.dcctl.v1.Datacenter.Patroni
+	(*Datacenter_Nomad)(nil),                // 13: webitel.dcctl.v1.Datacenter.Nomad
+	(*Datacenter_Patroni_Xlog)(nil),         // 14: webitel.dcctl.v1.Datacenter.Patroni.Xlog
+	(*Datacenter_Patroni_Member)(nil),       // 15: webitel.dcctl.v1.Datacenter.Patroni.Member
+	(*Datacenter_Nomad_Node)(nil),           // 16: webitel.dcctl.v1.Datacenter.Nomad.Node
+	(*Datacenter_Nomad_JobCounts)(nil),      // 17: webitel.dcctl.v1.Datacenter.Nomad.JobCounts
+	(*Datacenter_Nomad_Job)(nil),            // 18: webitel.dcctl.v1.Datacenter.Nomad.Job
+	(*Datacenter_Nomad_Stage)(nil),          // 19: webitel.dcctl.v1.Datacenter.Nomad.Stage
+	(*Datacenter_Nomad_UnmanagedJob)(nil),   // 20: webitel.dcctl.v1.Datacenter.Nomad.UnmanagedJob
+	nil,                                     // 21: webitel.dcctl.v1.Datacenter.Nomad.Job.AllocationCountsEntry
+	(*Check)(nil),                           // 22: webitel.dcctl.v1.Check
+	(*Instance)(nil),                        // 23: webitel.dcctl.v1.Instance
+	(*timestamppb.Timestamp)(nil),           // 24: google.protobuf.Timestamp
 }
 var file_webitel_dcctl_v1_datacenter_proto_depIdxs = []int32{
 	0,  // 0: webitel.dcctl.v1.Datacenter.state:type_name -> webitel.dcctl.v1.Datacenter.State
 	1,  // 1: webitel.dcctl.v1.Datacenter.health:type_name -> webitel.dcctl.v1.Datacenter.Health
 	11, // 2: webitel.dcctl.v1.Datacenter.sources:type_name -> webitel.dcctl.v1.Source
-	12, // 3: webitel.dcctl.v1.Datacenter.consul:type_name -> webitel.dcctl.v1.Datacenter.Consul
-	13, // 4: webitel.dcctl.v1.Datacenter.patroni:type_name -> webitel.dcctl.v1.Datacenter.Patroni
-	14, // 5: webitel.dcctl.v1.Datacenter.nomad:type_name -> webitel.dcctl.v1.Datacenter.Nomad
-	24, // 6: webitel.dcctl.v1.Datacenter.info_checks:type_name -> webitel.dcctl.v1.Check
-	25, // 7: webitel.dcctl.v1.Datacenter.observer:type_name -> webitel.dcctl.v1.Instance
-	26, // 8: webitel.dcctl.v1.Datacenter.observe_time:type_name -> google.protobuf.Timestamp
-	8,  // 9: webitel.dcctl.v1.Source.system:type_name -> webitel.dcctl.v1.Source.System
-	9,  // 10: webitel.dcctl.v1.Source.error:type_name -> webitel.dcctl.v1.Source.Error
-	26, // 11: webitel.dcctl.v1.Source.unreachable_start_time:type_name -> google.protobuf.Timestamp
-	26, // 12: webitel.dcctl.v1.Source.observe_time:type_name -> google.protobuf.Timestamp
-	15, // 13: webitel.dcctl.v1.Datacenter.Consul.servers:type_name -> webitel.dcctl.v1.Datacenter.Consul.Server
-	2,  // 14: webitel.dcctl.v1.Datacenter.Patroni.role:type_name -> webitel.dcctl.v1.Datacenter.Patroni.Role
-	4,  // 15: webitel.dcctl.v1.Datacenter.Patroni.divergence_state:type_name -> webitel.dcctl.v1.Datacenter.Patroni.DivergenceState
-	17, // 16: webitel.dcctl.v1.Datacenter.Patroni.members:type_name -> webitel.dcctl.v1.Datacenter.Patroni.Member
-	18, // 17: webitel.dcctl.v1.Datacenter.Nomad.not_ready_nodes:type_name -> webitel.dcctl.v1.Datacenter.Nomad.Node
-	19, // 18: webitel.dcctl.v1.Datacenter.Nomad.job_counts:type_name -> webitel.dcctl.v1.Datacenter.Nomad.JobCounts
-	21, // 19: webitel.dcctl.v1.Datacenter.Nomad.stages:type_name -> webitel.dcctl.v1.Datacenter.Nomad.Stage
-	22, // 20: webitel.dcctl.v1.Datacenter.Nomad.unmanaged_jobs:type_name -> webitel.dcctl.v1.Datacenter.Nomad.UnmanagedJob
-	26, // 21: webitel.dcctl.v1.Datacenter.Patroni.Xlog.replay_time:type_name -> google.protobuf.Timestamp
-	9,  // 22: webitel.dcctl.v1.Datacenter.Patroni.Member.error:type_name -> webitel.dcctl.v1.Source.Error
-	2,  // 23: webitel.dcctl.v1.Datacenter.Patroni.Member.role:type_name -> webitel.dcctl.v1.Datacenter.Patroni.Role
-	16, // 24: webitel.dcctl.v1.Datacenter.Patroni.Member.xlog:type_name -> webitel.dcctl.v1.Datacenter.Patroni.Xlog
-	3,  // 25: webitel.dcctl.v1.Datacenter.Patroni.Member.unusable_reason:type_name -> webitel.dcctl.v1.Datacenter.Patroni.UnusableReason
-	5,  // 26: webitel.dcctl.v1.Datacenter.Nomad.Node.reason:type_name -> webitel.dcctl.v1.Datacenter.Nomad.Node.Reason
-	7,  // 27: webitel.dcctl.v1.Datacenter.Nomad.Job.type:type_name -> webitel.dcctl.v1.Datacenter.Nomad.Job.Type
-	6,  // 28: webitel.dcctl.v1.Datacenter.Nomad.Job.state:type_name -> webitel.dcctl.v1.Datacenter.Nomad.Job.State
-	23, // 29: webitel.dcctl.v1.Datacenter.Nomad.Job.allocation_counts:type_name -> webitel.dcctl.v1.Datacenter.Nomad.Job.AllocationCountsEntry
-	18, // 30: webitel.dcctl.v1.Datacenter.Nomad.Job.missing_nodes:type_name -> webitel.dcctl.v1.Datacenter.Nomad.Node
-	19, // 31: webitel.dcctl.v1.Datacenter.Nomad.Stage.job_counts:type_name -> webitel.dcctl.v1.Datacenter.Nomad.JobCounts
-	20, // 32: webitel.dcctl.v1.Datacenter.Nomad.Stage.jobs:type_name -> webitel.dcctl.v1.Datacenter.Nomad.Job
-	33, // [33:33] is the sub-list for method output_type
-	33, // [33:33] is the sub-list for method input_type
-	33, // [33:33] is the sub-list for extension type_name
-	33, // [33:33] is the sub-list for extension extendee
-	0,  // [0:33] is the sub-list for field type_name
+	12, // 3: webitel.dcctl.v1.Datacenter.patroni:type_name -> webitel.dcctl.v1.Datacenter.Patroni
+	13, // 4: webitel.dcctl.v1.Datacenter.nomad:type_name -> webitel.dcctl.v1.Datacenter.Nomad
+	22, // 5: webitel.dcctl.v1.Datacenter.info_checks:type_name -> webitel.dcctl.v1.Check
+	23, // 6: webitel.dcctl.v1.Datacenter.observer:type_name -> webitel.dcctl.v1.Instance
+	24, // 7: webitel.dcctl.v1.Datacenter.observe_time:type_name -> google.protobuf.Timestamp
+	8,  // 8: webitel.dcctl.v1.Source.system:type_name -> webitel.dcctl.v1.Source.System
+	9,  // 9: webitel.dcctl.v1.Source.error:type_name -> webitel.dcctl.v1.Source.Error
+	24, // 10: webitel.dcctl.v1.Source.unreachable_start_time:type_name -> google.protobuf.Timestamp
+	24, // 11: webitel.dcctl.v1.Source.observe_time:type_name -> google.protobuf.Timestamp
+	2,  // 12: webitel.dcctl.v1.Datacenter.Patroni.role:type_name -> webitel.dcctl.v1.Datacenter.Patroni.Role
+	4,  // 13: webitel.dcctl.v1.Datacenter.Patroni.divergence_state:type_name -> webitel.dcctl.v1.Datacenter.Patroni.DivergenceState
+	15, // 14: webitel.dcctl.v1.Datacenter.Patroni.members:type_name -> webitel.dcctl.v1.Datacenter.Patroni.Member
+	16, // 15: webitel.dcctl.v1.Datacenter.Nomad.not_ready_nodes:type_name -> webitel.dcctl.v1.Datacenter.Nomad.Node
+	17, // 16: webitel.dcctl.v1.Datacenter.Nomad.job_counts:type_name -> webitel.dcctl.v1.Datacenter.Nomad.JobCounts
+	19, // 17: webitel.dcctl.v1.Datacenter.Nomad.stages:type_name -> webitel.dcctl.v1.Datacenter.Nomad.Stage
+	20, // 18: webitel.dcctl.v1.Datacenter.Nomad.unmanaged_jobs:type_name -> webitel.dcctl.v1.Datacenter.Nomad.UnmanagedJob
+	24, // 19: webitel.dcctl.v1.Datacenter.Patroni.Xlog.replay_time:type_name -> google.protobuf.Timestamp
+	9,  // 20: webitel.dcctl.v1.Datacenter.Patroni.Member.error:type_name -> webitel.dcctl.v1.Source.Error
+	2,  // 21: webitel.dcctl.v1.Datacenter.Patroni.Member.role:type_name -> webitel.dcctl.v1.Datacenter.Patroni.Role
+	14, // 22: webitel.dcctl.v1.Datacenter.Patroni.Member.xlog:type_name -> webitel.dcctl.v1.Datacenter.Patroni.Xlog
+	3,  // 23: webitel.dcctl.v1.Datacenter.Patroni.Member.unusable_reason:type_name -> webitel.dcctl.v1.Datacenter.Patroni.UnusableReason
+	5,  // 24: webitel.dcctl.v1.Datacenter.Nomad.Node.reason:type_name -> webitel.dcctl.v1.Datacenter.Nomad.Node.Reason
+	7,  // 25: webitel.dcctl.v1.Datacenter.Nomad.Job.type:type_name -> webitel.dcctl.v1.Datacenter.Nomad.Job.Type
+	6,  // 26: webitel.dcctl.v1.Datacenter.Nomad.Job.state:type_name -> webitel.dcctl.v1.Datacenter.Nomad.Job.State
+	21, // 27: webitel.dcctl.v1.Datacenter.Nomad.Job.allocation_counts:type_name -> webitel.dcctl.v1.Datacenter.Nomad.Job.AllocationCountsEntry
+	16, // 28: webitel.dcctl.v1.Datacenter.Nomad.Job.missing_nodes:type_name -> webitel.dcctl.v1.Datacenter.Nomad.Node
+	17, // 29: webitel.dcctl.v1.Datacenter.Nomad.Stage.job_counts:type_name -> webitel.dcctl.v1.Datacenter.Nomad.JobCounts
+	18, // 30: webitel.dcctl.v1.Datacenter.Nomad.Stage.jobs:type_name -> webitel.dcctl.v1.Datacenter.Nomad.Job
+	31, // [31:31] is the sub-list for method output_type
+	31, // [31:31] is the sub-list for method input_type
+	31, // [31:31] is the sub-list for extension type_name
+	31, // [31:31] is the sub-list for extension extendee
+	0,  // [0:31] is the sub-list for field type_name
 }
 
 func init() { file_webitel_dcctl_v1_datacenter_proto_init() }
@@ -2202,13 +2079,15 @@ func file_webitel_dcctl_v1_datacenter_proto_init() {
 	}
 	file_webitel_dcctl_v1_check_proto_init()
 	file_webitel_dcctl_v1_common_proto_init()
+	file_webitel_dcctl_v1_datacenter_proto_msgTypes[2].OneofWrappers = []any{}
+	file_webitel_dcctl_v1_datacenter_proto_msgTypes[5].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_webitel_dcctl_v1_datacenter_proto_rawDesc), len(file_webitel_dcctl_v1_datacenter_proto_rawDesc)),
 			NumEnums:      10,
-			NumMessages:   14,
+			NumMessages:   12,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

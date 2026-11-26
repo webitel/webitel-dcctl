@@ -122,6 +122,29 @@ func TestSwaggerExamplesMatchMessages(t *testing.T) {
 	}
 }
 
+// TestSwaggerExamplesAsGatewayWritesThem catches values the gateway leaves
+// out, such as a zero number or false, which an example must not show.
+func TestSwaggerExamplesAsGatewayWritesThem(t *testing.T) {
+	t.Parallel()
+
+	for _, ex := range loadExamples(t) {
+		t.Run(ex.name, func(t *testing.T) {
+			t.Parallel()
+
+			msg := dynamicpb.NewMessage(ex.message)
+			require.NoError(t, protojson.Unmarshal(ex.body, msg))
+
+			out, err := protojson.MarshalOptions{UseProtoNames: true}.Marshal(msg)
+			require.NoError(t, err)
+
+			var want, got any
+			require.NoError(t, json.Unmarshal(ex.body, &want))
+			require.NoError(t, json.Unmarshal(out, &got))
+			assert.Equal(t, want, got)
+		})
+	}
+}
+
 func TestSwaggerReadsHaveExamples(t *testing.T) {
 	t.Parallel()
 

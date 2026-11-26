@@ -395,6 +395,10 @@ export const getInitializeArbiterResponseMock = (
 		},
 		undefined,
 	]),
+	revision: faker.helpers.arrayElement([
+		faker.string.alpha({ length: { min: 10, max: 20 } }),
+		undefined,
+	]),
 	state: faker.helpers.arrayElement([
 		faker.helpers.arrayElement(Object.values(WebitelDcctlV1OperationState)),
 		undefined,
@@ -535,31 +539,6 @@ export const getListDatacentersResponseMock = (
 			{ length: faker.number.int({ min: 1, max: 10 }) },
 			(_, i) => i + 1,
 		).map(() => ({
-			consul: faker.helpers.arrayElement([
-				{
-					servers: faker.helpers.arrayElement([
-						Array.from(
-							{ length: faker.number.int({ min: 1, max: 10 }) },
-							(_, i) => i + 1,
-						).map(() => ({
-							address: faker.helpers.arrayElement([
-								faker.string.alpha({ length: { min: 10, max: 20 } }),
-								undefined,
-							]),
-							consul_datacenter: faker.helpers.arrayElement([
-								faker.string.alpha({ length: { min: 10, max: 20 } }),
-								undefined,
-							]),
-							reachable: faker.helpers.arrayElement([
-								faker.datatype.boolean(),
-								undefined,
-							]),
-						})),
-						undefined,
-					]),
-				},
-				undefined,
-			]),
 			health: faker.helpers.arrayElement([
 				faker.helpers.arrayElement(
 					Object.values(WebitelDcctlV1DatacenterHealth),
@@ -1021,31 +1000,6 @@ export const getListDatacentersResponseMock = (
 export const getGetDatacenterResponseMock = (
 	overrideResponse: Partial<Extract<WebitelDcctlV1Datacenter, object>> = {},
 ): WebitelDcctlV1Datacenter => ({
-	consul: faker.helpers.arrayElement([
-		{
-			servers: faker.helpers.arrayElement([
-				Array.from(
-					{ length: faker.number.int({ min: 1, max: 10 }) },
-					(_, i) => i + 1,
-				).map(() => ({
-					address: faker.helpers.arrayElement([
-						faker.string.alpha({ length: { min: 10, max: 20 } }),
-						undefined,
-					]),
-					consul_datacenter: faker.helpers.arrayElement([
-						faker.string.alpha({ length: { min: 10, max: 20 } }),
-						undefined,
-					]),
-					reachable: faker.helpers.arrayElement([
-						faker.datatype.boolean(),
-						undefined,
-					]),
-				})),
-				undefined,
-			]),
-		},
-		undefined,
-	]),
 	health: faker.helpers.arrayElement([
 		faker.helpers.arrayElement(Object.values(WebitelDcctlV1DatacenterHealth)),
 		undefined,
@@ -1826,6 +1780,10 @@ export const getDemoteDatacenterResponseMock = (
 		},
 		undefined,
 	]),
+	revision: faker.helpers.arrayElement([
+		faker.string.alpha({ length: { min: 10, max: 20 } }),
+		undefined,
+	]),
 	state: faker.helpers.arrayElement([
 		faker.helpers.arrayElement(Object.values(WebitelDcctlV1OperationState)),
 		undefined,
@@ -2303,6 +2261,10 @@ export const getFailoverDatacenterResponseMock = (
 			]),
 			winner: faker.string.alpha({ length: { min: 10, max: 20 } }),
 		},
+		undefined,
+	]),
+	revision: faker.helpers.arrayElement([
+		faker.string.alpha({ length: { min: 10, max: 20 } }),
 		undefined,
 	]),
 	state: faker.helpers.arrayElement([
@@ -2784,6 +2746,10 @@ export const getMarkDatacenterRecoveredResponseMock = (
 		},
 		undefined,
 	]),
+	revision: faker.helpers.arrayElement([
+		faker.string.alpha({ length: { min: 10, max: 20 } }),
+		undefined,
+	]),
 	state: faker.helpers.arrayElement([
 		faker.helpers.arrayElement(Object.values(WebitelDcctlV1OperationState)),
 		undefined,
@@ -3261,6 +3227,10 @@ export const getRepointDatacenterResponseMock = (
 			]),
 			winner: faker.string.alpha({ length: { min: 10, max: 20 } }),
 		},
+		undefined,
+	]),
+	revision: faker.helpers.arrayElement([
+		faker.string.alpha({ length: { min: 10, max: 20 } }),
 		undefined,
 	]),
 	state: faker.helpers.arrayElement([
@@ -3742,6 +3712,10 @@ export const getSwitchDatacenterResponseMock = (
 		},
 		undefined,
 	]),
+	revision: faker.helpers.arrayElement([
+		faker.string.alpha({ length: { min: 10, max: 20 } }),
+		undefined,
+	]),
 	state: faker.helpers.arrayElement([
 		faker.helpers.arrayElement(Object.values(WebitelDcctlV1OperationState)),
 		undefined,
@@ -4219,6 +4193,10 @@ export const getInitializeDatacentersResponseMock = (
 			]),
 			winner: faker.string.alpha({ length: { min: 10, max: 20 } }),
 		},
+		undefined,
+	]),
+	revision: faker.helpers.arrayElement([
+		faker.string.alpha({ length: { min: 10, max: 20 } }),
 		undefined,
 	]),
 	state: faker.helpers.arrayElement([
@@ -4700,6 +4678,10 @@ export const getResolveConflictResponseMock = (
 		},
 		undefined,
 	]),
+	revision: faker.helpers.arrayElement([
+		faker.string.alpha({ length: { min: 10, max: 20 } }),
+		undefined,
+	]),
 	state: faker.helpers.arrayElement([
 		faker.helpers.arrayElement(Object.values(WebitelDcctlV1OperationState)),
 		undefined,
@@ -5177,6 +5159,10 @@ export const getSyncAppsResponseMock = (
 			]),
 			winner: faker.string.alpha({ length: { min: 10, max: 20 } }),
 		},
+		undefined,
+	]),
+	revision: faker.helpers.arrayElement([
+		faker.string.alpha({ length: { min: 10, max: 20 } }),
 		undefined,
 	]),
 	state: faker.helpers.arrayElement([

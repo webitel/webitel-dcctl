@@ -183,9 +183,9 @@ const headers = computed(() =>
 
 const rowClass = (member: Member) => `member-row member-row--${member.member}`;
 
-/** The gateway omits a zero: inside a Patroni block a missing lag is 0. */
+/** A lag that is not known is not sent; a lag of 0 is. */
 const lagText = (bytes: string | undefined): string =>
-	formatBytes(bytes ?? '0', locale.value) || '—';
+	formatBytes(bytes, locale.value) || '—';
 
 const divergenceText = computed(() => {
 	const view = divergenceView.value;

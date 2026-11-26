@@ -502,11 +502,6 @@ const en = {
 			lastData: 'Last data',
 			lastDataAge: '{age} ago',
 			noTime: 'unknown',
-			consul: 'Consul servers',
-			noServers: 'No Consul servers reported',
-			server: 'Server',
-			consulDatacenter: 'Consul datacenter',
-			mismatch: 'does not match {name}',
 		},
 	},
 };
@@ -1014,11 +1009,6 @@ const uk: typeof en = {
 			lastData: 'Останні дані',
 			lastDataAge: '{age} тому',
 			noTime: 'невідомо',
-			consul: 'Сервери Consul',
-			noServers: 'Серверів Consul не повідомлено',
-			server: 'Сервер',
-			consulDatacenter: 'Датацентр Consul',
-			mismatch: 'не збігається з {name}',
 		},
 	},
 };

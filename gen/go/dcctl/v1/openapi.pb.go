@@ -25,12 +25,11 @@ var File_webitel_dcctl_v1_openapi_proto protoreflect.FileDescriptor
 
 const file_webitel_dcctl_v1_openapi_proto_rawDesc = "" +
 	"\n" +
-	"\x1ewebitel/dcctl/v1/openapi.proto\x12\x10webitel.dcctl.v1\x1a.protoc-gen-openapiv2/options/annotations.protoB\xdf\x06\x92A\xa1\x06\x12\x87\x01\n" +
-	"\x11webitel-dcctl API\x12nDatacenter switching for Webitel. Errors are `Error` objects; tell them apart by `id`, not by the HTTP status.2\x02v1\"\x04/api2\x10application/json:\x10application/jsonR\xd0\x02\n" +
-	"\x03400\x12\xc8\x02\n" +
+	"\x1ewebitel/dcctl/v1/openapi.proto\x12\x10webitel.dcctl.v1\x1a.protoc-gen-openapiv2/options/annotations.protoB\xdd\x04\x92A\x9f\x04\x12\x87\x01\n" +
+	"\x11webitel-dcctl API\x12nDatacenter switching for Webitel. Errors are `Error` objects; tell them apart by `id`, not by the HTTP status.2\x02v1\"\x04/api2\x10application/json:\x10application/jsonRO\n" +
+	"\x03400\x12H\n" +
 	")Invalid request: `dcctl.request.invalid`.\x12\x1b\n" +
-	"\x19\x1a\x17.webitel.dcctl.v1.Error\"\xfd\x01\n" +
-	"\x10application/json\x12\xe8\x01{\"id\":\"dcctl.request.invalid\",\"code\":400,\"status\":\"Bad Request\",\"detail\":\"invalid request\",\"violations\":[{\"type\":\"field\",\"subject\":\"page_size\",\"description\":\"value must be greater than or equal to 0 and less than or equal to 500\"}]}R\xf3\x01\n" +
+	"\x19\x1a\x17.webitel.dcctl.v1.ErrorR\xf3\x01\n" +
 	"\x03401\x12\xeb\x01\n" +
 	"TMissing or wrong basic auth: `dcctl.auth.required`. Sent without `WWW-Authenticate`.\x12\x1b\n" +
 	"\x19\x1a\x17.webitel.dcctl.v1.Error\"v\n" +

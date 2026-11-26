@@ -32,13 +32,19 @@ const (
 //
 // Operations created by the actions.
 type OperationServiceClient interface {
-	// Lists operations from newest to oldest.
+	// Lists operations from newest to oldest. Each Consul KV keeps only its
+	// current or last operation in `dcctl/op`, so earlier operations are not
+	// listed; their history is in the journal, entries with
+	// `type = "OPERATION"`.
 	ListOperations(ctx context.Context, in *ListOperationsRequest, opts ...grpc.CallOption) (*ListOperationsResponse, error)
 	// Returns an operation.
 	GetOperation(ctx context.Context, in *GetOperationRequest, opts ...grpc.CallOption) (*Operation, error)
-	// Streams the operation after every change; the first message is the
-	// current state. Through the gateway every message is one JSON line
-	// `{"result": ...}`. After a disconnect, get the operation and watch again.
+	// Streams the operation after every change. The first message is the
+	// current state; the server may send the current state again as a
+	// keepalive. The stream stays open until the operation is SUCCEEDED,
+	// FAILED or ABANDONED; an INTERRUPTED operation does not end it. Through
+	// the gateway every message is one JSON line `{"result": ...}`. After a
+	// disconnect, get the operation and watch again.
 	WatchOperation(ctx context.Context, in *WatchOperationRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[Operation], error)
 	// Continues an INTERRUPTED operation from the first unconfirmed step.
 	ResumeOperation(ctx context.Context, in *ResumeOperationRequest, opts ...grpc.CallOption) (*Operation, error)
@@ -119,13 +125,19 @@ func (c *operationServiceClient) AbandonOperation(ctx context.Context, in *Aband
 //
 // Operations created by the actions.
 type OperationServiceServer interface {
-	// Lists operations from newest to oldest.
+	// Lists operations from newest to oldest. Each Consul KV keeps only its
+	// current or last operation in `dcctl/op`, so earlier operations are not
+	// listed; their history is in the journal, entries with
+	// `type = "OPERATION"`.
 	ListOperations(context.Context, *ListOperationsRequest) (*ListOperationsResponse, error)
 	// Returns an operation.
 	GetOperation(context.Context, *GetOperationRequest) (*Operation, error)
-	// Streams the operation after every change; the first message is the
-	// current state. Through the gateway every message is one JSON line
-	// `{"result": ...}`. After a disconnect, get the operation and watch again.
+	// Streams the operation after every change. The first message is the
+	// current state; the server may send the current state again as a
+	// keepalive. The stream stays open until the operation is SUCCEEDED,
+	// FAILED or ABANDONED; an INTERRUPTED operation does not end it. Through
+	// the gateway every message is one JSON line `{"result": ...}`. After a
+	// disconnect, get the operation and watch again.
 	WatchOperation(*WatchOperationRequest, grpc.ServerStreamingServer[Operation]) error
 	// Continues an INTERRUPTED operation from the first unconfirmed step.
 	ResumeOperation(context.Context, *ResumeOperationRequest) (*Operation, error)

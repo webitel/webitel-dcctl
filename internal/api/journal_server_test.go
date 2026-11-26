@@ -12,6 +12,7 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	dcctlv1 "github.com/webitel/webitel-dcctl/gen/go/dcctl/v1"
+	"github.com/webitel/webitel-dcctl/internal/apierr"
 )
 
 func TestListJournalEntries(t *testing.T) {
@@ -32,6 +33,27 @@ func TestListJournalEntries(t *testing.T) {
 	httpResp := h.get(t, `/api/v1/journalEntries?filter=type%20%3D%20%22ALARM%22`)
 	require.Equal(t, http.StatusOK, httpResp.code, httpResp.body)
 	assertExample(t, example, httpResp.body, nil)
+}
+
+func TestListJournalEntriesUnreachable(t *testing.T) {
+	opts := testOptions()
+	opts.Journal = fakeJournal{resp: &dcctlv1.ListJournalEntriesResponse{Unreachable: []string{"datacenters/dc_b"}}}
+	h := startAPI(t, opts)
+
+	resp := h.get(t, "/api/v1/journalEntries")
+	require.Equal(t, http.StatusOK, resp.code, resp.body)
+	assert.JSONEq(t, `{"unreachable":["datacenters/dc_b"]}`, resp.body)
+}
+
+func TestListJournalEntriesKVUnavailable(t *testing.T) {
+	opts := testOptions()
+	opts.Journal = fakeJournal{err: apierr.KVUnavailable("the journal is not readable: no datacenter answers",
+		[]string{"dc_a", "dc_b"})}
+	h := startAPI(t, opts)
+
+	resp := h.get(t, "/api/v1/journalEntries")
+	assert.Equal(t, http.StatusServiceUnavailable, resp.code)
+	assert.JSONEq(t, swaggerExample(t, "/v1/journalEntries", "get", "503"), resp.body)
 }
 
 func TestListJournalEntriesErrors(t *testing.T) {

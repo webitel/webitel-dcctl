@@ -116,34 +116,6 @@ export const GetStatusResponse = zod
 			.array(
 				zod
 					.object({
-						consul: zod
-							.object({
-								servers: zod
-									.array(
-										zod
-											.object({
-												address: zod
-													.string()
-													.optional()
-													.describe('Server address.'),
-												consul_datacenter: zod
-													.string()
-													.optional()
-													.describe(
-														'Consul datacenter reported by the server. Differs from the\ndatacenter name on a misconfiguration.',
-													),
-												reachable: zod
-													.boolean()
-													.optional()
-													.describe('The server answers.'),
-											})
-											.describe('Consul server from the config.'),
-									)
-									.optional()
-									.describe('Servers of the datacenter.'),
-							})
-							.optional()
-							.describe('Consul. GetDatacenter only.'),
 						health: zod
 							.enum(['HEALTH_UNSPECIFIED', 'OK', 'DEGRADED', 'DOWN', 'UNKNOWN'])
 							.default(getStatusResponseDatacentersItemHealthDefault)
@@ -503,7 +475,7 @@ export const GetStatusResponse = zod
 									.string()
 									.optional()
 									.describe(
-										'Lag of the datacenter behind the active primary. Approximate between\nclusters.',
+										'Lag of the datacenter behind the active primary. Approximate between\nclusters. Not set for the datacenter of the primary and when it is not\nknown.',
 									),
 								leader: zod
 									.string()
@@ -545,7 +517,9 @@ export const GetStatusResponse = zod
 												lag_bytes: zod
 													.string()
 													.optional()
-													.describe('Lag behind the cluster leader.'),
+													.describe(
+														'Lag behind the cluster leader. Not set for the leader or the standby\nleader and when Patroni does not report it.',
+													),
 												member: zod
 													.string()
 													.optional()
@@ -583,7 +557,10 @@ export const GetStatusResponse = zod
 														getStatusResponseDatacentersItemPatroniMembersItemRoleDefault,
 													)
 													.describe('Member role.'),
-												timeline: zod.string().optional().describe('Timeline.'),
+												timeline: zod
+													.string()
+													.optional()
+													.describe('Timeline. Not set when it is not known.'),
 												unusable_reason: zod
 													.enum([
 														'UNUSABLE_REASON_UNSPECIFIED',
@@ -657,7 +634,9 @@ export const GetStatusResponse = zod
 								timeline: zod
 									.string()
 									.optional()
-									.describe('Timeline of the leader.'),
+									.describe(
+										'Timeline of the leader. Not set when it is not known.',
+									),
 								upstream_datacenter: zod
 									.string()
 									.optional()
@@ -1308,6 +1287,12 @@ export const GetStatusResponse = zod
 					})
 					.optional()
 					.describe('RESOLVE_CONFLICT request.'),
+				revision: zod
+					.string()
+					.optional()
+					.describe(
+						'Revision of the operation: 1 when it is created and one more on every\nchange. Every copy of the same change carries the same revision, also\none that alignment writes to another Consul KV; an instance that takes\nthe operation over continues from the highest revision of the copies.\nA state resent as a WatchOperation keepalive keeps its revision. Order\nthe updates of an operation by revision, not by update_time: instances\nthat run it in turn do not share a clock.',
+					),
 				state: zod
 					.enum([
 						'STATE_UNSPECIFIED',
@@ -1506,7 +1491,9 @@ export const GetStatusResponse = zod
 					),
 			})
 			.optional()
-			.describe('Current RUNNING or INTERRUPTED operation.'),
+			.describe(
+				'Current operation, only while it is RUNNING or INTERRUPTED. A finished\noperation is not shown here; read it with GetOperation.',
+			),
 		patroni_timeline: zod
 			.string()
 			.optional()
