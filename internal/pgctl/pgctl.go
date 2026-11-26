@@ -26,6 +26,10 @@
 //   - [Controller.Failover], PATRONI_FAILOVER (pending in the proto), within promote: the
 //     candidate leads.
 //
+// [Controller.Leader] and [Controller.Divergence] read a cluster once, for the decisions
+// of a step: what the leader received, and whether a standby left the history of the
+// primary.
+//
 // The timeline is taken from GET /patroni of the member itself: GET /cluster comes from
 // the DCS, which lags by loop_wait.
 //
@@ -81,6 +85,7 @@ type Patroni interface {
 	Members(ctx context.Context) ([]patroni.Member, error)
 	Primary(ctx context.Context, endpoint string) (bool, error)
 	Config(ctx context.Context, endpoint string) (map[string]any, error)
+	History(ctx context.Context, endpoint string) ([]patroni.HistoryEntry, error)
 	PatchConfig(ctx context.Context, endpoint string, patch map[string]any) (map[string]any, error)
 	Switchover(ctx context.Context, endpoint, leader, candidate string) (string, error)
 	Failover(ctx context.Context, endpoint, candidate string) (string, error)

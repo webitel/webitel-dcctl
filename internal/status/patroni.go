@@ -440,11 +440,7 @@ func walPosition(m *collect.Member) *int64 {
 		return nil
 	}
 
-	if m.Probe.Xlog.Location != nil {
-		return m.Probe.Xlog.Location
-	}
-
-	return m.Probe.Xlog.ReceivedLocation
+	return m.Probe.WALPosition()
 }
 
 // history is the history of a cluster, none when it was not read.
