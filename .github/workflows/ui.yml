@@ -1,0 +1,176 @@
+name: UI (webitel-dcctl)
+run-name: "webitel-dcctl-ui@${{ github.event_name == 'pull_request' && format('pr{0}', github.event.pull_request.number) || github.ref_name }}#${{ github.run_number }}"
+
+# The check reports on every pull request, so it can be a required check; its steps run only
+# when the UI or its API contract changes. Pushes to main and tags always run in full, so every
+# backend deb has a webitel-dcctl-ui deb of the same version line.
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+    tags: [ "v[0-9]+.[0-9]+.[0-9]+" ]
+
+permissions: { contents: read }
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  version:
+    name: Version
+    uses: webitel/reusable-workflows/.github/workflows/_version.yml@v2
+    permissions:
+      contents: read
+      id-token: write
+
+    # The same inputs as the backend workflows, so the UI package gets the same version line.
+    with:
+      versioning: semver
+      development-branch: ${{ github.event.repository.default_branch }}
+      triggered-branch: ${{ github.event.pull_request.base.ref || github.ref_name }}
+      release-branch-component: true
+      # The package is architecture independent.
+      arch: all
+      codename: ${{ vars.DEB_CODENAME }}
+
+  check:
+    name: Lint, test, build
+    runs-on: [ arc-frontend-runner-set ]
+    outputs:
+      built: ${{ steps.changes.outputs.ui != 'false' }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Detect changes
+        id: changes
+        if: github.event_name == 'pull_request'
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          filters: |
+            ui:
+              - 'ui/**'
+              - 'api/dcctl.swagger.json'
+              - '.github/workflows/ui.yml'
+
+      - name: Set up Node.js
+        if: steps.changes.outputs.ui != 'false'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: ui/.nvmrc
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Install dependencies
+        if: steps.changes.outputs.ui != 'false'
+        working-directory: ui
+        run: npm ci
+
+      - name: Audit dependencies
+        if: steps.changes.outputs.ui != 'false'
+        # Reports only: decode-uri-component, which @webitel/ui-sdk pulls in, has high advisories
+        # that need an upstream update. Remove continue-on-error once it is fixed.
+        continue-on-error: true
+        working-directory: ui
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Lint
+        if: steps.changes.outputs.ui != 'false'
+        working-directory: ui
+        run: npm run lint
+
+      - name: Test
+        if: steps.changes.outputs.ui != 'false'
+        working-directory: ui
+        run: npm test
+
+      # Type check and production build; the build fails on source maps, env files or missing
+      # pre-compressed siblings.
+      - name: Build
+        if: steps.changes.outputs.ui != 'false'
+        working-directory: ui
+        run: npm run build
+
+      - name: Regenerate API client
+        if: steps.changes.outputs.ui != 'false'
+        working-directory: ui
+        run: npm run gen:api
+
+      - name: Check API client drift
+        if: steps.changes.outputs.ui != 'false'
+        run: |
+          if [ -n "$(git status --porcelain -- ui/src/api/gen)" ]; then
+            git status --short -- ui/src/api/gen
+            git diff -- ui/src/api/gen
+            echo "::error::ui/src/api/gen is out of date, run npm run gen:api in ui/ and commit the result"
+            exit 1
+          fi
+
+      - name: Upload build
+        if: steps.changes.outputs.ui != 'false'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ui-dist
+          retention-days: 1
+          compression-level: 9
+          path: ui/dist
+
+  package:
+    name: Package
+    needs: [ version, check ]
+    # On a pull request without UI changes the check built nothing.
+    if: success() && (github.event_name == 'push' || needs.check.outputs.built == 'true')
+    runs-on: [ arc-runner-set ]
+    steps:
+      - name: Download build
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ui-dist
+          path: ui-dist
+
+      - name: Build package
+        uses: webitel/reusable-workflows/actions/nfpm-build@nfpm-build-v2
+        with:
+          formats: deb
+          target: packages
+          maintainer: Webitel <support@webitel.com>
+          homepage: https://webitel.com
+          arch: all
+          platform: linux
+          package-name: webitel-dcctl-ui
+          package-description: Web UI of webitel-dcctl
+          version: ${{ needs.version.outputs.version }}
+          release: ${{ needs.version.outputs.version-build }}
+          prerelease: ${{ needs.version.outputs.prerelease }}
+          contents: |
+            src=ui-dist dst=/usr/share/webitel-dcctl/ui type=tree
+
+      - name: Upload package
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: build-packages-all
+          retention-days: 7
+          compression-level: 9
+          path: packages
+
+  publish:
+    name: Publish
+    needs: [ version, package ]
+    if: github.event_name == 'push' && github.event.repository.private == false
+    strategy:
+      fail-fast: false
+      matrix:
+        codename: ${{ fromJSON(needs.version.outputs.codename-matrix) }}
+
+    uses: webitel/reusable-workflows/.github/workflows/_publish-deb.yml@v2
+    secrets: inherit
+    with:
+      arch: all
+      repository-environment: ${{ needs.version.outputs.repository-environment }}
+      deb-package-pattern: "webitel-dcctl-ui*.deb"
+      deb-component: ${{ needs.version.outputs.deb-component }}
+      deb-codename: ${{ matrix.codename }}
+      deb-s3-bucket-name: ${{ vars.DEB_S3_BUCKET_NAME }}
+      deb-s3-bucket-region: ${{ vars.DEB_S3_DEFAULT_REGION }}
+      deb-s3-endpoint: ${{ vars.DEB_S3_ENDPOINT }}
+      deb-s3-force-path-style: ${{ vars.DEB_S3_FORCE_PATH_STYLE == 'true' }}
