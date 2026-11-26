@@ -27,8 +27,10 @@ type Options struct {
 	// Verifier may be nil: VerifyStatus then answers Unimplemented.
 	Verifier Verifier
 	// UI is the UI build, nil to serve no UI.
-	UI  fs.FS
-	Log *logging.Logger
+	UI fs.FS
+	// Actions may be nil: the actions then answer Unimplemented.
+	Actions *Actions
+	Log     *logging.Logger
 }
 
 // Register registers the API services and their gateway routes on rt. Call
@@ -45,10 +47,21 @@ func Register(ctx context.Context, rt *runtime.Runtime, opts Options) error {
 		return errors.New("api: no logger")
 	}
 
+	actions, err := newActionServer(opts.Actions, opts.Status, opts.Operations, opts.Log)
+	if err != nil {
+		return err
+	}
+
+	dcs := NewDatacenterServer(opts.Status, opts.Address, opts.Log)
+	dcs.actions = actions
+
+	ops := NewOperationServer(opts.Operations, opts.Events, ctx.Done(), opts.Log)
+	ops.actions = actions
+
 	rt.RegisterService(&dcctlv1.StatusService_ServiceDesc,
 		NewStatusServer(opts.Status, opts.Address, opts.Alarms, opts.Verifier, opts.Log))
-	rt.RegisterService(&dcctlv1.DatacenterService_ServiceDesc, NewDatacenterServer(opts.Status, opts.Address, opts.Log))
-	rt.RegisterService(&dcctlv1.OperationService_ServiceDesc, NewOperationServer(opts.Operations, opts.Events, ctx.Done(), opts.Log))
+	rt.RegisterService(&dcctlv1.DatacenterService_ServiceDesc, dcs)
+	rt.RegisterService(&dcctlv1.OperationService_ServiceDesc, ops)
 	rt.RegisterService(&dcctlv1.JournalService_ServiceDesc, NewJournalServer(opts.Journal, opts.Log))
 
 	for _, h := range []runtime.GatewayHandler{

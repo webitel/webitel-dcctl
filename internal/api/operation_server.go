@@ -20,8 +20,8 @@ import (
 
 const defaultPageSize = 50
 
-// OperationServer implements the reads of OperationService and
-// WatchOperation; the actions answer Unimplemented.
+// OperationServer implements OperationService. Without actions, see
+// [Options.Actions], resume and abandon answer Unimplemented.
 //
 // Operations are read from the copies of dcctl/op on every request, not from
 // the last collection cycle, so an operation an action just started is found
@@ -38,6 +38,7 @@ type OperationServer struct {
 	polled       *sharedView
 	pollInterval time.Duration
 	keepalive    time.Duration
+	actions      *actionServer
 }
 
 // NewOperationServer returns the OperationService of ops. events may be nil:
