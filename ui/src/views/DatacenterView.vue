@@ -46,7 +46,14 @@
         :age="age"
         :stale="isStale"
         :stale-after="statusStore.staleAfter"
-      />
+      >
+        <template #actions>
+          <datacenter-actions
+            :datacenter="datacenter"
+            :datacenter-id="dcId"
+          />
+        </template>
+      </datacenter-header>
       <wt-tabs
         :tabs="tabs"
         :current="currentTab"
@@ -102,6 +109,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { apiErrorMessage } from '@/api/client/apiError';
 import { serverOffsetMs } from '@/api/client/serverClock';
 import AppsTab from '@/components/datacenter/AppsTab.vue';
+import DatacenterActions from '@/components/datacenter/DatacenterActions.vue';
 import DatacenterHeader from '@/components/datacenter/DatacenterHeader.vue';
 import InfoTab from '@/components/datacenter/InfoTab.vue';
 import PatroniTab from '@/components/datacenter/PatroniTab.vue';
