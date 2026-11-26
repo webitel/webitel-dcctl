@@ -1,6 +1,6 @@
 module github.com/webitel/webitel-dcctl
 
-go 1.26.0
+go 1.26.11
 
 require (
 	buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.12-20260825204119-511051f7f437.2
@@ -14,7 +14,7 @@ require (
 	github.com/webitel/webitel-go-kit/infra/health v0.4.0
 	github.com/webitel/webitel-go-kit/infra/otel v0.7.1
 	github.com/webitel/webitel-go-kit/pkg/logging v0.1.1
-	go.einride.tech/aip v0.86.3
+	go.einride.tech/aip v0.86.5
 	go.etcd.io/bbolt v1.5.0
 	go.opentelemetry.io/otel v1.47.0
 	go.opentelemetry.io/otel/log v1.47.0
