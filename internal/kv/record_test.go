@@ -19,6 +19,7 @@ var update = flag.Bool("update", false, "rewrite golden files in testdata")
 var (
 	sampleState = kv.State{
 		Generation:       8,
+		Revision:         3,
 		ActiveDatacenter: "dc_b",
 		OpID:             "4f0c9a52-7d1e-4b8a-9f3c-2a6e5d7b1c08",
 		Forced:           true,
@@ -77,6 +78,14 @@ func TestGolden(t *testing.T) {
 			assert.Equal(t, tt.value, tt.decoded)
 		})
 	}
+}
+
+// A record written before revision existed reads as revision 0.
+func TestDecodeWithoutRevision(t *testing.T) {
+	var s kv.State
+
+	require.NoError(t, json.Unmarshal([]byte(`{"generation":4,"active_datacenter":"dc_a","op_id":"op4"}`), &s))
+	assert.Equal(t, kv.State{Generation: 4, ActiveDatacenter: "dc_a", OpID: "op4"}, s)
 }
 
 func TestDecodeIgnoresUnknownFields(t *testing.T) {

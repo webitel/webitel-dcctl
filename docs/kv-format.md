@@ -40,6 +40,7 @@ and `records/lease`.
 ```json
 {
   "generation": 8,
+  "revision": 3,
   "active_datacenter": "dc_b",
   "op_id": "4f0c9a52-7d1e-4b8a-9f3c-2a6e5d7b1c08",
   "forced": true,
@@ -52,6 +53,7 @@ and `records/lease`.
 | Field | Type | Meaning |
 |---|---|---|
 | `generation` | integer | Number of the active datacenter change. |
+| `revision` | integer | Number of the write within one `generation`, see [Writes within a generation](#writes-within-a-generation). Missing means `0`. |
 | `active_datacenter` | string | Consul name of the active datacenter. |
 | `op_id` | string | ID of the operation that wrote this `generation` (the `{id}` in `operations/{id}`). |
 | `forced` | bool | `true` if the change was written without a majority of voters. |
@@ -59,10 +61,22 @@ and `records/lease`.
 | `needs_recovery` | array of strings | Datacenters waiting for recovery after a failover. Missing means empty. |
 | `updated_at` | string, RFC 3339 | Time of the last write. For display only. |
 
-The role uses `active_datacenter` and `generation`. `dcctl/state` is first written only by
-`webitel-dcctl init`. A datacenter whose Consul lost the key gets it back as a copy of the effective
-state from the other voters, once that state is on a majority of voters or forced; if no voter has
-it, dcctl does not recreate it.
+The role uses `active_datacenter` and `generation`; it does not read `revision`. `dcctl/state` is
+first written only by `webitel-dcctl init`. A datacenter whose Consul lost the key gets it back as a
+copy of the effective state from the other voters, once that state is on a majority of voters or
+forced; if no voter has it, dcctl does not recreate it.
+
+### Writes within a generation
+
+A change of the active datacenter writes the next `generation` with `revision` `0`. Later writes
+of the same `generation` (`patroni_timeline`, `needs_recovery`, `forced`) set `revision` to the
+revision they replace plus one, and keep `forced`, `op_id` and the other fields they do not change.
+Such a write reaches the voters one by one, so for a while voters hold the same `generation` and
+`active_datacenter` with different revisions: the highest revision is the current one. A record
+written before `revision` existed has none and counts as `0`.
+
+`needs_recovery` is sorted and has no duplicates. A dcctl that rewrites the record keeps the fields
+it does not know.
 
 ## `dcctl/op`
 
