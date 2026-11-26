@@ -126,7 +126,9 @@ type Apps struct {
 	// above it.
 	StopTimeout time.Duration `yaml:"stop_timeout"`
 	// StageStartTimeout bounds the start of one stage.
-	StageStartTimeout   time.Duration `yaml:"stage_start_timeout"`
+	StageStartTimeout time.Duration `yaml:"stage_start_timeout"`
+	// FailoverStopTimeout bounds each stop step of a failover, which stops one stage
+	// and the ones above it.
 	FailoverStopTimeout time.Duration `yaml:"failover_stop_timeout"`
 	MinHealthyTime      time.Duration `yaml:"min_healthy_time"`
 }

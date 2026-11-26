@@ -77,9 +77,13 @@ type fakeNomad struct {
 	// does not know.
 	stopNoop bool
 
-	jobsErr   error
-	nodesErr  error
-	allocsErr map[string]error
+	jobsErr error
+	// jobsAnswered, when set, is how many calls of Jobs answer before jobsErr applies;
+	// jobsCalls counts them.
+	jobsAnswered int
+	jobsCalls    int
+	nodesErr     error
+	allocsErr    map[string]error
 
 	calls  []call
 	allocN int
@@ -128,7 +132,9 @@ func (f *fakeNomad) Jobs(context.Context) (managed, unmanaged []nomad.Job, err e
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	if f.jobsErr != nil {
+	f.jobsCalls++
+
+	if f.jobsErr != nil && f.jobsCalls > f.jobsAnswered {
 		return nil, nil, f.jobsErr
 	}
 
