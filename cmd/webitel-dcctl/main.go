@@ -182,7 +182,7 @@ func runServe(ctx context.Context, cfg *config.Serve) (err error) {
 		return err
 	}
 
-	engine, err := newEngine(cfg, operationDeps{
+	engine, checks, err := newEngine(cfg, operationDeps{
 		self: self, kvs: kvs, ops: ops, coordinator: coordinator, journal: j,
 		clients: clients, arb: arb, last: collector.Snapshot,
 	})
@@ -190,8 +190,24 @@ func runServe(ctx context.Context, cfg *config.Serve) (err error) {
 		return err
 	}
 
+	peers, err := api.NewPeerClient(cfg.TLS,
+		api.ForwardTimeout(cfg.Status.RequestTimeout, preflight.ConfigFrom(cfg).Timeout, len(kvs)), cfg.Status.RequestTimeout)
+	if err != nil {
+		return err
+	}
+
+	defer func() { err = errors.Join(err, peers.Close()) }()
+
 	apiOpts := readAPI(cfg, ops, j, tracker)
 	apiOpts.Events = api.FromEngine(engine)
+	apiOpts.Actions = &api.Actions{
+		Self:        operation.Instance{Node: self.Node, Datacenter: self.Datacenter, Address: cfg.Listen.Peer},
+		Datacenters: clients.Datacenters(),
+		Engine:      engine,
+		Preflight:   checks,
+		Catalog:     api.CatalogOf(clients),
+		Forwarder:   peers,
+	}
 
 	if cfg.UI.Dir != "" {
 		root, rootErr := os.OpenRoot(cfg.UI.Dir)
@@ -307,23 +323,24 @@ type operationDeps struct {
 	last        func() *collect.Snapshot
 }
 
-// newEngine returns the operation engine. Its preflight collects with consistent
-// reads and plans the managed jobs on the Nomad leaders, as an action acts on what it
-// reads. In warm_standby the switch resumes its interrupted operations.
-func newEngine(cfg *config.Serve, d operationDeps) (*operation.Engine, error) {
+// newEngine returns the operation engine and the preflight of the actions. The preflight
+// collects with consistent reads and plans the managed jobs on the Nomad leaders, as an
+// action acts on what it reads. In warm_standby the switch resumes its interrupted
+// operations.
+func newEngine(cfg *config.Serve, d operationDeps) (*operation.Engine, *preflight.Runner, error) {
 	locker, err := coord.NewLocker(d.kvs, coord.LockOptions{
 		TTL:       cfg.Coordination.SessionTTL,
 		LockDelay: cfg.Coordination.LockDelay,
 		Timeout:   cfg.Status.RequestTimeout,
 	}, logging.New(logging.WithComponent("dcctl.lock")))
 	if err != nil {
-		return nil, fmt.Errorf("lock: %w", err)
+		return nil, nil, fmt.Errorf("lock: %w", err)
 	}
 
 	consistent, err := collect.FromConfig(cfg, d.self, d.arb, collect.ReadsConsistent,
 		logging.New(logging.WithComponent("dcctl.preflight")))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	planners := make(map[string]preflight.Planner, len(d.clients.Datacenters()))
@@ -341,7 +358,7 @@ func newEngine(cfg *config.Serve, d operationDeps) (*operation.Engine, error) {
 			ConsistentReads: true,
 		})
 		if err != nil {
-			return nil, fmt.Errorf("nomad of %s: %w", dc, err)
+			return nil, nil, fmt.Errorf("nomad of %s: %w", dc, err)
 		}
 
 		planners[dc], nomads[dc] = nc, nc
@@ -349,7 +366,7 @@ func newEngine(cfg *config.Serve, d operationDeps) (*operation.Engine, error) {
 
 	recorder, err := telemetry.NewOperationRecorder(otel.GetMeterProvider())
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	runner := preflight.New(preflight.ConfigFrom(cfg), consistent, planners, d.last)
@@ -358,7 +375,7 @@ func newEngine(cfg *config.Serve, d operationDeps) (*operation.Engine, error) {
 	if cfg.Profile == config.ProfileWarmStandby {
 		sw, err := newSwitch(cfg, d, runner, nomads)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		resumers[dcctlv1.Operation_SWITCH] = sw
@@ -377,10 +394,10 @@ func newEngine(cfg *config.Serve, d operationDeps) (*operation.Engine, error) {
 		Log:         logging.New(logging.WithComponent("dcctl.operation")),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("operations: %w", err)
+		return nil, nil, fmt.Errorf("operations: %w", err)
 	}
 
-	return e, nil
+	return e, runner, nil
 }
 
 // newSwitch returns the switch of warm_standby. It changes the apps through the Nomad
