@@ -19,6 +19,7 @@ func Commands(o Options) []*cli.Command {
 		datacentersCommand(o),
 		verifyCommand(o),
 		opsCommand(o),
+		watchCommand(o),
 		journalCommand(o),
 	}
 }

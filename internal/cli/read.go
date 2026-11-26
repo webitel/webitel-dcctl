@@ -138,8 +138,8 @@ func opsCommand(o Options) *cli.Command {
 	return leaf(&cli.Command{
 		Name:      "ops",
 		Aliases:   []string{"operations"},
-		Usage:     "List the operations, newest first; get shows one",
-		ArgsUsage: "[get <op>]",
+		Usage:     "List the operations, newest first; get shows one, watch follows one",
+		ArgsUsage: "[get <op> | watch <op>]",
 		Flags:     append(connFlags(), limitFlag(20)),
 		Before: func(c *cli.Context) error {
 			switch args := c.Args().Slice(); {
@@ -147,10 +147,10 @@ func opsCommand(o Options) *cli.Command {
 				_, err := limitOf(c)
 
 				return err
-			case args[0] != "get":
+			case args[0] != "get" && args[0] != "watch":
 				return usageErrorf("unknown command %q", args[0])
 			case len(args) != 2:
-				return usageErrorf("ops get: expected an operation, got %d argument(s)", len(args)-1)
+				return usageErrorf("ops %s: expected an operation, got %d argument(s)", args[0], len(args)-1)
 			}
 
 			_, err := operationArg(c.Args().Get(1))
@@ -158,8 +158,13 @@ func opsCommand(o Options) *cli.Command {
 			return err
 		},
 		Action: o.run(func(ctx context.Context, c *cli.Context, s *session) error {
-			if c.NArg() == 0 {
+			switch c.Args().First() {
+			case "":
 				return listOperations(ctx, c, s)
+			case "watch":
+				id, _ := operationArg(c.Args().Get(1))
+
+				return s.watchOperation(ctx, id)
 			}
 
 			return getOperation(ctx, c, s)

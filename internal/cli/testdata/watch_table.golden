@@ -1,0 +1,4 @@
+operations/op7 SWITCH -> dc_b: RUNNING
+step 1 APPS_STOP dc_a: RUNNING
+operations/op7: SUCCEEDED
+step 1 APPS_STOP dc_a: SUCCEEDED
