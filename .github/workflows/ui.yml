@@ -68,9 +68,6 @@ jobs:
 
       - name: Audit dependencies
         if: steps.changes.outputs.ui != 'false'
-        # Reports only: decode-uri-component, which @webitel/ui-sdk pulls in, has high advisories
-        # that need an upstream update. Remove continue-on-error once it is fixed.
-        continue-on-error: true
         working-directory: ui
         run: npm audit --omit=dev --audit-level=high
 
