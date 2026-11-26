@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
+import type { WebitelDcctlV1OperationStep as Step } from '@/api/gen/_models';
+
 import {
+	abandonWarning,
 	durationMs,
 	generationRange,
 	isBehind,
@@ -238,5 +241,48 @@ describe('generationRange', () => {
 
 	it('is null for an operation that writes no generation', () => {
 		expect(generationRange({})).toBeNull();
+	});
+});
+
+describe('abandonWarning', () => {
+	const step = (state: Step['state'], point = true): Step => ({
+		type: 'GENERATION',
+		state,
+		point_of_no_return: point,
+	});
+
+	it.each([
+		['the step succeeded', [step('SUCCEEDED')], 'passed'],
+		['the step is running', [step('RUNNING')], 'maybe'],
+		['the step failed', [step('FAILED')], 'maybe'],
+		['the step state is unknown', [step('STATE_UNSPECIFIED')], 'maybe'],
+		['the step is pending', [step('PENDING')], 'ahead'],
+		['the step is skipped', [step('SKIPPED')], 'ahead'],
+		['one of two succeeded', [step('PENDING'), step('SUCCEEDED')], 'passed'],
+		['a step without the point succeeded', [step('SUCCEEDED', false)], 'ahead'],
+		['there are no steps', [], 'ahead'],
+	] as const)('%s -> %s', (_name, steps, expected) => {
+		expect(abandonWarning({ steps: [...steps] })).toBe(expected);
+	});
+
+	it.each(['WARN', 'FAIL'] as const)(
+		'takes a server check with %s as at least maybe',
+		(result) => {
+			const checks = [{ id: 'op.point_of_no_return', result }];
+			expect(abandonWarning({ steps: [step('PENDING')] }, checks)).toBe(
+				'maybe',
+			);
+			expect(abandonWarning({ steps: [step('SUCCEEDED')] }, checks)).toBe(
+				'passed',
+			);
+		},
+	);
+
+	it('takes a passing server check as nothing more', () => {
+		expect(
+			abandonWarning({ steps: [step('PENDING')] }, [
+				{ id: 'op.point_of_no_return', result: 'PASS' },
+			]),
+		).toBe('ahead');
 	});
 });
