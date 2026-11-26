@@ -8,9 +8,6 @@ import (
 	"github.com/webitel/webitel-dcctl/internal/source/patroni"
 )
 
-// replicationStreaming is the state of a replica that streams WAL.
-const replicationStreaming = "streaming"
-
 // Repoint points the standby cluster of standby at the cluster of primary: PATCH /config
 // sets standby_cluster to the members of primary. A standby whose leader is primary is
 // refused, the change would demote it, and so is a primary side whose leader is
@@ -151,7 +148,7 @@ func (f *follow) observe(ctx context.Context) (Observation, bool, error) {
 	switch {
 	case s.Role != patroni.RoleStandbyLeader:
 		return obs.unmet(nil, "leader %s is %s", sl.Name, s.Role)
-	case s.ReplicationState != replicationStreaming:
+	case s.ReplicationState != patroni.ReplicationStreaming:
 		return obs.unmet(nil, "standby leader %s replication is %q", sl.Name, s.ReplicationState)
 	case p.Role != patroni.RolePrimary:
 		return obs.unmet(nil, "leader %s of %s is %s", pl.Name, f.primary.Datacenter, p.Role)
@@ -162,7 +159,7 @@ func (f *follow) observe(ctx context.Context) (Observation, bool, error) {
 	}
 
 	streams := slices.ContainsFunc(p.Replication, func(r patroni.Replica) bool {
-		return r.ClientAddr == sl.Host && r.State == replicationStreaming
+		return r.ClientAddr == sl.Host && r.State == patroni.ReplicationStreaming
 	})
 	if !streams {
 		return obs.unmet(nil, "primary %s does not stream to %s", pl.Name, sl.Host)

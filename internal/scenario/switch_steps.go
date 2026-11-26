@@ -33,8 +33,8 @@ func records(op *dcctlv1.Operation, r route) (base, next coord.RecordKey) {
 }
 
 // guard returns the guard of the primitives of a step of x: the lock is held, and the
-// resolved effective record is the one of p, written by this operation after the
-// generation step. A record that changed interrupts the operation.
+// voters hold the record of p, written by this operation after the generation step. A
+// record that changed interrupts the operation.
 func (s *core) guard(x *operation.Exec, r route, p phase) func(context.Context) error {
 	op := x.Operation()
 	want, next := records(op, r)
@@ -54,18 +54,35 @@ func (s *core) guard(x *operation.Exec, r route, p phase) func(context.Context) 
 			return err
 		}
 
-		base := coord.Base(view, false)
-
-		switch {
-		case base == nil:
-			return interrupt(fmt.Errorf("the voters do not tell generation %d of %s is effective", want.Generation, want.ActiveDatacenter))
-		case coord.KeyOf(base.State) != want || opID != "" && base.State.OpID != opID:
-			return interrupt(fmt.Errorf("the voters hold generation %d of %s, the step acts under generation %d of %s",
-				base.State.Generation, base.State.ActiveDatacenter, want.Generation, want.ActiveDatacenter))
-		}
-
-		return nil
+		return holds(view, r, want, opID)
 	}
+}
+
+// holds checks that view holds want, written by the operation opID when it is set. A
+// switch acts under the record that tells the active datacenter, see [coord.Base]. A
+// failover acts only after its generation, under the effective record unless an
+// undetermined one names another datacenter: written forced, it may not tell the
+// active datacenter by [coord.ActiveKnown] since the voters that do not answer may be a
+// majority, which the confirmed isolation of the old active datacenter accepts.
+func holds(view coord.View, r route, want coord.RecordKey, opID string) error {
+	var rec *coord.Record
+
+	switch {
+	case !r.failover:
+		rec = coord.Base(view, false)
+	case !slices.ContainsFunc(view.Undetermined, func(u coord.Record) bool { return u.State.ActiveDatacenter != want.ActiveDatacenter }):
+		rec = view.Effective
+	}
+
+	switch {
+	case rec == nil:
+		return interrupt(fmt.Errorf("the voters do not tell generation %d of %s is effective", want.Generation, want.ActiveDatacenter))
+	case coord.KeyOf(rec.State) != want || opID != "" && rec.State.OpID != opID:
+		return interrupt(fmt.Errorf("the voters hold generation %d of %s, the step acts under generation %d of %s",
+			rec.State.Generation, rec.State.ActiveDatacenter, want.Generation, want.ActiveDatacenter))
+	}
+
+	return nil
 }
 
 func appsOptions(x *operation.Exec, guard apps.Guard) apps.Options {
@@ -129,21 +146,21 @@ func (s *core) demote(r route) operation.StepFunc {
 }
 
 // checkNoPrimary checks that no cluster of need and others is primary: the clusters of
-// need must be read, one of others that is not read is a warning. A primary found
-// interrupts the operation.
-func (s *core) checkNoPrimary(ctx context.Context, x *operation.Exec, need, others []string) error {
+// need must be read, one of others that is not read is a warning, and unread names it.
+// A primary found interrupts the operation.
+func (s *core) checkNoPrimary(ctx context.Context, x *operation.Exec, need, others []string) (unread []string, err error) {
 	res, err := s.d.Patroni.NoPrimary(ctx, s.d.clusters(need...), s.d.clusters(others...), patroniOptions(x, nil))
 
 	var pe *pgctl.PrimaryError
 	if errors.As(err, &pe) {
-		return interrupt(err)
+		return nil, interrupt(err)
 	}
 
 	for _, dc := range res.Unread {
 		x.Warn(fmt.Sprintf("%s is not read, it is not known whether it is primary", dc))
 	}
 
-	return err
+	return res.Unread, err
 }
 
 // promoteBack removes standby_cluster from a, as the rollback of its demotion, unless b
@@ -151,7 +168,7 @@ func (s *core) checkNoPrimary(ctx context.Context, x *operation.Exec, need, othe
 // generation still names a and the switch did not promote b.
 func (s *core) promoteBack(r route) operation.StepFunc {
 	return func(ctx context.Context, x *operation.Exec) error {
-		if err := s.checkNoPrimary(ctx, x, nil, slices.Concat([]string{r.b}, r.c)); err != nil {
+		if _, err := s.checkNoPrimary(ctx, x, nil, slices.Concat([]string{r.b}, r.c)); err != nil {
 			return err
 		}
 
@@ -293,8 +310,18 @@ func advanceRecords(view coord.View, op *dcctlv1.Operation, r route) (from, to k
 		OpID:             opID,
 		Forced:           forced,
 		PatroniTimeline:  from.PatroniTimeline,
-		NeedsRecovery:    from.NeedsRecovery,
+		NeedsRecovery:    needsRecovery(from.NeedsRecovery, r),
 	}, false, false, nil
+}
+
+// needsRecovery returns the datacenters of base that need recovery after the generation
+// of r: a failover adds the old active datacenter.
+func needsRecovery(base []string, r route) []string {
+	if !r.failover || slices.Contains(base, r.a) {
+		return base
+	}
+
+	return append(slices.Clone(base), r.a)
 }
 
 // holdingBase returns the record base as the voters hold it, effective or undetermined;
@@ -355,36 +382,42 @@ func (s *core) promote(r route) operation.StepFunc {
 			need, others = nil, slices.Concat([]string{r.a}, r.c)
 		}
 
-		if err := s.checkNoPrimary(ctx, x, need, others); err != nil {
+		if _, err := s.checkNoPrimary(ctx, x, need, others); err != nil {
 			return err
 		}
 
-		res, err := s.d.Patroni.Promote(ctx, s.d.cluster(r.b), patroniOptions(x, s.guard(x, r, afterGeneration)))
-		if err != nil {
-			return err
-		}
+		return s.promoteTarget(ctx, x, r)
+	}
+}
 
-		if res.Timeline == nil {
-			return fmt.Errorf("timeline of %s unknown after the promotion", r.b)
-		}
-
-		_, next := records(x.Operation(), r)
-
-		view, err := s.d.Coordinator.Read(ctx)
-		if err != nil {
-			return err
-		}
-
-		if eff := view.Effective; eff != nil && coord.KeyOf(eff.State) == next && eff.State.PatroniTimeline == *res.Timeline {
-			return nil
-		}
-
-		_, err = x.Write(ctx, "set patroni timeline", func(ctx context.Context) (coord.WriteResult, error) {
-			return s.d.Coordinator.SetTimeline(ctx, next, *res.Timeline)
-		})
-
+// promoteTarget promotes the cluster of b and writes its new timeline into the
+// generation of the operation, unless the voters hold it already.
+func (s *core) promoteTarget(ctx context.Context, x *operation.Exec, r route) error {
+	res, err := s.d.Patroni.Promote(ctx, s.d.cluster(r.b), patroniOptions(x, s.guard(x, r, afterGeneration)))
+	if err != nil {
 		return err
 	}
+
+	if res.Timeline == nil {
+		return fmt.Errorf("timeline of %s unknown after the promotion", r.b)
+	}
+
+	_, next := records(x.Operation(), r)
+
+	view, err := s.d.Coordinator.Read(ctx)
+	if err != nil {
+		return err
+	}
+
+	if eff := view.Effective; eff != nil && coord.KeyOf(eff.State) == next && eff.State.PatroniTimeline == *res.Timeline {
+		return nil
+	}
+
+	_, err = x.Write(ctx, "set patroni timeline", func(ctx context.Context) (coord.WriteResult, error) {
+		return s.d.Coordinator.SetTimeline(ctx, next, *res.Timeline)
+	})
+
+	return err
 }
 
 // repoint points the standby c at b; a failure is a warning, c is repointed later.
