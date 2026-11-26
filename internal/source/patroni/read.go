@@ -51,6 +51,9 @@ type State struct {
 	Pause bool
 }
 
+// ReplicationStreaming is the replication state of a replica that streams WAL.
+const ReplicationStreaming = "streaming"
+
 // WALPosition is the WAL the member holds: written by a primary, received by a replica;
 // nil when it is not known.
 func (s *State) WALPosition() *int64 {

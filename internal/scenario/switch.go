@@ -2,7 +2,6 @@ package scenario
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"math"
 	"slices"
@@ -36,13 +35,15 @@ func NewSwitch(d Deps) (*Switch, error) {
 	return &Switch{core{d: d}}, nil
 }
 
-// route is a switch from a to b. c are the other datacenters, stop the Nomad stages of
-// a from the highest down and start those of b from the lowest up.
+// route is a switch, or with failover a failover, from a to b. c are the other
+// datacenters, stop the Nomad stages of a from the highest down and start those of b
+// from the lowest up.
 type route struct {
-	a, b  string
-	c     []string
-	stop  []int
-	start []int
+	a, b     string
+	c        []string
+	stop     []int
+	start    []int
+	failover bool
 }
 
 // Plan returns the plan of req on the state pre was decided on, whatever its verdict,
@@ -152,7 +153,7 @@ func stagesOf(n status.Nomad, down bool) []int {
 // Resume rebuilds the steps of the interrupted switch op from its recorded steps, see
 // [operation.Resumer].
 func (s *Switch) Resume(_ context.Context, op *dcctlv1.Operation) ([]operation.Step, error) {
-	r, err := routeOf(op)
+	r, err := routeOf(op, dcctlv1.Operation_SWITCH)
 	if err != nil {
 		return nil, fmt.Errorf("switch %s: %w", op.GetName(), err)
 	}
@@ -164,13 +165,13 @@ func (s *Switch) Resume(_ context.Context, op *dcctlv1.Operation) ([]operation.S
 	return s.steps(r), nil
 }
 
-// routeOf reads the route of a switch from its recorded steps.
-func routeOf(op *dcctlv1.Operation) (route, error) {
-	if op.GetType() != dcctlv1.Operation_SWITCH {
-		return route{}, fmt.Errorf("operation of type %s is not a switch", op.GetType())
+// routeOf reads the route of a switch or a failover, by typ, from its recorded steps.
+func routeOf(op *dcctlv1.Operation, typ dcctlv1.Operation_Type) (route, error) {
+	if op.GetType() != typ {
+		return route{}, fmt.Errorf("operation of type %s is not of type %s", op.GetType(), typ)
 	}
 
-	r := route{b: datacenterID(op.GetTarget())}
+	r := route{b: datacenterID(op.GetTarget()), failover: typ == dcctlv1.Operation_FAILOVER}
 
 	setA := func(dc string) error {
 		if r.a != "" && r.a != dc {
@@ -184,6 +185,7 @@ func routeOf(op *dcctlv1.Operation) (route, error) {
 
 	for i, st := range op.GetSteps() {
 		dc := datacenterID(st.GetDatacenter())
+		foreign := fmt.Errorf("step %d of type %s is not a step of %s", i, st.GetType(), typ)
 
 		var err error
 
@@ -191,19 +193,26 @@ func routeOf(op *dcctlv1.Operation) (route, error) {
 		case dcctlv1.Operation_Step_APPS_STOP:
 			r.stop = append(r.stop, int(st.GetStage()))
 			err = setA(dc)
-		case dcctlv1.Operation_Step_PATRONI_DEMOTE, dcctlv1.Operation_Step_PATRONI_FOLLOW:
+		case dcctlv1.Operation_Step_PATRONI_DEMOTE:
 			err = setA(dc)
+		case dcctlv1.Operation_Step_PATRONI_FOLLOW:
+			if err = setA(dc); r.failover {
+				err = foreign
+			}
 		case dcctlv1.Operation_Step_APPS_START:
 			r.start = append(r.start, int(st.GetStage()))
 		case dcctlv1.Operation_Step_PATRONI_REPOINT:
 			r.c = append(r.c, dc)
-		case dcctlv1.Operation_Step_PATRONI_CATCHUP, dcctlv1.Operation_Step_PATRONI_NO_PRIMARY,
-			dcctlv1.Operation_Step_GENERATION, dcctlv1.Operation_Step_PATRONI_PROMOTE, dcctlv1.Operation_Step_VERIFY:
+		case dcctlv1.Operation_Step_PATRONI_CATCHUP, dcctlv1.Operation_Step_PATRONI_NO_PRIMARY:
+			if r.failover {
+				err = foreign
+			}
+		case dcctlv1.Operation_Step_GENERATION, dcctlv1.Operation_Step_PATRONI_PROMOTE, dcctlv1.Operation_Step_VERIFY:
 		case dcctlv1.Operation_Step_TYPE_UNSPECIFIED, dcctlv1.Operation_Step_APPS_PREFLIGHT,
 			dcctlv1.Operation_Step_PATRONI_SWITCHOVER, dcctlv1.Operation_Step_PATRONI_FAILOVER:
-			err = fmt.Errorf("step %d of type %s is not a step of a switch", i, st.GetType())
+			err = foreign
 		default:
-			err = fmt.Errorf("step %d of type %s is not a step of a switch", i, st.GetType())
+			err = foreign
 		}
 
 		if err != nil {
@@ -212,7 +221,7 @@ func routeOf(op *dcctlv1.Operation) (route, error) {
 	}
 
 	if r.a == "" || r.b == "" || r.a == r.b || len(r.stop) == 0 || len(r.start) == 0 {
-		return route{}, errors.New("steps do not tell a switch from one datacenter to another")
+		return route{}, fmt.Errorf("steps do not tell a %s from one datacenter to another", typ)
 	}
 
 	return r, nil
@@ -258,6 +267,23 @@ func (s *Switch) steps(r route) []operation.Step {
 		},
 	)
 
+	steps = append(steps, s.startSteps(r)...)
+
+	for _, c := range r.c {
+		steps = append(steps, operation.Step{Type: dcctlv1.Operation_Step_PATRONI_REPOINT, Datacenter: c, Run: s.repoint(r, c)})
+	}
+
+	return append(steps,
+		operation.Step{Type: dcctlv1.Operation_Step_PATRONI_FOLLOW, Datacenter: r.a, Run: s.follow(r)},
+		operation.Step{Type: dcctlv1.Operation_Step_VERIFY, Run: s.verify()},
+	)
+}
+
+// startSteps returns the steps that start the apps of b once it is promoted; the last
+// one starts every stage, a job whose stage the plan did not see too.
+func (s *core) startSteps(r route) []operation.Step {
+	steps := make([]operation.Step, 0, len(r.start))
+
 	for i, stage := range r.start {
 		to := stage
 		if i == len(r.start)-1 {
@@ -270,12 +296,5 @@ func (s *Switch) steps(r route) []operation.Step {
 		})
 	}
 
-	for _, c := range r.c {
-		steps = append(steps, operation.Step{Type: dcctlv1.Operation_Step_PATRONI_REPOINT, Datacenter: c, Run: s.repoint(r, c)})
-	}
-
-	return append(steps,
-		operation.Step{Type: dcctlv1.Operation_Step_PATRONI_FOLLOW, Datacenter: r.a, Run: s.follow(r)},
-		operation.Step{Type: dcctlv1.Operation_Step_VERIFY, Run: s.verify()},
-	)
+	return steps
 }
