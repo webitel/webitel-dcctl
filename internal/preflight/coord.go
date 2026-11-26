@@ -331,6 +331,12 @@ func (in *Input) isolation() check.Check {
 
 // isolated returns the datacenters whose primary the action takes over.
 func (in *Input) isolated() []string {
+	if in.Action == Resume {
+		if r, unpromoted := failoverRouteOf(in.operation()); unpromoted && r.source != "" {
+			return []string{r.source}
+		}
+	}
+
 	if in.Action == Resolve {
 		var out []string
 

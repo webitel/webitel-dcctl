@@ -12,6 +12,7 @@ import (
 
 	dcctlv1 "github.com/webitel/webitel-dcctl/gen/go/dcctl/v1"
 	"github.com/webitel/webitel-dcctl/internal/apps"
+	"github.com/webitel/webitel-dcctl/internal/check"
 	"github.com/webitel/webitel-dcctl/internal/coord"
 	"github.com/webitel/webitel-dcctl/internal/kv"
 	"github.com/webitel/webitel-dcctl/internal/operation"
@@ -311,6 +312,41 @@ func TestFailover_standbyOvertakesTargetInterrupts(t *testing.T) {
 	})
 }
 
+// dc_c overtakes dc_b after the start and the promotion is interrupted: the resume
+// confirms not_max_lsn on what dc_c received now and promotes dc_b.
+func TestFailover_resumeAfterStandbyOvertakes(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		w := newWorld(t)
+		w.infra.do(func(dcs map[string]*dcState) {
+			dcs[dcB].received = 1000
+			dcs[dcC].received = 500
+		})
+		w.infra.hook("no_primary dc_a,dc_c", func(context.Context) error {
+			w.infra.do(func(dcs map[string]*dcState) { dcs[dcC].received = 2000 })
+
+			return nil
+		})
+
+		e := w.engine()
+		stop := start(t, e)
+
+		defer stop()
+
+		synctest.Wait()
+
+		first, err := e.Start(t.Context(), w.failoverPlan(isolation))
+		require.NoError(t, err)
+
+		synctest.Wait()
+		require.Equal(t, dcctlv1.Operation_INTERRUPTED, w.op().GetState())
+
+		op := w.resume(e, operationID(first), operation.ResumeRequest{Confirmations: check.Confirmations{Isolation: true, NotMaxLSN: true}})
+
+		require.Equal(t, dcctlv1.Operation_SUCCEEDED, op.GetState(), op.GetError().GetDetail())
+		assert.Equal(t, patroni.RolePrimary, w.infra.dc(dcB).role)
+	})
+}
+
 // With two datacenters there is no standby to compare the WAL of dc_b with: what it
 // received needs no confirmation even when it is not known.
 func TestFailover_twoDatacentersCompareNoWAL(t *testing.T) {
@@ -519,19 +555,20 @@ func TestFailover_resumeWithIsolationWritesByQuorum(t *testing.T) {
 	})
 }
 
-// crashFailoverAndResume runs the failover until the primitive of key, then crashes the
-// instance there. After the restart the operation is interrupted and resumed with req.
-func (w *world) crashFailoverAndResume(key string, req operation.ResumeRequest) *dcctlv1.Operation {
+// crashFailover runs the failover with c until the primitive of key, then crashes the
+// instance there. It returns a restarted engine, where the operation is interrupted,
+// with its stop, and the ID of the operation.
+func (w *world) crashFailover(key string, c *dcctlv1.Confirmation) (e *operation.Engine, stop func(), id string) {
 	w.t.Helper()
 
 	crashed := w.crashAt(key)
 
-	e := w.engine()
-	stop := start(w.t, e)
+	e = w.engine()
+	stop = start(w.t, e)
 
 	synctest.Wait()
 
-	first, err := e.Start(w.t.Context(), w.failoverPlan(isolation))
+	first, err := e.Start(w.t.Context(), w.failoverPlan(c))
 	require.NoError(w.t, err)
 
 	synctest.Wait()
@@ -545,24 +582,47 @@ func (w *world) crashFailoverAndResume(key string, req operation.ResumeRequest) 
 	e = w.engine()
 	stop = start(w.t, e)
 
-	defer stop()
-
 	synctest.Wait()
 
 	require.Equal(w.t, dcctlv1.Operation_INTERRUPTED, w.op().GetState())
 
-	return w.resume(e, operationID(first), req)
+	return e, stop, operationID(first)
 }
 
+// crashFailoverAndResume is crashFailover, then the resume of the operation with req.
+func (w *world) crashFailoverAndResume(key string, req operation.ResumeRequest) *dcctlv1.Operation {
+	w.t.Helper()
+
+	e, stop, id := w.crashFailover(key, isolation)
+
+	defer stop()
+
+	return w.resume(e, id, req)
+}
+
+// isolatedOnly confirms the isolation on a resume without asking for a forced write.
+var isolatedOnly = operation.ResumeRequest{Confirmations: check.Confirmations{Isolation: true}}
+
 func TestFailover_crashResumes(t *testing.T) {
-	for _, key := range []string{
-		"failover stop dc_a from 2", "demote dc_a", "no_primary dc_a,dc_c", "promote dc_b", "start dc_b to 2", "repoint dc_c",
-	} {
-		t.Run(key, func(t *testing.T) {
+	tests := []struct {
+		key string
+		req operation.ResumeRequest
+	}{
+		// Before the promotion the resume confirms the isolation anew.
+		{key: "failover stop dc_a from 2", req: isolatedOnly},
+		{key: "demote dc_a", req: isolatedOnly},
+		{key: "no_primary dc_a,dc_c", req: isolatedOnly},
+		{key: "promote dc_b", req: isolatedOnly},
+		{key: "start dc_b to 2"},
+		{key: "repoint dc_c"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.key, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				w := newWorld(t)
 
-				op := w.crashFailoverAndResume(key, operation.ResumeRequest{})
+				op := w.crashFailoverAndResume(tt.key, tt.req)
 
 				require.Equal(t, dcctlv1.Operation_SUCCEEDED, op.GetState(), op.GetError().GetDetail())
 
@@ -611,14 +671,10 @@ func TestFailover_resumeFinishesUndeterminedGeneration(t *testing.T) {
 		w.voters[1].set(func(v *fakeVoter) { v.casErr = nil })
 		w.voters[2].set(func(v *fakeVoter) { v.getErr = nil })
 
-		op = w.resume(e, operationID(first), operation.ResumeRequest{})
+		op = w.resume(e, operationID(first), isolatedOnly)
 
 		require.Equal(t, dcctlv1.Operation_SUCCEEDED, op.GetState(), op.GetError().GetDetail())
-
-		// The resume does not confirm the isolation: the promotion needs dc_a read.
-		calls := slices.Clone(failoverForward)
-		calls[slices.Index(calls, "no_primary dc_a,dc_c")] = "no_primary dc_a"
-		assert.Equal(t, calls, w.infra.allCalls())
+		assert.Equal(t, failoverForward, w.infra.allCalls())
 
 		for _, s := range w.voterStates() {
 			assert.Equal(t, failedOver(op, false), withoutTime(s))
@@ -627,29 +683,50 @@ func TestFailover_resumeFinishesUndeterminedGeneration(t *testing.T) {
 }
 
 // dc_a is lost and the instance stops before the promotion: a resume without the
-// isolation confirmed is interrupted again, one with it promotes dc_b with a warning.
+// isolation confirmed anew is refused, one with it promotes dc_b with a warning.
 func TestFailover_resumePromoteNeedsIsolation(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		w := newWorld(t)
 		w.loseA()
 
-		op := w.crashFailoverAndResume("no_primary dc_a,dc_c", operation.ResumeRequest{})
-
-		assert.Equal(t, dcctlv1.Operation_INTERRUPTED, op.GetState())
-		assert.Contains(t, op.GetError().GetDetail(), "dc_a not read")
-		assert.NotContains(t, w.infra.allCalls(), "promote dc_b")
-
-		e := w.engine()
-		stop := start(t, e)
+		e, stop, id := w.crashFailover("no_primary dc_a,dc_c", isolation)
 
 		defer stop()
 
-		synctest.Wait()
+		_, err := e.Resume(t.Context(), operation.ResumeRequest{Operation: id, Initiator: initiator})
+		require.Error(t, err, "the isolation is not confirmed")
+		assert.Equal(t, dcctlv1.Operation_INTERRUPTED, w.op().GetState())
 
-		op = w.resume(e, operationID(op), isolated)
+		op := w.resume(e, id, isolatedOnly)
 
 		require.Equal(t, dcctlv1.Operation_SUCCEEDED, op.GetState(), op.GetError().GetDetail())
 		assert.Equal(t, []string{"dc_a is not read, it is not known whether it is primary"},
+			stepOf(t, op, dcctlv1.Operation_Step_PATRONI_PROMOTE, 0).GetWarnings())
+		assert.Equal(t, patroni.RolePrimary, w.infra.dc(dcB).role)
+	})
+}
+
+// not_max_lsn confirmed at the start does not outlive a crash before the promotion: the
+// resume decides it anew on what the standbys received, and promotes with it confirmed.
+func TestFailover_resumeConfirmsNotMaxLSNAnew(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		w := newWorld(t)
+		w.infra.do(func(dcs map[string]*dcState) {
+			dcs[dcB].received = 1000
+			dcs[dcC].received = 2000
+		})
+
+		e, stop, id := w.crashFailover("failover stop dc_a from 2", &dcctlv1.Confirmation{Isolation: true, NotMaxLsn: true})
+
+		defer stop()
+
+		_, err := e.Resume(t.Context(), operation.ResumeRequest{Operation: id, Initiator: initiator, Confirmations: check.Confirmations{Isolation: true}})
+		require.Error(t, err, "not_max_lsn is not confirmed")
+
+		op := w.resume(e, id, operation.ResumeRequest{Confirmations: check.Confirmations{Isolation: true, NotMaxLSN: true}})
+
+		require.Equal(t, dcctlv1.Operation_SUCCEEDED, op.GetState(), op.GetError().GetDetail())
+		assert.Equal(t, []string{"the promotion of dc_b discards WAL: dc_c received up to 1000 bytes more WAL than dc_b"},
 			stepOf(t, op, dcctlv1.Operation_Step_PATRONI_PROMOTE, 0).GetWarnings())
 		assert.Equal(t, patroni.RolePrimary, w.infra.dc(dcB).role)
 	})
