@@ -20,6 +20,17 @@ func Commands(o Options) []*cli.Command {
 		verifyCommand(o),
 		opsCommand(o),
 		watchCommand(o),
+		o.switchCommand(),
+		o.failoverCommand(),
+		o.demoteCommand(),
+		o.repointCommand(),
+		o.markRecoveredCommand(),
+		o.resolveCommand(),
+		o.initCommand(),
+		o.initArbiterCommand(),
+		o.appsCommand(),
+		o.resumeCommand(),
+		o.abandonCommand(),
 		journalCommand(o),
 	}
 }

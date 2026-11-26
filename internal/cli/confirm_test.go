@@ -153,20 +153,36 @@ func TestOfferAnswers(t *testing.T) {
 	bound := int64(500)
 	o := offer{isolation: true, discard: &bound}
 
-	_, ok := o.answer(need1(confIsolation, -1, "f"))
+	_, ok, err := o.answer(need1(confIsolation, -1, "f"))
+	require.NoError(t, err)
 	assert.True(t, ok)
 
-	_, ok = o.answer(need1(confNotMaxLSN, -1, "f"))
+	_, ok, err = o.answer(need1(confNotMaxLSN, -1, "f"))
+	require.NoError(t, err)
 	assert.False(t, ok, "a flag that was not given answers nothing")
 
-	dec, ok := o.answer(need1(confMaxDiscard, 500, "f"))
+	// The flag answers; what is confirmed is the amount that was shown.
+	dec, ok, err := o.answer(need1(confMaxDiscard, 300, "f"))
+	require.NoError(t, err)
+	assert.True(t, ok)
+	assert.EqualValues(t, 300, dec.amount, "not the bound of the flag")
+
+	dec, ok, err = o.answer(need1(confMaxDiscard, 500, "f"))
+	require.NoError(t, err)
 	assert.True(t, ok)
 	assert.EqualValues(t, 500, dec.amount)
 
-	_, ok = o.answer(need1(confMaxDiscard, 501, "f"))
-	assert.False(t, ok, "the bound is below what the checks show")
+	_, ok, err = o.answer(need1(confMaxDiscard, 501, "f"))
+	require.Error(t, err, "the bound is below what the checks show")
+	assert.False(t, ok)
+	assert.Contains(t, err.Error(), "needs --max-discard-bytes >= 501")
+
+	dec, ok, err = o.answer(need1(confMaxDiscard, -1, "f"))
+	require.NoError(t, err)
+	assert.True(t, ok, "an amount the server does not tell is compared by the server")
+	assert.EqualValues(t, 500, dec.amount)
 
 	assert.Nil(t, offer{}.confirmation())
-	assert.EqualValues(t, 500, o.confirmation().GetMaxDiscardBytes())
+	assert.EqualValues(t, 500, o.confirmation().GetMaxDiscardBytes(), "--yes sends the bound as it is")
 	assert.True(t, o.confirmation().GetIsolation())
 }
