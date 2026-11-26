@@ -26,6 +26,10 @@ var (
 	// the step changed, as a request that may have been applied: the
 	// operation is interrupted instead of rolled back.
 	ErrOutcomeUnknown = errors.New("outcome of the step is unknown")
+	// ErrInterrupt marks a step error whose outcome is known but leaves the decision to
+	// the operator, as a state the rollback would make worse: the operation is
+	// interrupted instead of rolled back. [Interrupt] marks an error with it.
+	ErrInterrupt = errors.New("the operator decides")
 	// ErrUnknownStepType means the operation has a step of a type this dcctl
 	// does not know, written by a newer version; it cannot be resumed here. It
 	// comes with the refusal of op.steps_known.
@@ -136,10 +140,19 @@ func (e *NotFoundError) GRPCStatus() *status.Status {
 	return apierr.Status(apierr.ReasonOperationNotFound, e.Error(), map[string]string{"operation": e.Name})
 }
 
-// interrupting reports whether err leaves what the step changed unknown, so
-// the operation is interrupted instead of rolled back.
+// Interrupt returns err marked with [ErrInterrupt]; its text is that of err.
+func Interrupt(err error) error { return &interruptError{err: err} }
+
+type interruptError struct{ err error }
+
+func (e *interruptError) Error() string { return e.err.Error() }
+
+func (e *interruptError) Unwrap() []error { return []error{e.err, ErrInterrupt} }
+
+// interrupting reports whether err leaves what the step changed unknown, or the
+// decision to the operator, so the operation is interrupted instead of rolled back.
 func interrupting(err error) bool {
-	return errors.Is(err, ErrOutcomeUnknown) ||
+	return errors.Is(err, ErrOutcomeUnknown) || errors.Is(err, ErrInterrupt) ||
 		errors.Is(err, coord.ErrOutcomeUnknown) ||
 		errors.Is(err, pgctl.ErrOutcomeUnknown) ||
 		errors.Is(err, coord.ErrUndetermined) ||
