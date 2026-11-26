@@ -17,7 +17,7 @@ import (
 var errEmpty = errors.New("config is empty")
 
 func load[T any](path string, parse func([]byte) (*T, error), validate func(*T) error) (*T, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- the operator passes the config path on the command line.
 	if err != nil {
 		return nil, fmt.Errorf("read config: %w", err)
 	}
