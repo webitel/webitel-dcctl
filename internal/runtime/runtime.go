@@ -202,6 +202,12 @@ func (r *Runtime) HTTPAddr() net.Addr {
 	return r.httpLn.Addr()
 }
 
+// PeerAddr returns the address listen.peer is bound to. Call it after
+// Started is closed.
+func (r *Runtime) PeerAddr() net.Addr {
+	return r.peerLn.Addr()
+}
+
 // Run serves until ctx is done, then stops gracefully. It returns early when
 // the local Consul agent belongs to another datacenter, a listener cannot
 // bind, the registration fails or a server fails.
