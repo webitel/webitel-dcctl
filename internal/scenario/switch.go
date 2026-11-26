@@ -24,7 +24,7 @@ import (
 // The steps before the promotion of B roll back: the cluster of A is promoted again and
 // its apps start. The promotion of B is the point of no return.
 type Switch struct {
-	d Deps
+	core
 }
 
 // NewSwitch returns the switch of warm_standby acting through d.
@@ -33,7 +33,7 @@ func NewSwitch(d Deps) (*Switch, error) {
 		return nil, err
 	}
 
-	return &Switch{d: d}, nil
+	return &Switch{core{d: d}}, nil
 }
 
 // route is a switch from a to b. c are the other datacenters, stop the Nomad stages of
@@ -61,32 +61,9 @@ func (s *Switch) Plan(req *dcctlv1.SwitchDatacenterRequest, initiator *dcctlv1.I
 		return operation.Plan{}, fmt.Errorf("%w: the active datacenter is not known", ErrCannotPlan)
 	}
 
-	r := route{a: base.State.ActiveDatacenter, b: datacenterID(req.GetName())}
-
-	switch {
-	case r.b == r.a:
-		return operation.Plan{}, fmt.Errorf("%w: %s is active already", ErrCannotPlan, r.b)
-	case !slices.ContainsFunc(st.Datacenters, func(d status.Datacenter) bool { return d.Name == r.b }):
-		return operation.Plan{}, fmt.Errorf("%w: datacenter %q is not configured", ErrCannotPlan, r.b)
-	}
-
-	for _, d := range st.Datacenters {
-		switch d.Name {
-		case r.a:
-			r.stop = stagesOf(d.Nomad, true)
-		case r.b:
-			r.start = stagesOf(d.Nomad, false)
-		default:
-			r.c = append(r.c, d.Name)
-		}
-	}
-
-	if r.stop == nil {
-		return operation.Plan{}, fmt.Errorf("%w: active datacenter %q is not configured", ErrCannotPlan, r.a)
-	}
-
-	if err := s.d.known(slices.Concat([]string{r.a, r.b}, r.c)...); err != nil {
-		return operation.Plan{}, fmt.Errorf("%w: %w", ErrCannotPlan, err)
+	r, err := s.planRoute(st, base.State.ActiveDatacenter, datacenterID(req.GetName()))
+	if err != nil {
+		return operation.Plan{}, err
 	}
 
 	c := req.GetConfirmation()
@@ -110,6 +87,40 @@ func (s *Switch) Plan(req *dcctlv1.SwitchDatacenterRequest, initiator *dcctlv1.I
 		PreviousActive:     r.a,
 		Steps:              s.steps(r),
 	}, nil
+}
+
+// planRoute returns the route from a to b on st: the apps of a stop and those of b
+// start by the stages st shows, the other configured datacenters are c.
+func (s *core) planRoute(st status.Status, a, b string) (route, error) {
+	r := route{a: a, b: b}
+
+	switch {
+	case r.b == r.a:
+		return route{}, fmt.Errorf("%w: %s is active already", ErrCannotPlan, r.b)
+	case !slices.ContainsFunc(st.Datacenters, func(d status.Datacenter) bool { return d.Name == r.b }):
+		return route{}, fmt.Errorf("%w: datacenter %q is not configured", ErrCannotPlan, r.b)
+	}
+
+	for _, d := range st.Datacenters {
+		switch d.Name {
+		case r.a:
+			r.stop = stagesOf(d.Nomad, true)
+		case r.b:
+			r.start = stagesOf(d.Nomad, false)
+		default:
+			r.c = append(r.c, d.Name)
+		}
+	}
+
+	if r.stop == nil {
+		return route{}, fmt.Errorf("%w: active datacenter %q is not configured", ErrCannotPlan, r.a)
+	}
+
+	if err := s.d.known(slices.Concat([]string{r.a, r.b}, r.c)...); err != nil {
+		return route{}, fmt.Errorf("%w: %w", ErrCannotPlan, err)
+	}
+
+	return r, nil
 }
 
 // stagesOf returns the valid stages of the managed jobs of n, which fit the

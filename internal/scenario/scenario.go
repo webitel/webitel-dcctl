@@ -176,3 +176,8 @@ func patroniDetail(p pgctl.Progress) string {
 
 	return s
 }
+
+// core builds the steps the scenarios share.
+type core struct {
+	d Deps
+}
