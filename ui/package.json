@@ -47,5 +47,8 @@
     "gen:api:convert": "mkdir -p .gen && api-spec-converter --from=swagger_2 --to=openapi_3 --syntax=yaml ../api/dcctl.swagger.json > .gen/openapi.yaml",
     "gen:api:format": "openapi-format .gen/openapi.yaml -o .gen/openapi.formatted.yaml",
     "gen:api:cleanup": "rm -rf .gen"
+  },
+  "overrides": {
+    "decode-uri-component": "^0.5.1"
   }
 }
