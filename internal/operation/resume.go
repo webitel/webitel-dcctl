@@ -95,6 +95,8 @@ func (e *Engine) Resume(ctx context.Context, req ResumeRequest) (*dcctlv1.Operat
 		return nil, err
 	}
 
+	r.confirmed = v.Confirmed
+
 	first, writes, err := r.rec.save(ctx, func(op *dcctlv1.Operation) {
 		op.State, op.Error, op.EndTime = dcctlv1.Operation_RUNNING, nil, nil
 		op.Leader = e.cfg.Self.proto()

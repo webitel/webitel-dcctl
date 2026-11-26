@@ -27,6 +27,8 @@ type run struct {
 	steps []Step
 	// given are the confirmations the steps are rechecked with.
 	given check.Confirmations
+	// confirmed are the confirmations the preflight of this start or resume accepted.
+	confirmed check.Confirmations
 	// resumed are the steps that had started before the operation was
 	// interrupted.
 	resumed map[int]bool

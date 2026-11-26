@@ -7,6 +7,7 @@ import (
 	"slices"
 
 	dcctlv1 "github.com/webitel/webitel-dcctl/gen/go/dcctl/v1"
+	"github.com/webitel/webitel-dcctl/internal/check"
 	"github.com/webitel/webitel-dcctl/internal/coord"
 )
 
@@ -59,6 +60,12 @@ func (x *Exec) Skip(detail string) {
 
 // Operation returns a copy of the operation as it is now.
 func (x *Exec) Operation() *dcctlv1.Operation { return x.r.rec.snapshot() }
+
+// Confirmed returns the confirmations the preflight of the start or resume that runs
+// the step accepted: those a check of that preflight needed, as the isolation of a resume
+// that writes forced. A step that acts on them reads them here, not through
+// [Step.Recheck], whose refusal would roll the operation back.
+func (x *Exec) Confirmed() check.Confirmations { return x.r.confirmed }
 
 // Resumed reports whether the step had started before the operation was
 // interrupted: what it does may already be done, in part or in full.

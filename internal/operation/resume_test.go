@@ -540,3 +540,60 @@ func TestAbandonKeepsCommittedGeneration(t *testing.T) {
 		assert.Equal(t, dcctlv1.JournalEntry_WARNING, revert[0].GetResult())
 	})
 }
+
+// A step reads the confirmations its run was accepted with: none at the start, the
+// isolation the resume confirmed after it.
+func TestExecConfirmedOfTheRun(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		w := newWorld(t)
+
+		var (
+			seen []check.Confirmations
+			runs atomic.Int32
+		)
+
+		steps := func() []operation.Step {
+			return []operation.Step{{Type: dcctlv1.Operation_Step_PATRONI_PROMOTE, Run: func(_ context.Context, x *operation.Exec) error {
+				seen = append(seen, x.Confirmed())
+
+				if runs.Add(1) == 1 {
+					return operation.Interrupt(errors.New("dc_a is not read"))
+				}
+
+				return nil
+			}}}
+		}
+
+		w.resumers[dcctlv1.Operation_SWITCH] = resumerFunc(func(context.Context, *dcctlv1.Operation) ([]operation.Step, error) {
+			return steps(), nil
+		})
+
+		e := w.engine(self)
+		stop := start(t, e)
+
+		defer stop()
+
+		synctest.Wait()
+
+		first, err := e.Start(t.Context(), switchPlan(steps()...))
+		require.NoError(t, err)
+
+		synctest.Wait()
+		require.Equal(t, dcctlv1.Operation_INTERRUPTED, w.op("dc_b").GetState())
+
+		w.preflight.mu.Lock()
+		w.preflight.verdict = check.Verdict{Outcome: check.Allowed, Confirmed: check.Confirmations{Isolation: true}}
+		w.preflight.mu.Unlock()
+
+		_, err = e.Resume(t.Context(), operation.ResumeRequest{
+			Operation: strings.TrimPrefix(first.GetName(), "operations/"), ToForced: true,
+			Confirmations: check.Confirmations{Isolation: true}, Initiator: &dcctlv1.Initiator{User: "admin"},
+		})
+		require.NoError(t, err)
+
+		synctest.Wait()
+
+		assert.Equal(t, dcctlv1.Operation_SUCCEEDED, w.op("dc_b").GetState())
+		assert.Equal(t, []check.Confirmations{{}, {Isolation: true}}, seen)
+	})
+}
