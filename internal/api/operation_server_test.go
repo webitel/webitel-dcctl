@@ -213,7 +213,7 @@ func TestGetOperationCopy(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewOperationServer(fakeOperations{view: coord.OpView{Copies: tt.copies}}, testLogger())
+			s := NewOperationServer(fakeOperations{view: coord.OpView{Copies: tt.copies}}, nil, nil, testLogger())
 
 			got, err := s.GetOperation(t.Context(), &dcctlv1.GetOperationRequest{Name: stale.GetName()})
 			require.NoError(t, err)
@@ -274,7 +274,7 @@ func TestListOperationsUnavailable(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewOperationServer(fakeOperations{view: coord.OpView{Copies: tt.copies}}, testLogger())
+			s := NewOperationServer(fakeOperations{view: coord.OpView{Copies: tt.copies}}, nil, nil, testLogger())
 
 			_, err := s.ListOperations(t.Context(), &dcctlv1.ListOperationsRequest{})
 			st := assertCode(t, codes.Unavailable, err)
@@ -299,7 +299,7 @@ func TestListOperationsSomeUnreachable(t *testing.T) {
 	s := NewOperationServer(fakeOperations{view: coord.OpView{Copies: []coord.OpCopy{
 		{Name: "dc_a", Status: coord.StatusAbsent},
 		{Name: "dc_b", Status: coord.StatusUnreachable, Reason: source.ReasonTimeout},
-	}}}, testLogger())
+	}}}, nil, nil, testLogger())
 
 	got, err := s.ListOperations(t.Context(), &dcctlv1.ListOperationsRequest{})
 	require.NoError(t, err)

@@ -20,8 +20,8 @@ import (
 
 const defaultPageSize = 50
 
-// OperationServer implements the reads of OperationService; the actions and
-// WatchOperation answer Unimplemented.
+// OperationServer implements the reads of OperationService and
+// WatchOperation; the actions answer Unimplemented.
 //
 // Operations are read from the copies of dcctl/op on every request, not from
 // the last collection cycle, so an operation an action just started is found
@@ -30,13 +30,25 @@ const defaultPageSize = 50
 type OperationServer struct {
 	dcctlv1.UnimplementedOperationServiceServer
 
-	ops Operations
-	log *logging.Logger
+	ops    Operations
+	events OperationEvents
+	stop   <-chan struct{}
+	log    *logging.Logger
+
+	polled       *sharedView
+	pollInterval time.Duration
+	keepalive    time.Duration
 }
 
-// NewOperationServer returns the OperationService of ops.
-func NewOperationServer(ops Operations, log *logging.Logger) *OperationServer {
-	return &OperationServer{ops: ops, log: log}
+// NewOperationServer returns the OperationService of ops. events may be nil:
+// WatchOperation then always polls the copies. Streams end when stop is
+// closed.
+func NewOperationServer(ops Operations, events OperationEvents, stop <-chan struct{}, log *logging.Logger) *OperationServer {
+	return &OperationServer{
+		ops: ops, events: events, stop: stop, log: log,
+		polled:       &sharedView{ops: ops, ttl: watchPollInterval / 2},
+		pollInterval: watchPollInterval, keepalive: watchKeepalive,
+	}
 }
 
 // ListOperations returns the operations of the copies, newest first.
@@ -85,12 +97,18 @@ func (s *OperationServer) GetOperation(ctx context.Context, req *dcctlv1.GetOper
 		return nil, rpcError(ctx, s.log, "operation cannot be read", err)
 	}
 
-	if c := view.Of(req.GetName()); c != nil {
+	return lookup(view, req.GetName())
+}
+
+// lookup returns the operation name as the copy that answers for it holds it;
+// see [OperationServer.GetOperation] for when it is not found.
+func lookup(view coord.OpView, name string) (*dcctlv1.Operation, error) {
+	if c := view.Of(name); c != nil {
 		return c.Operation, nil
 	}
 
 	if !slices.ContainsFunc(view.Copies, func(c coord.OpCopy) bool { return !readable(c) }) {
-		return nil, operationNotFound(req.GetName())
+		return nil, operationNotFound(name)
 	}
 
 	return nil, apierr.KVUnavailable("the operation may be in a copy of dcctl/op that is not readable", unreadable(view))

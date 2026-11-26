@@ -83,7 +83,7 @@ func testOptions() Options {
 	}
 }
 
-func startAPI(t *testing.T, opts Options) harness {
+func startAPI(t *testing.T, opts Options, extra ...grpc.StreamServerInterceptor) harness {
 	t.Helper()
 
 	logs := logtest.NewRecorder()
@@ -94,11 +94,14 @@ func startAPI(t *testing.T, opts Options) harness {
 	require.NoError(t, err)
 
 	rt, err := runtime.New(runtime.Config{
-		HTTP:        "127.0.0.1:0",
-		Peer:        "127.0.0.1:0",
-		Health:      "127.0.0.1:0",
-		TLS:         testpki.New(t, "test ca").Files(t, "127.0.0.1"),
-		HTTPOptions: []grpc.ServerOption{grpc.ChainUnaryInterceptor(validation.UnaryServerInterceptor(v))},
+		HTTP:   "127.0.0.1:0",
+		Peer:   "127.0.0.1:0",
+		Health: "127.0.0.1:0",
+		TLS:    testpki.New(t, "test ca").Files(t, "127.0.0.1"),
+		HTTPOptions: []grpc.ServerOption{
+			grpc.ChainUnaryInterceptor(validation.UnaryServerInterceptor(v)),
+			grpc.ChainStreamInterceptor(append(extra, validation.StreamServerInterceptor(v))...),
+		},
 		HealthConfig: health.Config{
 			Interval: 50 * time.Millisecond, Timeout: 40 * time.Millisecond, MinUnready: 50 * time.Millisecond,
 			StaleAfter: time.Second, DrainHold: 10 * time.Millisecond,

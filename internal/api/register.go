@@ -18,7 +18,10 @@ type Options struct {
 	Address    string
 	Status     StatusSource
 	Operations Operations
-	Journal    Journal
+	// Events may be nil: WatchOperation then polls the copies of dcctl/op on
+	// every instance.
+	Events  OperationEvents
+	Journal Journal
 	// Alarms may be nil: GetStatus then reports no alarms.
 	Alarms Alarms
 	// Verifier may be nil: VerifyStatus then answers Unimplemented.
@@ -45,13 +48,13 @@ func Register(ctx context.Context, rt *runtime.Runtime, opts Options) error {
 	rt.RegisterService(&dcctlv1.StatusService_ServiceDesc,
 		NewStatusServer(opts.Status, opts.Address, opts.Alarms, opts.Verifier, opts.Log))
 	rt.RegisterService(&dcctlv1.DatacenterService_ServiceDesc, NewDatacenterServer(opts.Status, opts.Address, opts.Log))
-	rt.RegisterService(&dcctlv1.OperationService_ServiceDesc, NewOperationServer(opts.Operations, opts.Log))
+	rt.RegisterService(&dcctlv1.OperationService_ServiceDesc, NewOperationServer(opts.Operations, opts.Events, ctx.Done(), opts.Log))
 	rt.RegisterService(&dcctlv1.JournalService_ServiceDesc, NewJournalServer(opts.Journal, opts.Log))
 
 	for _, h := range []runtime.GatewayHandler{
 		dcctlv1.RegisterStatusServiceHandler,
 		dcctlv1.RegisterDatacenterServiceHandler,
-		dcctlv1.RegisterOperationServiceHandler,
+		registerOperationGateway,
 		dcctlv1.RegisterJournalServiceHandler,
 	} {
 		if err := rt.RegisterGateway(ctx, h); err != nil {
