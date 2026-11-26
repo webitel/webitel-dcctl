@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	dcctlv1 "github.com/webitel/webitel-dcctl/gen/go/dcctl/v1"
+	"github.com/webitel/webitel-dcctl/internal/check"
 	"github.com/webitel/webitel-dcctl/internal/config"
 	"github.com/webitel/webitel-dcctl/internal/coord"
 	"github.com/webitel/webitel-dcctl/internal/operation"
@@ -202,4 +203,141 @@ func TestSwitchResume_refuses(t *testing.T) {
 			})
 		})
 	}
+}
+
+func TestFailoverPlan(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		w := newWorld(t)
+
+		p := w.failoverPlan(&dcctlv1.Confirmation{Isolation: true, NotMaxLsn: true})
+
+		assert.Equal(t, dcctlv1.Operation_FAILOVER, p.Type)
+		assert.Equal(t, dcB, p.Target)
+		assert.Equal(t, "0b7d2c1e-3f4a-4c5b-8d6e-7f8091a2b3c4", p.RequestID)
+		assert.Equal(t, initiator, p.Initiator)
+		assert.Equal(t, dcctlv1.Operation_QUORUM, p.Mode)
+		assert.Equal(t, int64(5), p.PreviousGeneration)
+		assert.Equal(t, int64(6), p.NewGeneration)
+		assert.Equal(t, dcA, p.PreviousActive)
+		assert.Equal(t, preflight.Request{
+			Action: preflight.Failover, Params: preflight.Params{Datacenter: dcB},
+			Confirmations: check.Confirmations{Isolation: true, NotMaxLSN: true},
+		}, p.Preflight)
+
+		const (
+			stop    = dcctlv1.Operation_Step_APPS_STOP
+			start   = dcctlv1.Operation_Step_APPS_START
+			demote  = dcctlv1.Operation_Step_PATRONI_DEMOTE
+			gen     = dcctlv1.Operation_Step_GENERATION
+			promote = dcctlv1.Operation_Step_PATRONI_PROMOTE
+			repoint = dcctlv1.Operation_Step_PATRONI_REPOINT
+			verify  = dcctlv1.Operation_Step_VERIFY
+		)
+
+		assert.Equal(t, []planStep{
+			{Type: gen, Datacenter: dcB, Rollback: true},
+			{Type: stop, Stage: 3, Datacenter: dcA},
+			{Type: stop, Stage: 2, Datacenter: dcA},
+			{Type: stop, Stage: 1, Datacenter: dcA},
+			{Type: demote, Datacenter: dcA},
+			{Type: promote, Datacenter: dcB, PNR: true},
+			{Type: start, Stage: 1, Datacenter: dcB},
+			{Type: start, Stage: 2, Datacenter: dcB},
+			{Type: start, Stage: 3, Datacenter: dcB},
+			{Type: repoint, Datacenter: dcC},
+			{Type: verify},
+		}, planSteps(p.Steps))
+
+		for _, s := range p.Steps {
+			assert.Nil(t, s.Recheck, "the promotion reads its confirmations itself: %s", s.Type)
+		}
+	})
+}
+
+func TestFailoverPlan_cannotPlan(t *testing.T) {
+	tests := []struct {
+		name   string
+		target string
+		conf   *dcctlv1.Confirmation
+		change func(st *status.Status)
+	}{
+		// No check of a failover of warm_standby takes the bound: it is refused, not ignored.
+		{
+			name: "max_discard_bytes", target: dcB, conf: &dcctlv1.Confirmation{Isolation: true, NotMaxLsn: true, MaxDiscardBytes: 500},
+			change: func(*status.Status) {},
+		},
+		{name: "stretch", target: dcB, change: func(st *status.Status) { st.Profile = config.ProfileStretch }},
+		{name: "no_base", target: dcB, change: func(st *status.Status) { st.View = coord.View{} }},
+		{name: "target_active", target: dcA, change: func(*status.Status) {}},
+		{name: "target_unknown", target: "dc_x", change: func(*status.Status) {}},
+		{name: "conflict", target: dcB, change: func(st *status.Status) {
+			st.View.Conflict = []coord.Record{*st.View.Effective, *st.View.Effective}
+		}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				w := newWorld(t)
+				st := w.status()
+				tt.change(&st)
+
+				conf := isolation
+				if tt.conf != nil {
+					conf = tt.conf
+				}
+
+				_, err := w.fo.Plan(failoverTo(tt.target, conf), initiator, preflight.Result{Status: st})
+				require.ErrorIs(t, err, scenario.ErrCannotPlan)
+			})
+		})
+	}
+}
+
+func TestFailoverResume_rebuildsSteps(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		w := newWorld(t)
+		p := w.failoverPlan(isolation)
+
+		steps, err := w.fo.Resume(t.Context(), recorded(p))
+		require.NoError(t, err)
+		assert.Equal(t, planSteps(p.Steps), planSteps(steps))
+	})
+}
+
+func TestFailoverResume_refuses(t *testing.T) {
+	tests := []struct {
+		name   string
+		change func(op *dcctlv1.Operation)
+	}{
+		{name: "not_a_failover", change: func(op *dcctlv1.Operation) { op.Type = dcctlv1.Operation_SWITCH }},
+		{name: "step_of_a_switch", change: func(op *dcctlv1.Operation) {
+			op.Steps[4].Type = dcctlv1.Operation_Step_PATRONI_CATCHUP
+		}},
+		{name: "two_sources", change: func(op *dcctlv1.Operation) { op.Steps[4].Datacenter = "datacenters/" + dcC }},
+		{name: "unknown_datacenter", change: func(op *dcctlv1.Operation) { op.Steps[9].Datacenter = "datacenters/dc_x" }},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				w := newWorld(t)
+				op := recorded(w.failoverPlan(isolation))
+				tt.change(op)
+
+				_, err := w.fo.Resume(t.Context(), op)
+				require.Error(t, err)
+			})
+		})
+	}
+}
+
+// A switch does not resume a failover.
+func TestSwitchResume_refusesFailover(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		w := newWorld(t)
+
+		_, err := w.sw.Resume(t.Context(), recorded(w.failoverPlan(isolation)))
+		require.Error(t, err)
+	})
 }

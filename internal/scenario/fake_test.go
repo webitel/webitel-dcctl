@@ -409,10 +409,67 @@ func (f *fakeJournal) Append(_ context.Context, e *dcctlv1.JournalEntry) (journa
 	return journal.Appended{Entry: e, Writes: []journal.Write{{DC: dcA, Outcome: journal.Written}}}, nil
 }
 
-type fakePreflight struct{}
+// fakePreflight decides the confirmations as the sets of warm_standby do, on the
+// infrastructure of w: a failover always needs the isolation confirmed, and not_max_lsn
+// when a standby other than dc_a, the datacenter the tests fail over from, received
+// more WAL than the target or an amount that is not known; a resume needs the isolation
+// when it writes forced. A switch takes no confirmation.
+type fakePreflight struct{ w *infra }
 
-func (fakePreflight) Run(_ context.Context, req preflight.Request) (check.Verdict, error) {
-	return check.Verdict{Outcome: check.Allowed, Confirmed: req.Confirmations}, nil
+func (f fakePreflight) Run(_ context.Context, req preflight.Request) (check.Verdict, error) {
+	var cs []check.Check
+
+	switch req.Action {
+	case preflight.Switch:
+	case preflight.Failover:
+		cs = append(cs, isolationCheck(), f.maxLSN(req.Params.Datacenter, dcA))
+	case preflight.Resume:
+		if req.Params.ToForced {
+			cs = append(cs, isolationCheck())
+		}
+	case preflight.Demote, preflight.Repoint, preflight.MarkRecovered, preflight.Abandon, preflight.Resolve,
+		preflight.Init, preflight.ArbiterInit, preflight.AppsSync, preflight.Verify:
+		return check.Verdict{}, fmt.Errorf("unexpected action %s", req.Action)
+	}
+
+	return check.Decide(cs, req.Confirmations), nil
+}
+
+func isolationCheck() check.Check {
+	return check.Check{ID: check.CoordIsolation, Result: check.Fail, Effect: check.Confirm, Confirmation: check.ConfirmIsolation}
+}
+
+// maxLSN is patroni.target_max_lsn of target b against the standbys other than b and
+// except; one whose Patroni is not read is not compared.
+func (f fakePreflight) maxLSN(b string, except ...string) check.Check {
+	c := check.Check{ID: check.PatroniTargetMaxLSN, Result: check.Pass, Effect: check.Confirm, Confirmation: check.ConfirmNotMaxLSN}
+	tb := f.w.dc(b)
+
+	var others []string
+
+	for _, name := range f.w.names() {
+		if name != b && !slices.Contains(except, name) {
+			others = append(others, name)
+		}
+	}
+
+	if len(others) == 0 {
+		c.Result = check.Skip
+
+		return c
+	}
+
+	if tb.receivedUnknown {
+		c.Result = check.Fail
+	}
+
+	for _, name := range others {
+		if d := f.w.dc(name); !d.unread && (d.receivedUnknown || d.received > tb.received) {
+			c.Result = check.Fail
+		}
+	}
+
+	return c
 }
 
 type fakeRecorder struct{}
@@ -452,6 +509,13 @@ type dcState struct {
 	upstream string
 	// unread makes the Patroni cluster not read.
 	unread bool
+	// received is the WAL its leader received, unless receivedUnknown; streaming tells
+	// that the leader streams from its upstream.
+	received        int64
+	receivedUnknown bool
+	streaming       bool
+	// diverged is how many bytes the cluster holds past its divergence from the primary.
+	diverged int64
 }
 
 // infra is the infrastructure the fake primitives change. A hook runs once, when the
@@ -504,6 +568,14 @@ func (w *infra) dc(name string) dcState {
 	d.running = maps.Clone(d.running)
 
 	return d
+}
+
+// names returns the datacenters of the infrastructure, sorted.
+func (w *infra) names() []string {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	return slices.Sorted(maps.Keys(w.dcs))
 }
 
 func (w *infra) allCalls() []string {
@@ -562,6 +634,28 @@ func (f fakeApps) StopFrom(ctx context.Context, dc apps.Datacenter, from int, op
 	})
 
 	opts.Progress(apps.Progress{Datacenter: dc.Name, Action: apps.ActionStop, Stage: apps.Stage{Number: from, State: apps.StageSucceeded}})
+
+	return res, nil
+}
+
+func (f fakeApps) StopFromFailover(ctx context.Context, dc apps.Datacenter, from int, opts apps.Options) (apps.Result, error) {
+	res := apps.Result{Datacenter: dc.Name, Action: apps.ActionStop}
+
+	if err := guarded(ctx, opts.Guard, apps.ErrGuard); err != nil {
+		return res, err
+	}
+
+	if err := f.w.call(ctx, fmt.Sprintf("failover stop %s from %d", dc.Name, from)); err != nil {
+		return res, err
+	}
+
+	f.w.do(func(dcs map[string]*dcState) {
+		for stage := range dcs[dc.Name].running {
+			if stage >= from {
+				dcs[dc.Name].running[stage] = false
+			}
+		}
+	})
 
 	return res, nil
 }
@@ -731,6 +825,42 @@ func (f fakePatroni) Follow(ctx context.Context, standby, primary pgctl.Cluster,
 	})
 
 	return f.result(standby.Datacenter), nil
+}
+
+// Leader reads the leader of the cluster; it records no call.
+func (f fakePatroni) Leader(_ context.Context, cl pgctl.Cluster) (patroni.Member, error) {
+	d := f.w.dc(cl.Datacenter)
+	if d.unread {
+		return patroni.Member{}, fmt.Errorf("patroni cluster of %s not read", cl.Datacenter)
+	}
+
+	tl := d.timeline
+	st := &patroni.State{Role: d.role, Timeline: &tl}
+
+	if !d.receivedUnknown {
+		received := d.received
+		st.Xlog.ReceivedLocation = &received
+	}
+
+	if d.streaming {
+		st.ReplicationState = patroni.ReplicationStreaming
+	}
+
+	return patroni.Member{Name: cl.Datacenter + "1", Probe: st}, nil
+}
+
+// Divergence reads the divergence of standby; it records no call.
+func (f fakePatroni) Divergence(_ context.Context, standby, _ pgctl.Cluster) (patroni.Divergence, error) {
+	switch d := f.w.dc(standby.Datacenter); {
+	case d.unread:
+		return patroni.Divergence{}, fmt.Errorf("patroni cluster of %s not read", standby.Datacenter)
+	case d.role == patroni.RolePrimary:
+		return patroni.Divergence{}, &pgctl.PrimaryError{Datacenter: standby.Datacenter, Where: "leader " + standby.Datacenter + "1"}
+	case d.diverged > 0:
+		return patroni.Divergence{Diverged: true, LSN: 1000, Bytes: d.diverged}, nil
+	}
+
+	return patroni.Divergence{}, nil
 }
 
 // nomadStub and patroniStub fill the datacenters of the deps; the fake primitives do not

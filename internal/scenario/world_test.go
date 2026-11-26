@@ -46,6 +46,7 @@ type world struct {
 	verifier *fakeVerifier
 	coord    *coord.Coordinator
 	sw       *scenario.Switch
+	fo       *scenario.Failover
 }
 
 func newWorld(t *testing.T) *world {
@@ -78,8 +79,17 @@ func newWorld(t *testing.T) *world {
 		voters = append(voters, v)
 	}
 
+	w.useVoters(voters...)
+
+	return w
+}
+
+// useVoters makes voters the voters of w and builds the scenarios on them.
+func (w *world) useVoters(voters ...coord.Voter) {
+	w.t.Helper()
+
 	c, err := coord.New(voters, 3*time.Second, quietLog())
-	require.NoError(t, err)
+	require.NoError(w.t, err)
 
 	w.coord = c
 
@@ -88,19 +98,22 @@ func newWorld(t *testing.T) *world {
 		dcs[dc] = scenario.Datacenter{Nomad: nomadStub{}, Patroni: patroniStub{}}
 	}
 
-	w.sw, err = scenario.NewSwitch(scenario.Deps{
+	d := scenario.Deps{
 		Apps:        fakeApps{w.infra},
 		Patroni:     fakePatroni{w.infra},
 		Coordinator: c,
 		Verifier:    w.verifier,
 		Datacenters: dcs,
-	})
-	require.NoError(t, err)
+	}
 
-	return w
+	w.sw, err = scenario.NewSwitch(d)
+	require.NoError(w.t, err)
+
+	w.fo, err = scenario.NewFailover(d)
+	require.NoError(w.t, err)
 }
 
-// engine returns an engine of this instance on w that resumes switches with w.sw.
+// engine returns an engine of this instance on w that resumes switches and failovers.
 func (w *world) engine() *operation.Engine {
 	w.t.Helper()
 
@@ -117,12 +130,14 @@ func (w *world) engine() *operation.Engine {
 		Locker:      locker,
 		Ops:         ops,
 		Coordinator: w.coord,
-		Preflight:   fakePreflight{},
+		Preflight:   fakePreflight{w.infra},
 		Journal:     w.journal,
 		Recorder:    fakeRecorder{},
-		Resumers:    map[dcctlv1.Operation_Type]operation.Resumer{dcctlv1.Operation_SWITCH: w.sw},
-		Interval:    15 * time.Second,
-		Log:         quietLog(),
+		Resumers: map[dcctlv1.Operation_Type]operation.Resumer{
+			dcctlv1.Operation_SWITCH: w.sw, dcctlv1.Operation_FAILOVER: w.fo,
+		},
+		Interval: 15 * time.Second,
+		Log:      quietLog(),
 	})
 	require.NoError(w.t, err)
 

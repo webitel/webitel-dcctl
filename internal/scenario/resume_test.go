@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 	"testing/synctest"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -14,7 +13,6 @@ import (
 	"github.com/webitel/webitel-dcctl/internal/coord"
 	"github.com/webitel/webitel-dcctl/internal/kv"
 	"github.com/webitel/webitel-dcctl/internal/operation"
-	"github.com/webitel/webitel-dcctl/internal/scenario"
 	"github.com/webitel/webitel-dcctl/internal/source/patroni"
 )
 
@@ -132,21 +130,7 @@ func newTwoVoterWorld(t *testing.T) *world {
 	w := newWorld(t)
 	base := kv.State{Generation: 5, ActiveDatacenter: dcA, OpID: "old", PatroniTimeline: 5}
 	w.voters = []*fakeVoter{newVoter(t, dcA, coord.KindKV, base), newVoter(t, dcB, coord.KindKV, base)}
-
-	c, err := coord.New([]coord.Voter{w.voters[0], w.voters[1]}, 3*time.Second, quietLog())
-	require.NoError(t, err)
-
-	w.coord = c
-
-	dcs := map[string]scenario.Datacenter{}
-	for _, dc := range []string{dcA, dcB, dcC} {
-		dcs[dc] = scenario.Datacenter{Nomad: nomadStub{}, Patroni: patroniStub{}}
-	}
-
-	w.sw, err = scenario.NewSwitch(scenario.Deps{
-		Apps: fakeApps{w.infra}, Patroni: fakePatroni{w.infra}, Coordinator: c, Verifier: w.verifier, Datacenters: dcs,
-	})
-	require.NoError(t, err)
+	w.useVoters(w.voters[0], w.voters[1])
 
 	return w
 }
