@@ -53,7 +53,7 @@ and `records/lease`.
 | Field | Type | Meaning |
 |---|---|---|
 | `generation` | integer | Number of the active datacenter change. |
-| `revision` | integer | Number of the write within one `generation`, see [Writes within a generation](#writes-within-a-generation). Missing means `0`. |
+| `revision` | integer | Number of the write within one `generation`, see [Writes within a generation](#writes-within-a-generation). Missing means `0`; dcctl does not read a record with a negative value. |
 | `active_datacenter` | string | Consul name of the active datacenter. |
 | `op_id` | string | ID of the operation that wrote this `generation` (the `{id}` in `operations/{id}`). |
 | `forced` | bool | `true` if the change was written without a majority of voters. |

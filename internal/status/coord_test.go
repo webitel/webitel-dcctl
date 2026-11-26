@@ -309,6 +309,13 @@ func TestActiveKnown(t *testing.T) {
 			voters: []coord.VoterState{present(dcA, 5, dcA, true), unreachable(dcB), present(coord.ArbiterName, 6, dcB, false)},
 			want:   false,
 		},
+		{
+			// The voter that does not answer and the arbiter may have
+			// committed generation 5 on dc_b next to the forced one.
+			name:   "forced_and_undetermined_of_its_generation",
+			voters: []coord.VoterState{present(dcA, 5, dcA, true), unreachable(dcB), present(coord.ArbiterName, 5, dcB, false)},
+			want:   false,
+		},
 	}
 
 	for _, tt := range tests {
