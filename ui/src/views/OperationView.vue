@@ -59,6 +59,11 @@
         </template>
       </operation-header>
 
+      <operation-actions
+        :operation="operation"
+        @done="reconnect"
+      />
+
       <operation-steps
         :operation="operation"
         :now-ms="nowMs"
@@ -91,6 +96,7 @@ import { useRoute } from 'vue-router';
 
 import { apiErrorMessage } from '@/api/client/apiError';
 import { serverOffsetMs } from '@/api/client/serverClock';
+import OperationActions from '@/components/operation/OperationActions.vue';
 import OperationHeader from '@/components/operation/OperationHeader.vue';
 import OperationSteps from '@/components/operation/OperationSteps.vue';
 import { useAgeText } from '@/composables/useAgeText';

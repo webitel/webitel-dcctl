@@ -38,6 +38,9 @@
         :stale="stale"
         :stale-after="staleAfter"
       />
+      <div class="dc-header__actions">
+        <slot name="actions" />
+      </div>
     </div>
     <div
       v-if="datacenter.health_reasons?.length"
@@ -96,6 +99,10 @@ const enumLabel = useEnumLabel();
 
 .dc-header__title h1 {
   margin: 0;
+}
+
+.dc-header__actions {
+  margin-left: auto;
 }
 
 .dc-header__reasons {

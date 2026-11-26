@@ -42,6 +42,23 @@
       <dd data-test="lease">{{ leaseText }}</dd>
     </dl>
 
+    <div
+      v-if="initAvailability.visible"
+      class="coordination__actions"
+    >
+      <action-button
+        kind="initArbiter"
+        :availability="initAvailability"
+        color="primary"
+        @click="initializing = true"
+      />
+    </div>
+    <action-dialog
+      v-if="initializing"
+      kind="initArbiter"
+      @close="initializing = false"
+    />
+
     <h3 class="typo-heading-4">{{ $t('dcctl.overview.coordination.voters') }}</h3>
     <wt-table
       :headers="voterHeaders"
@@ -64,12 +81,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
+import ActionButton from '@/components/action/ActionButton.vue';
+import ActionDialog from '@/components/action/ActionDialog.vue';
 import { useAgeText } from '@/composables/useAgeText';
 import { useEnumLabel } from '@/composables/useEnumLabel';
 import { useStatusStore } from '@/stores/status';
+import { actionAvailability } from '@/utils/actionAvailability';
 import { durationSeconds } from '@/utils/dataAge';
 import { resourceId } from '@/utils/datacenterSummary';
 import { type StatusColor, toChipColor } from '@/utils/statusMapping';
@@ -80,6 +100,11 @@ const enumLabel = useEnumLabel();
 const ageText = useAgeText();
 
 const status = computed(() => store.status);
+
+const initializing = ref(false);
+const initAvailability = computed(() =>
+	actionAvailability('initArbiter', { status: status.value }),
+);
 
 /** No majority, or only a forced write possible, is an emergency. */
 const quorumColor = computed<StatusColor>(() => {
@@ -148,6 +173,10 @@ const voters = computed(() =>
   grid-template-columns: max-content 1fr;
   gap: var(--spacing-2xs) var(--spacing-md);
   margin: 0;
+}
+
+.coordination__actions {
+  display: flex;
 }
 
 .coordination__facts dd {

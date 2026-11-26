@@ -26,8 +26,7 @@ const datacenterPage = (
 /**
  * Where an alarm is handled. `operationName` is `status.operation.name`.
  * Every known type is listed: a new type must not land in a wrong place
- * silently. `CONFLICT` goes to the coordination block until the resolve
- * dialog exists.
+ * silently.
  */
 export const alarmTarget = (
 	alarm: Pick<Alarm, 'type' | 'datacenter' | 'voter_type'>,
