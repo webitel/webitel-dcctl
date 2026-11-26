@@ -1,0 +1,108 @@
+{
+  "operations": [
+    {
+      "name": "operations/op3",
+      "type": "SWITCH",
+      "state": "RUNNING",
+      "target": "datacenters/dc_b",
+      "initiator": {
+        "user": "operator",
+        "address": "10.1.0.15"
+      },
+      "leader": {
+        "node": "dcctl-b1",
+        "datacenter": "datacenters/dc_b"
+      },
+      "mode": "QUORUM",
+      "previous_generation": "7",
+      "new_generation": "8",
+      "steps": [
+        {
+          "index": 1,
+          "type": "APPS_STOP",
+          "stage": 3,
+          "state": "SUCCEEDED",
+          "datacenter": "datacenters/dc_a"
+        },
+        {
+          "index": 2,
+          "type": "GENERATION",
+          "state": "PENDING",
+          "point_of_no_return": true
+        }
+      ],
+      "create_time": "2026-11-23T10:15:00Z",
+      "update_time": "2026-11-23T10:16:00Z"
+    },
+    {
+      "name": "operations/op2",
+      "type": "SWITCH",
+      "state": "SUCCEEDED",
+      "target": "datacenters/dc_b",
+      "initiator": {
+        "user": "operator",
+        "address": "10.1.0.15"
+      },
+      "leader": {
+        "node": "dcctl-b1",
+        "datacenter": "datacenters/dc_b"
+      },
+      "mode": "QUORUM",
+      "previous_generation": "7",
+      "new_generation": "8",
+      "steps": [
+        {
+          "index": 1,
+          "type": "APPS_STOP",
+          "stage": 3,
+          "state": "SUCCEEDED",
+          "datacenter": "datacenters/dc_a"
+        },
+        {
+          "index": 2,
+          "type": "GENERATION",
+          "state": "PENDING",
+          "point_of_no_return": true
+        }
+      ],
+      "create_time": "2026-11-23T10:15:00Z",
+      "update_time": "2026-11-23T10:16:00Z",
+      "end_time": "2026-11-23T10:17:00Z"
+    },
+    {
+      "name": "operations/op1",
+      "type": "SWITCH",
+      "state": "FAILED",
+      "target": "datacenters/dc_b",
+      "initiator": {
+        "user": "operator",
+        "address": "10.1.0.15"
+      },
+      "leader": {
+        "node": "dcctl-b1",
+        "datacenter": "datacenters/dc_b"
+      },
+      "mode": "QUORUM",
+      "previous_generation": "7",
+      "new_generation": "8",
+      "steps": [
+        {
+          "index": 1,
+          "type": "APPS_STOP",
+          "stage": 3,
+          "state": "SUCCEEDED",
+          "datacenter": "datacenters/dc_a"
+        },
+        {
+          "index": 2,
+          "type": "GENERATION",
+          "state": "PENDING",
+          "point_of_no_return": true
+        }
+      ],
+      "create_time": "2026-11-23T10:15:00Z",
+      "update_time": "2026-11-23T10:16:00Z",
+      "end_time": "2026-11-23T10:17:00Z"
+    }
+  ]
+}

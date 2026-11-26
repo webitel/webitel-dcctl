@@ -61,7 +61,7 @@ func newTable(w io.Writer) *tabwriter.Writer {
 }
 
 func row(w io.Writer, cols ...string) {
-	_, _ = fmt.Fprintln(w, strings.Join(cols, "\t"))
+	_, _ = fmt.Fprintln(w, strings.TrimRight(strings.Join(cols, "\t"), "\t"))
 }
 
 func timeOf(ts *timestamppb.Timestamp) string {

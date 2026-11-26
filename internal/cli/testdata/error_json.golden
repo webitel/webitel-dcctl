@@ -1,0 +1,1 @@
+{"error":{"code":"NotFound","message":"datacenter dc_x is not in the config","metadata":{"datacenter":"datacenters/dc_x"},"reason":"DATACENTER_NOT_FOUND"}}

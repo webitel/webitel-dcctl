@@ -1,0 +1,38 @@
+{
+  "name": "datacenters/dc_b",
+  "state": "STANDBY",
+  "health": "OK",
+  "sources": [
+    {
+      "system": "CONSUL",
+      "endpoint": "10.1.0.89:8500",
+      "reachable": true,
+      "observe_time": "2026-11-23T10:15:00Z"
+    }
+  ],
+  "patroni": {
+    "leader": "pg-dc_b",
+    "role": "STANDBY_LEADER",
+    "timeline": "5",
+    "lag_bytes": "0",
+    "members": [
+      {
+        "member": "pg-dc_b",
+        "host": "10.1.0.95",
+        "reachable": true,
+        "role": "STANDBY_LEADER",
+        "patroni_state": "running",
+        "usable": true
+      }
+    ]
+  },
+  "nomad": {
+    "leader": "10.1.0.91:4647",
+    "ready_node_count": 3
+  },
+  "observer": {
+    "node": "dcctl-a1",
+    "datacenter": "datacenters/dc_a"
+  },
+  "observe_time": "2026-11-23T10:15:00Z"
+}

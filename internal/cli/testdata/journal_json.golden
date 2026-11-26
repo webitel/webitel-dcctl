@@ -1,0 +1,23 @@
+{
+  "journal_entries": [
+    {
+      "name": "journalEntries/1",
+      "create_time": "2026-11-23T10:15:00Z",
+      "type": "ALARM",
+      "datacenter": "datacenters/dc_b",
+      "result": "WARNING",
+      "detail": "entry 1"
+    },
+    {
+      "name": "journalEntries/2",
+      "create_time": "2026-11-23T10:15:00Z",
+      "type": "ALARM",
+      "datacenter": "datacenters/dc_b",
+      "result": "WARNING",
+      "detail": "entry 2"
+    }
+  ],
+  "unreachable": [
+    "dc_c"
+  ]
+}

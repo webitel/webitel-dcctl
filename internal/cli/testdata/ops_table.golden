@@ -1,0 +1,4 @@
+OPERATION  TYPE    STATE      TARGET  INITIATOR           STARTED               ENDED
+op3        SWITCH  RUNNING    dc_b    operator@10.1.0.15  2026-11-23T10:15:00Z  -
+op2        SWITCH  SUCCEEDED  dc_b    operator@10.1.0.15  2026-11-23T10:15:00Z  2026-11-23T10:17:00Z
+op1        SWITCH  FAILED     dc_b    operator@10.1.0.15  2026-11-23T10:15:00Z  2026-11-23T10:17:00Z

@@ -1,0 +1,3 @@
+DATACENTER  STATE    HEALTH  DB LEADER  DB ROLE         LAG BYTES  NOMAD READY NODES
+dc_a        ACTIVE   OK      pg-dc_a    PRIMARY         0          3
+dc_b        STANDBY  OK      pg-dc_b    STANDBY_LEADER  0          3

@@ -1,0 +1,19 @@
+Operation:       operations/op7
+Type:            SWITCH
+State:           FAILED
+Target:          dc_b
+Mode:            QUORUM
+Initiator:       operator@10.1.0.15
+Leader:          dcctl-b1 (dc_b)
+Generation:      7 -> 8
+Started:         2026-11-23T10:15:00Z
+Ended:           2026-11-23T10:17:00Z
+Error:           STEP_FAILED: patroni did not answer
+Warning:         dc_c was not repointed
+
+CHECK            RESULT  EFFECT  DATACENTER  DETAIL
+coord.lock_free  PASS    BLOCK   -           the lock is free
+
+STEP  TYPE        STAGE  STATE      DATACENTER  DETAIL
+1     APPS_STOP   3      SUCCEEDED  dc_a
+2     GENERATION  -      PENDING    -  (point of no return)

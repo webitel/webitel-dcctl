@@ -1,0 +1,11 @@
+Active:          dc_a (generation 7)
+Profile:         WARM_STANDBY
+Initialized:     yes
+Observed by:     dcctl-a1 (dc_a) at 2026-11-23T10:15:00Z
+Quorum:          available: 3 of 3 voters answer, 2 required (QUORUM)
+Lease:           held by dc_a, generation 7, lost: no
+Alarm:           WARNING STALE dc_b: dc_b is stale
+
+DATACENTER  STATE    HEALTH  DB LEADER  DB ROLE         LAG BYTES  NOMAD READY NODES
+dc_a        ACTIVE   OK      pg-dc_a    PRIMARY         0          3
+dc_b        STANDBY  OK      pg-dc_b    STANDBY_LEADER  0          3
