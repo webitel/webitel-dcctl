@@ -38,7 +38,10 @@ type fakeVoter struct {
 	block bool
 	// beforeCAS runs at the start of CAS, as another writer would.
 	beforeCAS func(f *fakeVoter)
-	cas       []casCall
+	// blockCAS makes CAS wait for its context and end with an unknown
+	// outcome, as a request sent to a server that stopped answering.
+	blockCAS bool
+	cas      []casCall
 }
 
 func newFake(name string, kind coord.Kind, value []byte) *fakeVoter {
@@ -84,9 +87,15 @@ func (f *fakeVoter) Get(ctx context.Context, key coord.Key) (coord.Entry, error)
 	return coord.Entry{Value: f.value, Version: f.version}, nil
 }
 
-func (f *fakeVoter) CAS(_ context.Context, key coord.Key, value []byte, version coord.Version) error {
+func (f *fakeVoter) CAS(ctx context.Context, key coord.Key, value []byte, version coord.Version) error {
 	if key != coord.KeyState {
 		return fmt.Errorf("unexpected key %s", key)
+	}
+
+	if f.blockCAS {
+		<-ctx.Done()
+
+		return fmt.Errorf("%w: %w", coord.ErrOutcomeUnknown, ctx.Err())
 	}
 
 	if f.beforeCAS != nil {
