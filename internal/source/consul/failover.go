@@ -61,8 +61,9 @@ func newPool(addrs []string, timeout time.Duration) (*pool, error) {
 	return p, nil
 }
 
-// do runs fn against the current server and then the others until one succeeds. fn must
-// only publish results on success.
+// do runs fn against the current server and then the others until one succeeds, and
+// returns the address of the server it succeeded on. fn must only publish results on
+// success.
 //
 //   - A 4xx is the answer of a working server and ends the walk.
 //   - A write that is not idempotent also ends it once its request has been sent: a server
@@ -71,7 +72,7 @@ func newPool(addrs []string, timeout time.Duration) (*pool, error) {
 //   - A session that is gone ([ErrSessionNotFound]) and a canceled context are returned as is.
 //
 // Every other failure is classified by [source.Classify], one per server tried, and joined.
-func (p *pool) do(ctx context.Context, idempotent bool, fn func(context.Context, *api.Client) error) error {
+func (p *pool) do(ctx context.Context, idempotent bool, fn func(context.Context, *api.Client) error) (string, error) {
 	var (
 		n     = len(p.endpoints)
 		start = int(p.current.Load()) % n
@@ -86,18 +87,18 @@ func (p *pool) do(ctx context.Context, idempotent bool, fn func(context.Context,
 		if err == nil {
 			p.current.Store(int64(idx))
 
-			return nil
+			return ep.addr, nil
 		}
 
 		if errors.Is(err, ErrSessionNotFound) || errors.Is(err, context.Canceled) {
-			return err
+			return "", err
 		}
 
 		err = source.Classify(ep.addr, sourceErr(err))
 		answer := isClientError(err)
 
 		if !idempotent && sent && !answer {
-			return fmt.Errorf("%w: %w", ErrOutcomeUnknown, err)
+			return "", fmt.Errorf("%w: %w", ErrOutcomeUnknown, err)
 		}
 
 		errs = append(errs, err)
@@ -108,10 +109,10 @@ func (p *pool) do(ctx context.Context, idempotent bool, fn func(context.Context,
 	}
 
 	if len(errs) == 1 {
-		return errs[0]
+		return "", errs[0]
 	}
 
-	return errors.Join(errs...)
+	return "", errors.Join(errs...)
 }
 
 // attempt runs fn once and reports whether its request was completely written.

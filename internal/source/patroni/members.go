@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"sync"
 
 	"github.com/webitel/webitel-dcctl/internal/source"
@@ -46,7 +47,7 @@ type Member struct {
 	// Probe is GET /patroni of the member; nil when it could not be read or [Client.Cluster]
 	// was used, which does not probe.
 	Probe *State
-	// Usable is set by [Client.Members]: the member runs Patroni [MinVersion] or newer
+	// Usable is set by [Client.Discover]: the member runs Patroni [MinVersion] or newer
 	// and answers over verified TLS.
 	Usable         bool
 	UnusableReason UnusableReason
@@ -130,19 +131,27 @@ func parseLag(raw json.RawMessage) (*int64, error) {
 	return nil, nil //nolint:nilnil // "unknown" is a valid value, nil means unknown
 }
 
-// Members discovers the members of the cluster and checks each one. The seeds are
+// Members is [Client.Discover] without the endpoint.
+func (c *Client) Members(ctx context.Context) ([]Member, error) {
+	members, _, err := c.Discover(ctx)
+
+	return members, err
+}
+
+// Discover discovers the members of the cluster and checks each one. The seeds are
 // Options.Endpoints, or the passing instances of Options.Scope in Options.Datacenter when
 // no endpoints are set. The first seed that answers GET /cluster gives all members, then
-// GET /patroni of every member gives its version and whether it is usable.
-func (c *Client) Members(ctx context.Context) ([]Member, error) {
+// GET /patroni of every member gives its version and whether it is usable. endpoint is
+// the URL of that seed.
+func (c *Client) Discover(ctx context.Context) (members []Member, endpoint string, err error) {
 	seeds, err := c.seeds(ctx)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
-	members, err := c.firstCluster(ctx, seeds)
+	members, seed, err := c.firstCluster(ctx, seeds)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	var wg sync.WaitGroup
@@ -154,10 +163,10 @@ func (c *Client) Members(ctx context.Context) ([]Member, error) {
 	wg.Wait()
 
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
-	return members, nil
+	return members, (&url.URL{Scheme: "https", Host: seed}).String(), nil
 }
 
 func (c *Client) seeds(ctx context.Context) ([]string, error) {
@@ -193,23 +202,24 @@ func (c *Client) seeds(ctx context.Context) ([]string, error) {
 	return seeds, nil
 }
 
-func (c *Client) firstCluster(ctx context.Context, seeds []string) ([]Member, error) {
+// firstCluster returns the members from the first seed that answers, and that seed.
+func (c *Client) firstCluster(ctx context.Context, seeds []string) ([]Member, string, error) {
 	var errs []error
 
 	for _, seed := range seeds {
 		members, err := c.Cluster(ctx, seed)
 		if err == nil {
-			return members, nil
+			return members, seed, nil
 		}
 
 		if ctx.Err() != nil {
-			return nil, err
+			return nil, "", err
 		}
 
 		errs = append(errs, err)
 	}
 
-	return nil, errors.Join(errs...)
+	return nil, "", errors.Join(errs...)
 }
 
 // check fills Probe, Usable and UnusableReason of m from GET /patroni.

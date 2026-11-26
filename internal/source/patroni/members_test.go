@@ -73,11 +73,11 @@ func newFleet(t *testing.T) *fleet {
 	return f
 }
 
-func TestClient_Members_staticEndpoints(t *testing.T) {
+func TestClient_Discover_staticEndpoints(t *testing.T) {
 	f := newFleet(t)
 	c := newClient(t, f.p, patroni.Options{Endpoints: []string{f.rep}})
 
-	got, err := c.Members(t.Context())
+	got, _, err := c.Discover(t.Context())
 	require.NoError(t, err)
 	require.Len(t, got, 3)
 
@@ -102,7 +102,7 @@ func TestClient_Members_staticEndpoints(t *testing.T) {
 	assert.Equal(t, "4.0.6", pg3.Probe.Version)
 }
 
-func TestClient_Members_consulDiscovery(t *testing.T) {
+func TestClient_Discover_consulDiscovery(t *testing.T) {
 	f := newFleet(t)
 	host, port, err := net.SplitHostPort(f.leader)
 	require.NoError(t, err)
@@ -111,7 +111,7 @@ func TestClient_Members_consulDiscovery(t *testing.T) {
 	r := &fakeResolver{addrs: []string{net.JoinHostPort(host, "5432")}}
 	c := newClient(t, f.p, patroni.Options{Scope: "webitel-postgres", Datacenter: "dc_a", APIPort: port, Resolver: r})
 
-	got, err := c.Members(t.Context())
+	got, _, err := c.Discover(t.Context())
 	require.NoError(t, err)
 	assert.Len(t, got, 3)
 	assert.Equal(t, "dc_a", r.gotDC)
@@ -119,53 +119,55 @@ func TestClient_Members_consulDiscovery(t *testing.T) {
 	assert.Empty(t, r.gotTag)
 }
 
-func TestClient_Members_staticEndpointsWinOverConsul(t *testing.T) {
+func TestClient_Discover_staticEndpointsWinOverConsul(t *testing.T) {
 	f := newFleet(t)
 	r := &fakeResolver{err: errors.New("consul must not be asked")}
 	c := newClient(t, f.p, patroni.Options{Endpoints: []string{f.leader}, Resolver: r})
 
-	_, err := c.Members(t.Context())
+	_, _, err := c.Discover(t.Context())
 	require.NoError(t, err)
 	assert.Empty(t, r.gotName)
 }
 
-func TestClient_Members_skipsUnreachableSeed(t *testing.T) {
+func TestClient_Discover_skipsUnreachableSeed(t *testing.T) {
 	f := newFleet(t)
 	c := newClient(t, f.p, patroni.Options{Endpoints: []string{deadAddr(t), f.leader}})
 
-	got, err := c.Members(t.Context())
+	got, endpoint, err := c.Discover(t.Context())
 	require.NoError(t, err)
 	assert.Len(t, got, 3)
+	assert.Equal(t, "https://"+f.leader, endpoint, "the seed that answered")
 }
 
-func TestClient_Members_allSeedsFail(t *testing.T) {
+func TestClient_Discover_allSeedsFail(t *testing.T) {
 	f := newFleet(t)
 	c := newClient(t, f.p, patroni.Options{Endpoints: []string{deadAddr(t), "127.0.0.1:1"}})
 
-	_, err := c.Members(t.Context())
+	_, endpoint, err := c.Discover(t.Context())
 	require.Error(t, err)
+	assert.Empty(t, endpoint)
 
 	_, ok := source.ReasonOf(err)
 	assert.True(t, ok, "the failure of the seeds is classified: %v", err)
 }
 
-func TestClient_Members_noEndpoints(t *testing.T) {
+func TestClient_Discover_noEndpoints(t *testing.T) {
 	p := newPKI(t)
 
-	_, err := newClient(t, p, patroni.Options{}).Members(t.Context())
+	_, _, err := newClient(t, p, patroni.Options{}).Discover(t.Context())
 	require.ErrorIs(t, err, patroni.ErrNoEndpoints)
 	require.ErrorIs(t, err, source.ErrNoEndpoints)
 
 	r := &fakeResolver{}
-	_, err = newClient(t, p, patroni.Options{Scope: "s", Datacenter: "dc_a", Resolver: r}).Members(t.Context())
+	_, _, err = newClient(t, p, patroni.Options{Scope: "s", Datacenter: "dc_a", Resolver: r}).Discover(t.Context())
 	require.ErrorIs(t, err, patroni.ErrNoEndpoints)
 
 	r = &fakeResolver{err: errors.New("consul is down")}
-	_, err = newClient(t, p, patroni.Options{Scope: "s", Datacenter: "dc_a", Resolver: r}).Members(t.Context())
+	_, _, err = newClient(t, p, patroni.Options{Scope: "s", Datacenter: "dc_a", Resolver: r}).Discover(t.Context())
 	require.ErrorContains(t, err, "consul is down")
 }
 
-func TestClient_Members_unreachableAndTLS(t *testing.T) {
+func TestClient_Discover_unreachableAndTLS(t *testing.T) {
 	f := newFleet(t)
 	untrusted := memberServer(t, newPKI(t), "patroni_replica.json", func() []byte { return nil })
 	dead := deadAddr(t)
@@ -177,7 +179,7 @@ func TestClient_Members_unreachableAndTLS(t *testing.T) {
 	)
 	c := newClient(t, f.p, patroni.Options{Endpoints: []string{f.leader}})
 
-	got, err := c.Members(t.Context())
+	got, _, err := c.Discover(t.Context())
 	require.NoError(t, err)
 	require.Len(t, got, 3)
 
@@ -192,13 +194,13 @@ func TestClient_Members_unreachableAndTLS(t *testing.T) {
 	assertReason(t, got[2].Err, source.ReasonTLS)
 }
 
-func TestClient_Members_stoppedMemberHasUnknownPositions(t *testing.T) {
+func TestClient_Discover_stoppedMemberHasUnknownPositions(t *testing.T) {
 	f := newFleet(t)
 	stopped := memberServer(t, f.p, "patroni_stopped.json", func() []byte { return f.cluster })
 	f.cluster = clusterJSON(patroni.Member{Name: "pg-6", Role: "replica", State: "stopped", Endpoint: stopped})
 	c := newClient(t, f.p, patroni.Options{Endpoints: []string{stopped}})
 
-	got, err := c.Members(t.Context())
+	got, _, err := c.Discover(t.Context())
 	require.NoError(t, err)
 	require.Len(t, got, 1)
 	require.NotNil(t, got[0].Probe)
@@ -206,12 +208,12 @@ func TestClient_Members_stoppedMemberHasUnknownPositions(t *testing.T) {
 	assert.Nil(t, got[0].Probe.Timeline)
 }
 
-func TestClient_Members_memberWithoutEndpoint(t *testing.T) {
+func TestClient_Discover_memberWithoutEndpoint(t *testing.T) {
 	f := newFleet(t)
 	f.cluster = []byte(`{"members":[{"name":"pg-1","role":"leader","api_url":"http://10.0.0.11:8008/patroni","host":"10.0.0.11"}]}`)
 	c := newClient(t, f.p, patroni.Options{Endpoints: []string{f.leader}})
 
-	got, err := c.Members(t.Context())
+	got, _, err := c.Discover(t.Context())
 	require.NoError(t, err)
 	require.Len(t, got, 1)
 	assert.False(t, got[0].Usable)
@@ -220,7 +222,7 @@ func TestClient_Members_memberWithoutEndpoint(t *testing.T) {
 	assertReason(t, got[0].Err, source.ReasonInvalid)
 }
 
-func TestClient_Members_brokenPatroniAnswer(t *testing.T) {
+func TestClient_Discover_brokenPatroniAnswer(t *testing.T) {
 	p := newPKI(t)
 
 	var addr string
@@ -235,7 +237,7 @@ func TestClient_Members_brokenPatroniAnswer(t *testing.T) {
 		serveJSON(w, []byte(`{"role":"primary","patroni":{"scope":"s"}}`))
 	}))
 
-	got, err := newClient(t, p, patroni.Options{Endpoints: []string{addr}}).Members(t.Context())
+	got, _, err := newClient(t, p, patroni.Options{Endpoints: []string{addr}}).Discover(t.Context())
 	require.NoError(t, err)
 	require.Len(t, got, 1)
 	assert.False(t, got[0].Usable, "a member that does not report its version is not used")
@@ -260,7 +262,7 @@ func TestFromConfig(t *testing.T) {
 	c, err := patroni.FromConfig(cfg, "dc_b", r)
 	require.NoError(t, err)
 
-	got, err := c.Members(t.Context())
+	got, _, err := c.Discover(t.Context())
 	require.NoError(t, err)
 	assert.Len(t, got, 3, "patroni.endpoints are the seeds")
 	assert.Empty(t, r.gotName, "static endpoints win over Consul")

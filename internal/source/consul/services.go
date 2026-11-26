@@ -57,7 +57,7 @@ func (c *Client) queryInstances(
 		meta QueryMeta
 	)
 
-	err := c.pool.do(ctx, true, func(ctx context.Context, client *api.Client) error {
+	endpoint, err := c.pool.do(ctx, true, func(ctx context.Context, client *api.Client) error {
 		opts := c.queryOptions(ctx)
 		opts.NodeMeta = nodeMeta
 
@@ -70,8 +70,13 @@ func (c *Client) queryInstances(
 
 		return nil
 	})
+	if err != nil {
+		return nil, QueryMeta{}, err
+	}
 
-	return out, meta, err
+	meta.Endpoint = endpoint
+
+	return out, meta, nil
 }
 
 // ExecuteQuery executes the prepared query name, for example webitel-api. The nodes
@@ -83,7 +88,7 @@ func (c *Client) ExecuteQuery(ctx context.Context, name string) ([]ServiceNode, 
 		meta QueryMeta
 	)
 
-	err := c.pool.do(ctx, true, func(ctx context.Context, client *api.Client) error {
+	endpoint, err := c.pool.do(ctx, true, func(ctx context.Context, client *api.Client) error {
 		resp, qm, err := client.PreparedQuery().Execute(name, c.queryOptions(ctx))
 		if err != nil {
 			return err
@@ -98,8 +103,13 @@ func (c *Client) ExecuteQuery(ctx context.Context, name string) ([]ServiceNode, 
 
 		return nil
 	})
+	if err != nil {
+		return nil, QueryMeta{}, err
+	}
 
-	return out, meta, err
+	meta.Endpoint = endpoint
+
+	return out, meta, nil
 }
 
 // HealthyAddrs returns host:port of the passing instances of service with tag (any when

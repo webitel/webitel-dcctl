@@ -27,7 +27,7 @@ func (c *Client) KVGet(ctx context.Context, key string) (*KVEntry, QueryMeta, er
 		meta QueryMeta
 	)
 
-	err := c.pool.do(ctx, true, func(ctx context.Context, client *api.Client) error {
+	endpoint, err := c.pool.do(ctx, true, func(ctx context.Context, client *api.Client) error {
 		p, qm, err := client.KV().Get(key, c.queryOptions(ctx))
 		if err != nil {
 			return err
@@ -40,6 +40,8 @@ func (c *Client) KVGet(ctx context.Context, key string) (*KVEntry, QueryMeta, er
 	if err != nil {
 		return nil, QueryMeta{}, err
 	}
+
+	meta.Endpoint = endpoint
 
 	if pair == nil {
 		return nil, meta, ErrKeyNotFound
@@ -54,7 +56,7 @@ func (c *Client) KVGet(ctx context.Context, key string) (*KVEntry, QueryMeta, er
 func (c *Client) KVList(ctx context.Context, prefix string) ([]KVEntry, error) {
 	var pairs api.KVPairs
 
-	err := c.pool.do(ctx, true, func(ctx context.Context, client *api.Client) error {
+	_, err := c.pool.do(ctx, true, func(ctx context.Context, client *api.Client) error {
 		p, _, err := client.KV().List(prefix, c.queryOptions(ctx))
 		if err != nil {
 			return err
@@ -83,7 +85,7 @@ func (c *Client) KVList(ctx context.Context, prefix string) ([]KVEntry, error) {
 func (c *Client) KVCAS(ctx context.Context, key string, value []byte, modifyIndex uint64) (bool, error) {
 	var ok bool
 
-	err := c.pool.do(ctx, false, func(ctx context.Context, client *api.Client) error {
+	_, err := c.pool.do(ctx, false, func(ctx context.Context, client *api.Client) error {
 		done, _, err := client.KV().CAS(
 			&api.KVPair{Key: key, Value: value, ModifyIndex: modifyIndex},
 			new(api.WriteOptions).WithContext(ctx),
@@ -105,7 +107,7 @@ func (c *Client) KVCAS(ctx context.Context, key string, value []byte, modifyInde
 func (c *Client) KVDeleteCAS(ctx context.Context, key string, modifyIndex uint64) (bool, error) {
 	var ok bool
 
-	err := c.pool.do(ctx, false, func(ctx context.Context, client *api.Client) error {
+	_, err := c.pool.do(ctx, false, func(ctx context.Context, client *api.Client) error {
 		done, _, err := client.KV().DeleteCAS(
 			&api.KVPair{Key: key, ModifyIndex: modifyIndex},
 			new(api.WriteOptions).WithContext(ctx),
