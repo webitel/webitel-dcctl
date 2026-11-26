@@ -464,7 +464,9 @@ export const watchResponse = (id: string, signal: AbortSignal) => {
 			};
 			const tick = () => {
 				if (breaks && sent >= DROP_AFTER_MESSAGES) {
-					controller.error(new TypeError('mock: connection dropped'));
+					// msw 3 turns an errored body stream into a clean end, so the drop is a line cut short.
+					controller.enqueue(encoder.encode('{"result":{"name":'));
+					controller.close();
 					return;
 				}
 				done++;
