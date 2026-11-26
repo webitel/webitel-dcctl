@@ -1,6 +1,7 @@
 import { ChipColor } from '@webitel/ui-sdk/enums';
 
 import type {
+	WebitelDcctlV1CheckResult as CheckResult,
 	WebitelDcctlV1DatacenterHealth as Health,
 	WebitelDcctlV1OperationMode as Mode,
 	WebitelDcctlV1OperationState as OperationState,
@@ -95,6 +96,20 @@ export const operationStateColor = (state?: OperationState): StatusColor => {
 
 export const modeColor = (mode?: Mode): StatusColor =>
 	mode === 'FORCED' ? 'red' : 'gray';
+
+/** Result of a preflight or info check. */
+export const checkColor = (result?: CheckResult): StatusColor => {
+	switch (result) {
+		case 'PASS':
+			return 'green';
+		case 'FAIL':
+			return 'red';
+		case 'WARN':
+			return 'yellow';
+		default:
+			return 'gray';
+	}
+};
 
 const CHIP_COLORS: Record<StatusColor, ChipColor> = {
 	red: ChipColor.ERROR,

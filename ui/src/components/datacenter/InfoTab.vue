@@ -50,13 +50,10 @@
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 
-import type {
-	WebitelDcctlV1CheckResult as CheckResult,
-	WebitelDcctlV1Datacenter as Datacenter,
-} from '@/api/gen/_models';
+import type { WebitelDcctlV1Datacenter as Datacenter } from '@/api/gen/_models';
 import { useEnumLabel } from '@/composables/useEnumLabel';
 import { sourceFor } from '@/utils/datacenterDetail';
-import { type StatusColor, toChipColor } from '@/utils/statusMapping';
+import { checkColor, toChipColor } from '@/utils/statusMapping';
 import LastKnownNotice from './LastKnownNotice.vue';
 import './dcGrid.css';
 
@@ -76,19 +73,6 @@ const headers = computed(() => [
 ]);
 
 const checks = computed(() => props.datacenter.info_checks ?? []);
-
-const checkColor = (result?: CheckResult): StatusColor => {
-	switch (result) {
-		case 'PASS':
-			return 'green';
-		case 'FAIL':
-			return 'red';
-		case 'WARN':
-			return 'yellow';
-		default:
-			return 'gray';
-	}
-};
 
 const hasFacts = (facts: object | undefined): boolean =>
 	!!facts && Object.keys(facts).length > 0;
