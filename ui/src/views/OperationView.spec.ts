@@ -12,6 +12,7 @@ import { reconnectDelayMs } from '@/composables/useOperation';
 import { buildDatacenter } from '@/mocks/datacenterVariants';
 import { useStatusStore } from '@/stores/status';
 import { mountWithApp } from '@/tests/mountWithApp';
+import { waitForLazy } from '@/tests/waitForLazy';
 import OperationView from './OperationView.vue';
 
 const getOperation = vi.hoisted(() => vi.fn());
@@ -112,7 +113,7 @@ const text = (mounted: Mounted, selector: string) =>
 	mounted.wrapper.find(selector).text().replace(/\s+/g, ' ');
 
 const waitForSteps = (mounted: Mounted) =>
-	vi.waitFor(() =>
+	waitForLazy(() =>
 		expect(
 			mounted.wrapper.find('[data-test="op-steps"] tbody tr').exists(),
 		).toBe(true),
@@ -473,7 +474,7 @@ describe('stage expansion', () => {
 		expect(getDatacenter).not.toHaveBeenCalled();
 		await expand(mounted, 1);
 		expect(getDatacenter).toHaveBeenCalledWith('dc_a', expect.anything());
-		await vi.waitFor(() =>
+		await waitForLazy(() =>
 			expect(
 				mounted.wrapper.find('[data-test="stage-jobs"] .wt-table').exists(),
 			).toBe(true),
@@ -488,7 +489,7 @@ describe('stage expansion', () => {
 		getDatacenter.mockResolvedValue(dc('dc_a'));
 		const mounted = await mountWith(operation({ steps }));
 		await expand(mounted, 1);
-		await vi.waitFor(() =>
+		await waitForLazy(() =>
 			expect(
 				mounted.wrapper.find('[data-test="stage-jobs"] .wt-table').exists(),
 			).toBe(true),
@@ -533,7 +534,7 @@ describe('stage expansion', () => {
 		);
 		expect(stepRows(mounted)[0]?.text()).toContain('stage 0');
 		await expand(mounted, 0);
-		await vi.waitFor(() =>
+		await waitForLazy(() =>
 			expect(
 				mounted.wrapper.find('[data-test="stage-jobs-empty"]').exists(),
 			).toBe(true),

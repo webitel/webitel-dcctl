@@ -45,6 +45,8 @@ export default defineConfig(({ mode, command }) => {
 			env: { BASE_URL: BASE },
 			include: ['src/**/*.spec.ts', '*.spec.ts'],
 			setupFiles: ['src/tests/setup.ts'],
+			// The first test of a file waits for the SDK to load its components lazily.
+			testTimeout: 20_000,
 			server: { deps: { inline: [/@webitel\//, /primevue/] } },
 		},
 	};

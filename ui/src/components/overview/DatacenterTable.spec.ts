@@ -1,10 +1,11 @@
 import { flushPromises } from '@vue/test-utils';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import type { WebitelDcctlV1Status as Status } from '@/api/gen/_models';
 import { buildStatus } from '@/mocks/statusVariants';
 import { useStatusStore } from '@/stores/status';
 import { mountWithApp } from '@/tests/mountWithApp';
+import { waitForLazy } from '@/tests/waitForLazy';
 import DatacenterTable from './DatacenterTable.vue';
 
 const mountTable = async (status: Status, now = Date.now()) => {
@@ -13,8 +14,9 @@ const mountTable = async (status: Status, now = Date.now()) => {
 	store.now = now;
 	store.status = status;
 	await flushPromises();
-	// The SDK loads wt-table lazily: wait for its first render.
-	await vi.waitFor(() => expect(wrapper.find('.wt-table').exists()).toBe(true));
+	await waitForLazy(() =>
+		expect(wrapper.find('.wt-table').exists()).toBe(true),
+	);
 	return wrapper;
 };
 

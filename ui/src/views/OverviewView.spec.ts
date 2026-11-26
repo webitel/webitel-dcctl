@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildStatus } from '@/mocks/statusVariants';
 import { useStatusStore } from '@/stores/status';
 import { mountWithApp } from '@/tests/mountWithApp';
+import { waitForLazy } from '@/tests/waitForLazy';
 import OverviewView from './OverviewView.vue';
 
 const scrollIntoView = vi.fn();
@@ -73,7 +74,7 @@ describe('OverviewView hash scrolling', () => {
 		scrollIntoView.mockReset();
 
 		store.status = buildStatus('normal');
-		await vi.waitFor(() => expect(scrollIntoView).toHaveBeenCalled());
+		await waitForLazy(() => expect(scrollIntoView).toHaveBeenCalled());
 	});
 
 	it('scrolls again when the hash changes', async () => {
@@ -84,6 +85,6 @@ describe('OverviewView hash scrolling', () => {
 
 		await router.push('/#datacenters');
 
-		await vi.waitFor(() => expect(scrollIntoView).toHaveBeenCalledTimes(1));
+		await waitForLazy(() => expect(scrollIntoView).toHaveBeenCalledTimes(1));
 	});
 });
