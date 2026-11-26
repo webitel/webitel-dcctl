@@ -1,4 +1,5 @@
 import type {
+	WebitelDcctlV1Check as Check,
 	WebitelDcctlV1Operation as Operation,
 	WebitelDcctlV1OperationState as State,
 	WebitelDcctlV1OperationStep as Step,
@@ -126,4 +127,36 @@ export const generationRange = (
 		from: operation.previous_generation || '0',
 		to: operation.new_generation || null,
 	};
+};
+
+export type AbandonWarning = 'passed' | 'maybe' | 'ahead';
+
+const OP_POINT_CHECK = 'op.point_of_no_return';
+
+/**
+ * What `abandon` must warn about. `passed`: the step with the point of no
+ * return succeeded. `maybe`: it ran, failed or is in a state the UI does not
+ * know, so it may have been crossed. `ahead`: every such step is still pending
+ * or skipped. An `op.point_of_no_return` check of the dry run that does not
+ * pass (it is warn-only, so the server sends WARN) is the
+ * server's own word and counts as at least `maybe`. This is not the timeline
+ * rule, where a running step claims nothing.
+ */
+export const abandonWarning = (
+	operation: Pick<Operation, 'steps'>,
+	checks: readonly Check[] = [],
+): AbandonWarning => {
+	const points = (operation.steps ?? []).filter(
+		(step) => step.point_of_no_return,
+	);
+	if (points.some((step) => step.state === 'SUCCEEDED')) return 'passed';
+	const unsure = points.some(
+		(step) => step.state !== 'PENDING' && step.state !== 'SKIPPED',
+	);
+	const serverSays = checks.some(
+		(check) =>
+			check.id === OP_POINT_CHECK &&
+			(check.result === 'WARN' || check.result === 'FAIL'),
+	);
+	return unsure || serverSays ? 'maybe' : 'ahead';
 };
