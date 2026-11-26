@@ -169,7 +169,7 @@ func divergentNames(view coord.OpView) []string {
 // the others by [coord.OpStore.Align].
 func diverges(view coord.OpView, name string) bool {
 	op, rev := latest(view, name)
-	if op == nil || finishedState(op.GetState()) {
+	if op == nil || coord.Finished(op.GetState()) {
 		return false
 	}
 

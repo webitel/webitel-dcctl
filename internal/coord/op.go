@@ -169,7 +169,7 @@ func (v OpView) Blocking() *OpCopy {
 		case StatusInvalid:
 			return c
 		case StatusPresent:
-			if !finished(c.Operation.GetState()) && v.final(c.Operation.GetName()) == nil {
+			if !Finished(c.Operation.GetState()) && v.final(c.Operation.GetName()) == nil {
 				return c
 			}
 		case StatusAbsent, StatusUnreachable, StatusUninitialized, StatusStale:
@@ -187,7 +187,7 @@ func (v OpView) final(name string) *OpCopy {
 	for i := range v.Copies {
 		c := &v.Copies[i]
 
-		if c.Status != StatusPresent || c.Operation.GetName() != name || !finished(c.Operation.GetState()) {
+		if c.Status != StatusPresent || c.Operation.GetName() != name || !Finished(c.Operation.GetState()) {
 			continue
 		}
 
@@ -211,7 +211,9 @@ func (v OpView) CheckIdle() error {
 	return &OperationRunningError{Name: c.Name, Operation: c.Operation, Err: c.Err}
 }
 
-func finished(s dcctlv1.Operation_State) bool {
+// Finished reports whether s is a final state of an operation: it is never
+// changed again.
+func Finished(s dcctlv1.Operation_State) bool {
 	switch s {
 	case dcctlv1.Operation_SUCCEEDED, dcctlv1.Operation_FAILED, dcctlv1.Operation_ABANDONED:
 		return true
@@ -219,6 +221,29 @@ func finished(s dcctlv1.Operation_State) bool {
 	}
 
 	return false
+}
+
+// Supersedes reports whether the change a is newer than the change b of the
+// same operation: the higher revision is. At one revision, as a late write of
+// a leader that lost the lock leaves, a finished state is newer than one that
+// is not RUNNING, and that is newer than RUNNING: the leader had stopped.
+func Supersedes(a, b *dcctlv1.Operation) bool {
+	if a.GetRevision() != b.GetRevision() {
+		return a.GetRevision() > b.GetRevision()
+	}
+
+	return stateRank(a.GetState()) > stateRank(b.GetState())
+}
+
+func stateRank(s dcctlv1.Operation_State) int {
+	switch {
+	case Finished(s):
+		return 2
+	case s != dcctlv1.Operation_RUNNING:
+		return 1
+	default:
+		return 0
+	}
 }
 
 // datacenterID returns the datacenter of a name that may be the resource
@@ -464,7 +489,7 @@ func (s *OpStore) Align(ctx context.Context) ([]Alignment, error) {
 	var wg sync.WaitGroup
 
 	for i, c := range view.Copies {
-		if c.Status != StatusPresent || finished(c.Operation.GetState()) {
+		if c.Status != StatusPresent || Finished(c.Operation.GetState()) {
 			continue
 		}
 
@@ -507,7 +532,7 @@ func (s *OpStore) alignCopy(ctx context.Context, k KV, final *OpCopy) Alignment 
 		return a
 	case fresh.Status != StatusPresent,
 		fresh.Operation.GetName() != final.Operation.GetName(),
-		finished(fresh.Operation.GetState()):
+		Finished(fresh.Operation.GetState()):
 		a.Outcome = AlignSkipped
 
 		return a
@@ -554,7 +579,7 @@ func nextValue(cur OpCopy, op *dcctlv1.Operation, value []byte, w *OpWrite) ([]b
 
 	switch {
 	case cur.Operation.GetName() != op.GetName():
-		if !finished(cur.Operation.GetState()) {
+		if !Finished(cur.Operation.GetState()) {
 			w.Outcome, w.Err = OpConflict, &OperationRunningError{Name: cur.Name, Operation: cur.Operation}
 
 			return nil, true
@@ -566,7 +591,7 @@ func nextValue(cur OpCopy, op *dcctlv1.Operation, value []byte, w *OpWrite) ([]b
 		w.Outcome, w.Err = OpWritten, nil
 
 		return nil, true
-	case finished(cur.Operation.GetState()):
+	case Finished(cur.Operation.GetState()):
 		w.Outcome = OpConflict
 		w.Err = fmt.Errorf("%s in %s: %s is %s: %w", kv.OpKey, cur.Name, op.GetName(), cur.Operation.GetState(), ErrOperationFinished)
 

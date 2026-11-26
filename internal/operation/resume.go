@@ -204,7 +204,7 @@ func (e *Engine) interrupted(ctx context.Context, name string) (*dcctlv1.Operati
 		return nil, view, err
 	}
 
-	if c := view.Of(name); c != nil && finishedState(c.Operation.GetState()) {
+	if c := view.Of(name); c != nil && coord.Finished(c.Operation.GetState()) {
 		return nil, view, &NotInterruptedError{Name: name, State: c.Operation.GetState()}
 	}
 
@@ -251,7 +251,7 @@ func otherUnfinished(view coord.OpView, name string) error {
 			continue
 		}
 
-		if of := view.Of(c.Operation.GetName()); !finishedState(of.Operation.GetState()) {
+		if of := view.Of(c.Operation.GetName()); !coord.Finished(of.Operation.GetState()) {
 			return &coord.OperationRunningError{Name: c.Name, Operation: c.Operation}
 		}
 	}
