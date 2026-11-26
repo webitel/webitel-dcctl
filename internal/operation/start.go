@@ -24,8 +24,10 @@ import (
 // The preflight runs first and refuses the action with the error of
 // [answer.Refusal]. Then the lock is taken, failing with
 // [*coord.LockBusyError] or [*coord.LockUnavailableError], and every copy of
-// dcctl/op is read: an operation that is not finished refuses the action with
-// [*coord.OperationRunningError]. An operation whose record reaches no copy
+// dcctl/op is read. An operation with the request_id of p that the same
+// request started is returned as it is, and nothing starts; one another
+// request started fails with REQUEST_ID_MISMATCH. An operation that is not
+// finished refuses the action with [*coord.OperationRunningError]. An operation whose record reaches no copy
 // of dcctl/op, or finds another unfinished operation in a copy that was not
 // read, ends FAILED before its first step and Start returns the error.
 func (e *Engine) Start(ctx context.Context, p Plan) (*dcctlv1.Operation, error) {
@@ -68,6 +70,15 @@ func (e *Engine) Start(ctx context.Context, p Plan) (*dcctlv1.Operation, error) 
 	}
 
 	view, err := e.cfg.Ops.Read(ctx)
+	if err == nil {
+		var prev *dcctlv1.Operation
+		if prev, err = Replay(view, p.RequestID, p.Request); prev != nil {
+			e.release(ctx, lk, op.GetName())
+
+			return prev, nil
+		}
+	}
+
 	if err == nil {
 		err = view.CheckIdle()
 	}
@@ -207,7 +218,7 @@ func (e *Engine) newOperation(name string, p Plan, v check.Verdict) (*dcctlv1.Op
 		CreateTime:         timestamppb.Now(),
 	}
 
-	if err := setRequest(op, p.Request); err != nil {
+	if err := setRequest(op, StoredRequest(p.Request)); err != nil {
 		return nil, err
 	}
 

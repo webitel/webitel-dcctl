@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/webitel/webitel-go-kit/pkg/logging"
@@ -66,7 +65,7 @@ func (e *Engine) journalStart(ctx context.Context, op *dcctlv1.Operation, event 
 		params["warnings"] = anySlice(w)
 	}
 
-	if req := requestOf(op); req != nil {
+	if req := requestParams(op); req != nil {
 		params["request"] = req
 	}
 
@@ -271,30 +270,10 @@ func confirmationFacts(v check.Verdict) []any {
 	return out
 }
 
-// requestOf returns the request of op as a JSON object, nil when it has none.
-func requestOf(op *dcctlv1.Operation) map[string]any {
-	var req proto.Message
-
-	switch r := op.GetRequest().(type) {
-	case *dcctlv1.Operation_SwitchDatacenter:
-		req = r.SwitchDatacenter
-	case *dcctlv1.Operation_FailoverDatacenter:
-		req = r.FailoverDatacenter
-	case *dcctlv1.Operation_DemoteDatacenter:
-		req = r.DemoteDatacenter
-	case *dcctlv1.Operation_RepointDatacenter:
-		req = r.RepointDatacenter
-	case *dcctlv1.Operation_MarkDatacenterRecovered:
-		req = r.MarkDatacenterRecovered
-	case *dcctlv1.Operation_ResolveConflict:
-		req = r.ResolveConflict
-	case *dcctlv1.Operation_InitializeDatacenters:
-		req = r.InitializeDatacenters
-	case *dcctlv1.Operation_InitializeArbiter:
-		req = r.InitializeArbiter
-	case *dcctlv1.Operation_SyncApps:
-		req = r.SyncApps
-	default:
+// requestParams returns the request of op as a JSON object, nil when it has none.
+func requestParams(op *dcctlv1.Operation) map[string]any {
+	req := RequestOf(op)
+	if req == nil {
 		return nil
 	}
 

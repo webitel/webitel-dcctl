@@ -255,7 +255,7 @@ func completePlan(plan *operation.Plan, typ dcctlv1.Operation_Type, req actionRe
 	}
 
 	plan.Type = typ
-	plan.Request = storedRequest(req)
+	plan.Request = operation.StoredRequest(req)
 	plan.RequestID = req.GetRequestId()
 	plan.Initiator = ini
 

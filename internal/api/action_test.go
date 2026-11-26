@@ -18,6 +18,7 @@ import (
 	"github.com/webitel/webitel-dcctl/internal/check"
 	"github.com/webitel/webitel-dcctl/internal/coord"
 	"github.com/webitel/webitel-dcctl/internal/kv"
+	"github.com/webitel/webitel-dcctl/internal/operation"
 	"github.com/webitel/webitel-dcctl/internal/preflight"
 	"github.com/webitel/webitel-dcctl/internal/preflight/answer"
 )
@@ -148,7 +149,7 @@ func TestActionValidateOnly(t *testing.T) {
 			assert.Equal(t, dcctlv1.Operation_Step_PENDING, op.GetSteps()[0].GetState())
 			assert.Equal(t, aliceUser, op.GetInitiator().GetUser())
 
-			stored := requestOf(op)
+			stored := operation.RequestOf(op)
 			require.NotNil(t, stored, "the request is in the answer")
 			assert.False(t, stored.(actionRequest).GetValidateOnly())
 
@@ -209,7 +210,7 @@ func TestActionStarts(t *testing.T) {
 			assert.Equal(t, clientIP, p.Initiator.GetAddress())
 			assert.Equal(t, "node-a", p.Initiator.GetInstance().GetNode())
 			assert.Equal(t, "datacenters/dc_a", p.Initiator.GetInstance().GetDatacenter())
-			assert.True(t, proto.Equal(storedRequest(tc.req(false, requestA, false)), p.Request), "stored request %v", p.Request)
+			assert.True(t, proto.Equal(operation.StoredRequest(tc.req(false, requestA, false)), p.Request), "stored request %v", p.Request)
 			assert.Empty(t, env.forwarder.forwarded())
 		})
 	}
@@ -276,7 +277,7 @@ func TestActionUnknownFieldsAreTheSameBody(t *testing.T) {
 	req.GetConfirmation().ProtoReflect().SetUnknown([]byte{0xa8, 0x1f, 0x01})
 
 	op := &dcctlv1.Operation{Name: "operations/op1", RequestId: requestA}
-	setRequest(op, storedRequest(req))
+	setRequest(op, operation.StoredRequest(req))
 
 	raw, err := protojson.Marshal(op)
 	require.NoError(t, err)
@@ -284,7 +285,7 @@ func TestActionUnknownFieldsAreTheSameBody(t *testing.T) {
 	kept := &dcctlv1.Operation{}
 	require.NoError(t, protojson.UnmarshalOptions{DiscardUnknown: true}.Unmarshal(raw, kept))
 
-	assert.True(t, sameRequest(requestOf(kept), req))
+	assert.True(t, operation.SameRequest(operation.RequestOf(kept), req))
 }
 
 func TestActionEmptyConfirmationIsTheSameBody(t *testing.T) {
@@ -313,7 +314,7 @@ func TestActionReplayAfterRace(t *testing.T) {
 	winner := &dcctlv1.Operation{
 		Name: "operations/winner", Type: dcctlv1.Operation_SWITCH, State: dcctlv1.Operation_RUNNING, RequestId: requestA,
 	}
-	setRequest(winner, storedRequest(req))
+	setRequest(winner, operation.StoredRequest(req))
 
 	env.engine.ops = nil
 	env.engine.startErr = &coord.OperationRunningError{Name: "dc_a", Operation: winner}
@@ -335,7 +336,7 @@ func TestActionReplayAfterRefusal(t *testing.T) {
 	winner := &dcctlv1.Operation{
 		Name: "operations/winner", Type: dcctlv1.Operation_SWITCH, State: dcctlv1.Operation_SUCCEEDED, RequestId: requestA,
 	}
-	setRequest(winner, storedRequest(req))
+	setRequest(winner, operation.StoredRequest(req))
 
 	env.engine.ops = nil
 	env.engine.startErr = answer.Refusal(check.Decide([]check.Check{blockedCheck()}, check.Confirmations{}), nil, dcctlv1.Operation_QUORUM)

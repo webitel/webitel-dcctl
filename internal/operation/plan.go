@@ -50,7 +50,9 @@ type Plan struct {
 	Target string
 	// Request is the request message of Type, for example
 	// *dcctlv1.SwitchDatacenterRequest.
-	Request   proto.Message
+	Request proto.Message
+	// RequestID is the idempotency key of the request; an operation of the
+	// same key and request is not started again, see [Engine.Start].
 	RequestID string
 	Initiator *dcctlv1.Initiator
 	// Preflight is the preflight of the action with the confirmations of the
