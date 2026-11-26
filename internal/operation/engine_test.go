@@ -628,6 +628,12 @@ func TestStartNotRecorded(t *testing.T) {
 		st := statusOf(err)
 		assert.Equal(t, codes.Unavailable, st.Code())
 		assert.Equal(t, "KV_UNAVAILABLE", reasonOf(err))
+		assert.Equal(t, notRecorded.Name+" is not started: no copy of dcctl/op took it", st.Message(),
+			"the errors of the writes stay out of the answer")
+
+		for _, entry := range w.journal.entries {
+			assert.NotContains(t, entry.GetError().GetDetail(), "fake:8500", "nor in the journal")
+		}
 
 		for _, d := range st.Details() {
 			if info, ok := d.(*errdetails.ErrorInfo); ok {
