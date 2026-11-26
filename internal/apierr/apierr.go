@@ -4,6 +4,7 @@
 package apierr
 
 import (
+	"errors"
 	"strings"
 
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
@@ -123,6 +124,28 @@ func KVUnavailable(msg string, datacenters []string) error {
 	}
 
 	return Status(ReasonKVUnavailable, msg, md).Err()
+}
+
+// InfoOf returns the dcctl ErrorInfo of the gRPC status in the chain of err,
+// nil when there is none.
+func InfoOf(err error) *errdetails.ErrorInfo {
+	var gs interface{ GRPCStatus() *status.Status }
+	if !errors.As(err, &gs) {
+		return nil
+	}
+
+	for _, d := range gs.GRPCStatus().Details() {
+		if info, ok := d.(*errdetails.ErrorInfo); ok && info.GetDomain() == Domain {
+			return info
+		}
+	}
+
+	return nil
+}
+
+// ReasonOf returns the reason of [InfoOf], "" without one.
+func ReasonOf(err error) Reason {
+	return Reason(InfoOf(err).GetReason())
 }
 
 // Status returns the gRPC status of [New] with metadata in its ErrorInfo,

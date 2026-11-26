@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
@@ -16,7 +15,6 @@ import (
 	"github.com/webitel/webitel-go-kit/pkg/logging"
 
 	dcctlv1 "github.com/webitel/webitel-dcctl/gen/go/dcctl/v1"
-	"github.com/webitel/webitel-dcctl/internal/apierr"
 	"github.com/webitel/webitel-dcctl/internal/auth"
 	"github.com/webitel/webitel-dcctl/internal/check"
 	"github.com/webitel/webitel-dcctl/internal/operation"
@@ -284,21 +282,4 @@ func (s *actionServer) dryRun(ctx context.Context, v check.Verdict, plan operati
 	setRequest(op, plan.Request)
 
 	return op, nil
-}
-
-// reasonOfError returns the ErrorInfo reason of the status in the chain of
-// err, "" without one.
-func reasonOfError(err error) apierr.Reason {
-	var gs interface{ GRPCStatus() *status.Status }
-	if !errors.As(err, &gs) {
-		return ""
-	}
-
-	for _, d := range gs.GRPCStatus().Details() {
-		if info, ok := d.(*errdetails.ErrorInfo); ok && info.GetDomain() == apierr.Domain {
-			return apierr.Reason(info.GetReason())
-		}
-	}
-
-	return ""
 }

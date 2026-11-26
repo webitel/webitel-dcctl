@@ -326,7 +326,7 @@ func (s *actionServer) leaderAnswer(ctx context.Context, err error, dc, node str
 	}
 
 	st := status.Convert(err)
-	if reasonOfError(st.Err()) != "" {
+	if apierr.ReasonOf(st.Err()) != "" {
 		return st.Err()
 	}
 
