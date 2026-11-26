@@ -227,81 +227,83 @@ func TestTracker_raiseAndClearEachAlarm(t *testing.T) {
 		// after is how long the condition holds before the alarm is raised.
 		after time.Duration
 		want  dcctlv1.JournalEntry_Result
+		// clean is the number of clean cycles in a row that clear the alarm.
+		clean int
 	}{
 		{
 			name: "conflict", base: warm, bad: func(s *collect.Snapshot) { setVoterState(s, dcB, forcedState(5, dcB)) },
-			key: key(status.AlarmConflict, ""), want: dcctlv1.JournalEntry_ERROR,
+			key: key(status.AlarmConflict, ""), want: dcctlv1.JournalEntry_ERROR, clean: 2,
 		},
 		{
 			name: "uncommitted", base: warm, bad: func(s *collect.Snapshot) { setVoterState(s, dcB, stateEntry(6, dcB)) },
-			key: key(status.AlarmUncommitted, ""), want: dcctlv1.JournalEntry_ERROR,
+			key: key(status.AlarmUncommitted, ""), want: dcctlv1.JournalEntry_ERROR, clean: 2,
 		},
 		{
 			name: "stale", base: warm, bad: func(s *collect.Snapshot) { setVoterState(s, dcB, stateEntry(4, dcA)) },
-			key: key(status.AlarmStale, dcB), after: degradedAfter, want: dcctlv1.JournalEntry_WARNING,
+			key: key(status.AlarmStale, dcB), after: degradedAfter, want: dcctlv1.JournalEntry_WARNING, clean: 1,
 		},
 		{
 			name: "split_brain", base: warm, bad: startEngineIn(dcB),
-			key: key(status.AlarmSplitBrain, dcB), want: dcctlv1.JournalEntry_ERROR,
+			key: key(status.AlarmSplitBrain, dcB), want: dcctlv1.JournalEntry_ERROR, clean: 2,
 		},
 		{
 			name: "split_brain_role_undetermined", base: warm, bad: all(startEngineIn(dcB), roleUndetermined),
-			key: key(status.AlarmSplitBrain, ""), want: dcctlv1.JournalEntry_ERROR,
+			key: key(status.AlarmSplitBrain, ""), want: dcctlv1.JournalEntry_ERROR, clean: 2,
 		},
 		{
 			name: "db_split", base: warm, bad: promoteIn(dcB, "pg-b1"),
-			key: key(status.AlarmDBSplit, dcB), want: dcctlv1.JournalEntry_ERROR,
+			key: key(status.AlarmDBSplit, dcB), want: dcctlv1.JournalEntry_ERROR, clean: 2,
 		},
 		{
 			name: "multiple_primaries", base: warm, bad: tagPrimary(dcA),
-			key: key(status.AlarmMultiplePrimaries, ""), want: dcctlv1.JournalEntry_ERROR,
+			key: key(status.AlarmMultiplePrimaries, ""), want: dcctlv1.JournalEntry_ERROR, clean: 2,
 		},
 		{
 			name: "db_primary_missing", base: warm, bad: dropLeader(dcA, "pg-a1"),
-			key: key(status.AlarmDBPrimaryMissing, dcA), after: degradedAfter, want: dcctlv1.JournalEntry_ERROR,
+			key: key(status.AlarmDBPrimaryMissing, dcA), after: degradedAfter, want: dcctlv1.JournalEntry_ERROR, clean: 2,
 		},
 		{
 			name: "datacenter_unreachable", base: warm, bad: allSourcesDownIn(dcB),
-			key: key(status.AlarmDatacenterUnreachable, dcB), after: degradedAfter, want: dcctlv1.JournalEntry_WARNING,
+			key: key(status.AlarmDatacenterUnreachable, dcB), after: degradedAfter, want: dcctlv1.JournalEntry_WARNING, clean: 1,
 		},
 		{
 			name: "db_leader_mismatch", base: stretch, bad: leaderIn,
-			key: key(status.AlarmDBLeaderMismatch, ""), after: degradedAfter, want: dcctlv1.JournalEntry_WARNING,
+			key: key(status.AlarmDBLeaderMismatch, ""), after: degradedAfter, want: dcctlv1.JournalEntry_WARNING, clean: 1,
 		},
 		{
 			// The counter last changed a cycle before it froze; the lease is lost once
 			// T + acquire_after passed since.
 			name: "lease_lost", base: warm, bad: func(*collect.Snapshot) {}, frozen: true,
-			key: key(status.AlarmLeaseLost, ""), after: 60 * time.Second, want: dcctlv1.JournalEntry_WARNING,
+			key: key(status.AlarmLeaseLost, ""), after: 60 * time.Second, want: dcctlv1.JournalEntry_WARNING, clean: 1,
 		},
 		{
 			name: "apps_degraded", base: warm, bad: unhealthyEngine(dcA),
-			key: key(status.AlarmAppsDegraded, dcA), after: degradedAfter, want: dcctlv1.JournalEntry_WARNING,
+			key: key(status.AlarmAppsDegraded, dcA), after: degradedAfter, want: dcctlv1.JournalEntry_WARNING, clean: 1,
 		},
 		{
 			name: "db_degraded", base: warm, bad: memberDown("pg-b2"),
-			key: key(status.AlarmDBDegraded, dcB), after: degradedAfter, want: dcctlv1.JournalEntry_WARNING,
+			key: key(status.AlarmDBDegraded, dcB), after: degradedAfter, want: dcctlv1.JournalEntry_WARNING, clean: 1,
 		},
 		{
 			name: "standby_not_following", base: warm, bad: setStandbyHost("10.0.1.2"),
-			key: key(status.AlarmStandbyNotFollowing, dcB), after: degradedAfter, want: dcctlv1.JournalEntry_WARNING,
+			key: key(status.AlarmStandbyNotFollowing, dcB), after: degradedAfter, want: dcctlv1.JournalEntry_WARNING, clean: 1,
 		},
 		{
 			name: "voter_unreachable", base: warm, bad: voterDownFn(dcB),
-			key: voterKey(status.AlarmVoterUnreachable, dcB, dcB), after: degradedAfter, want: dcctlv1.JournalEntry_WARNING,
+			key: voterKey(status.AlarmVoterUnreachable, dcB, dcB), after: degradedAfter, want: dcctlv1.JournalEntry_WARNING, clean: 1,
 		},
 		{
 			name: "quorum_lost", base: warm, bad: roleUndetermined,
-			key: key(status.AlarmQuorumLost, ""), after: degradedAfter, want: dcctlv1.JournalEntry_WARNING,
+			key: key(status.AlarmQuorumLost, ""), after: degradedAfter, want: dcctlv1.JournalEntry_WARNING, clean: 1,
 		},
 		{
 			name: "arbiter_uninitialized", base: warm, bad: func(s *collect.Snapshot) { s.Arbiter.Data = collect.Arbiter{} },
 			key:   voterKey(status.AlarmArbiterUninitialized, "", coord.ArbiterName),
-			after: degradedAfter, want: dcctlv1.JournalEntry_WARNING,
+			after: degradedAfter, want: dcctlv1.JournalEntry_WARNING, clean: 1,
 		},
 		{
 			name: "operation_interrupted", base: warm, bad: operationIn(t, dcctlv1.Operation_INTERRUPTED),
-			key: key(status.AlarmOperationInterrupted, ""), after: degradedAfter, want: dcctlv1.JournalEntry_WARNING,
+			key: key(status.AlarmOperationInterrupted, ""), after: degradedAfter, want: dcctlv1.JournalEntry_WARNING, clean: 1,
 		},
 	}
 
@@ -317,9 +319,15 @@ func TestTracker_raiseAndClearEachAlarm(t *testing.T) {
 				assert.Equal(t, tt.after, took)
 				assert.Equal(t, []dcctlv1.JournalEntry_Result{tt.want}, results(entriesOf(h.journal.take(), tt.key)))
 
-				time.Sleep(cycle)
-
 				h.frozen = false
+
+				for range tt.clean - 1 {
+					time.Sleep(cycle)
+					assert.NotNil(t, alarmOf(h.observe(tt.base()), tt.key), "cleared too early")
+					assert.Empty(t, entriesOf(h.journal.take(), tt.key))
+				}
+
+				time.Sleep(cycle)
 				assert.Nil(t, alarmOf(h.observe(tt.base()), tt.key), "not cleared")
 				assert.Equal(t, []dcctlv1.JournalEntry_Result{dcctlv1.JournalEntry_OK}, results(entriesOf(h.journal.take(), tt.key)))
 			})
@@ -366,6 +374,8 @@ func TestTracker_unreachableSourceKeepsAlarm(t *testing.T) {
 				assert.True(t, h.hold(with(warm, tt.unreachable), tt.key, 3*time.Minute), "cleared while unreachable")
 				assert.Empty(t, entriesOf(h.journal.take(), tt.key))
 
+				h.observe(warm())
+				time.Sleep(cycle)
 				assert.Nil(t, alarmOf(h.observe(warm()), tt.key), "not cleared once the source answers")
 			})
 		})
@@ -461,6 +471,94 @@ func TestTracker_conflictResolved(t *testing.T) {
 			setVoterState(s, dcA, stateEntry(6, dcA))
 			s.Arbiter.Data.State = arbiterRecord(kv.State{Generation: 6, ActiveDatacenter: dcA})
 			voterDown(s, dcB)
+		}
+		assert.Nil(t, alarmOf(h.observe(with(warm, resolved)()), k))
+		assert.Equal(t, []dcctlv1.JournalEntry_Result{dcctlv1.JournalEntry_ERROR, dcctlv1.JournalEntry_OK},
+			results(entriesOf(h.journal.take(), k)))
+	})
+}
+
+// A raised critical alarm clears after two clean cycles in a row. A cycle that cannot
+// tell the condition starts the count anew, as does one that sees it again.
+func TestTracker_criticalClearsAfterTwoCleanCycles(t *testing.T) {
+	type step struct {
+		edit   func(s *collect.Snapshot)
+		raised bool
+	}
+
+	var (
+		clean   = func(*collect.Snapshot) {}
+		unknown = nomadDown(dcB)
+		bad     = startEngineIn(dcB)
+	)
+
+	tests := []struct {
+		name  string
+		steps []step
+		want  []dcctlv1.JournalEntry_Result
+	}{
+		{
+			name:  "clean_clean",
+			steps: []step{{clean, true}, {clean, false}},
+			want:  []dcctlv1.JournalEntry_Result{dcctlv1.JournalEntry_ERROR, dcctlv1.JournalEntry_OK},
+		},
+		{
+			name:  "clean_unknown_clean",
+			steps: []step{{clean, true}, {unknown, true}, {clean, true}, {clean, false}},
+			want:  []dcctlv1.JournalEntry_Result{dcctlv1.JournalEntry_ERROR, dcctlv1.JournalEntry_OK},
+		},
+		{
+			name:  "clean_raise_clean",
+			steps: []step{{clean, true}, {bad, true}, {clean, true}, {clean, false}},
+			want:  []dcctlv1.JournalEntry_Result{dcctlv1.JournalEntry_ERROR, dcctlv1.JournalEntry_OK},
+		},
+		{
+			name: "flapping",
+			steps: []step{
+				{clean, true}, {bad, true}, {clean, true}, {bad, true}, {clean, true}, {bad, true}, {clean, true}, {clean, false},
+			},
+			want: []dcctlv1.JournalEntry_Result{dcctlv1.JournalEntry_ERROR, dcctlv1.JournalEntry_OK},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				h := newHarness(t)
+				h.settle(warm)
+
+				k := key(status.AlarmSplitBrain, dcB)
+				require.NotNil(t, alarmOf(h.observe(with(warm, bad)()), k))
+
+				for i, st := range tt.steps {
+					time.Sleep(cycle)
+					assert.Equal(t, st.raised, alarmOf(h.observe(with(warm, st.edit)()), k) != nil, "step %d", i)
+				}
+
+				assert.Equal(t, tt.want, results(entriesOf(h.journal.take(), k)))
+			})
+		})
+	}
+}
+
+// A decided effective state of a higher generation clears the conflict on the cycle it
+// is seen, with every voter answering as with one that does not.
+func TestTracker_conflictResolvedClearsAtOnce(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h := newHarness(t)
+		h.settle(warm)
+
+		k := key(status.AlarmConflict, "")
+		conflict := func(s *collect.Snapshot) { setVoterState(s, dcB, forcedState(5, dcB)) }
+		_, ok := h.until(with(warm, conflict), k, time.Minute)
+		require.True(t, ok)
+
+		time.Sleep(cycle)
+
+		resolved := func(s *collect.Snapshot) {
+			setVoterState(s, dcA, stateEntry(6, dcA))
+			setVoterState(s, dcB, stateEntry(6, dcA))
+			s.Arbiter.Data.State = arbiterRecord(kv.State{Generation: 6, ActiveDatacenter: dcA})
 		}
 		assert.Nil(t, alarmOf(h.observe(with(warm, resolved)()), k))
 		assert.Equal(t, []dcctlv1.JournalEntry_Result{dcctlv1.JournalEntry_ERROR, dcctlv1.JournalEntry_OK},
@@ -680,6 +778,10 @@ func TestTracker_journalEntry(t *testing.T) {
 
 		time.Sleep(cycle)
 		h.observe(warm())
+		assert.Empty(t, h.journal.take(), "cleared after one clean cycle")
+
+		time.Sleep(cycle)
+		h.observe(warm())
 
 		es = h.journal.take()
 		require.Len(t, es, 1)
@@ -690,7 +792,7 @@ func TestTracker_journalEntry(t *testing.T) {
 }
 
 // dc_b, unreachable, becomes the active datacenter: its alarm turns critical, and the
-// change is journaled.
+// change is journaled. The alarm then clears after two clean cycles.
 func TestTracker_severityChange(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		h := newHarness(t)
@@ -703,15 +805,24 @@ func TestTracker_severityChange(t *testing.T) {
 
 		time.Sleep(cycle)
 
-		obs := h.observe(with(warm, all(allSourcesDownIn(dcB), func(s *collect.Snapshot) {
+		activeB := func(s *collect.Snapshot) {
 			setVoterState(s, dcA, stateEntry(6, dcB))
 			s.Arbiter.Data.State = arbiterRecord(kv.State{Generation: 6, ActiveDatacenter: dcB})
-		}))())
+		}
+		obs := h.observe(with(warm, all(allSourcesDownIn(dcB), activeB))())
 
 		a := alarmOf(obs, k)
 		require.NotNil(t, a)
 		assert.Equal(t, status.SeverityCritical, a.Severity)
 		assert.Equal(t, []dcctlv1.JournalEntry_Result{dcctlv1.JournalEntry_ERROR}, results(entriesOf(h.journal.take(), k)))
+
+		// Critical now, it clears as a critical alarm does.
+		time.Sleep(cycle)
+		assert.NotNil(t, alarmOf(h.observe(with(warm, activeB)()), k), "cleared after one clean cycle")
+
+		time.Sleep(cycle)
+		assert.Nil(t, alarmOf(h.observe(with(warm, activeB)()), k), "not cleared")
+		assert.Equal(t, []dcctlv1.JournalEntry_Result{dcctlv1.JournalEntry_OK}, results(entriesOf(h.journal.take(), k)))
 	})
 }
 

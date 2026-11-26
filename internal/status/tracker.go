@@ -71,10 +71,14 @@ type Observed struct {
 // Tracker builds the status of every snapshot and keeps across cycles what the alarms
 // and the lease are judged by. A critical alarm is raised on the first cycle its
 // condition holds, a warning and an alarm of the active datacenter once it held for
-// status.degraded_after; any is cleared on the first cycle its condition is false and
-// every source it needs answered. While an operation runs under its lock, the alarms
-// its steps cause are not raised for its datacenters. Every raise, clear and change of
-// severity is journaled with the observing instance as the initiator.
+// status.degraded_after. A clean cycle is one whose condition is false and every source
+// it needs answered. A warning is cleared on the first clean cycle, a critical alarm
+// after [criticalClearCycles] of them in a row: a cycle that cannot tell the condition
+// or sees it again starts the count anew. A conflict behind a decided state of a
+// higher generation is cleared on the cycle that shows it. While an operation runs
+// under its lock, the alarms its steps cause are not raised for its datacenters. Every
+// raise, clear and change of severity is journaled with the observing instance as the
+// initiator.
 type Tracker struct {
 	cfg     TrackerConfig
 	journal AlarmJournal
@@ -97,12 +101,19 @@ type Tracker struct {
 	current atomic.Pointer[Observed]
 }
 
-// tracked is an alarm whose condition holds, raised or not yet.
+// criticalClearCycles is the number of clean cycles in a row that clear a critical
+// alarm, so that a flapping condition does not journal a raise and a clear per flap.
+const criticalClearCycles = 2
+
+// tracked is an alarm whose condition holds, raised or not yet, or a raised alarm on
+// its way to clear.
 type tracked struct {
 	// since is the first cycle of the condition holding in a row.
 	since  time.Time
 	raised bool
 	alarm  Alarm
+	// clean counts the clean cycles in a row of a raised alarm.
+	clean int
 }
 
 // change is a raise, a clear or a change of severity to journal.
@@ -213,27 +224,24 @@ func (t *Tracker) apply(f Finding, st *Status, at time.Time) (change, bool) {
 	def := alarmDefs[f.Key.ID]
 	a := t.alarms[f.Key]
 
-	if f.Signal == SignalUnknown && a != nil && a.raised && conflictResolved(a.alarm, st) {
-		f.Signal = SignalClear
-	}
-
-	switch f.Signal {
-	case SignalUnknown:
-		return change{}, false
-	case SignalClear:
-		delete(t.alarms, f.Key)
-
-		if a == nil || !a.raised {
-			return change{}, false
+	switch {
+	case f.Signal == SignalRaise:
+	case a != nil && a.raised && conflictResolved(a.alarm, st):
+		return t.clear(f.Key, a, at)
+	case f.Signal == SignalUnknown:
+		if a != nil {
+			a.clean = 0
 		}
 
-		return change{alarm: a.alarm, cleared: true, at: at}, true
-	case SignalRaise:
+		return change{}, false
+	default:
+		return t.cleanCycle(f.Key, a, at)
 	}
 
 	if a != nil && a.raised {
 		severityChanged := a.alarm.Severity != f.Severity
 		a.alarm.Severity, a.alarm.Detail, a.alarm.Facts = f.Severity, f.Detail, f.Facts
+		a.clean = 0
 
 		return change{alarm: a.alarm, at: at}, severityChanged
 	}
@@ -262,6 +270,27 @@ func (t *Tracker) apply(f Finding, st *Status, at time.Time) (change, bool) {
 	}
 
 	return change{alarm: a.alarm, at: at}, true
+}
+
+// cleanCycle advances the alarm of k, a, on a clean cycle.
+func (t *Tracker) cleanCycle(k AlarmKey, a *tracked, at time.Time) (change, bool) {
+	if a == nil || !a.raised {
+		delete(t.alarms, k)
+
+		return change{}, false
+	}
+
+	if a.clean++; a.alarm.Severity == SeverityCritical && a.clean < criticalClearCycles {
+		return change{}, false
+	}
+
+	return t.clear(k, a, at)
+}
+
+func (t *Tracker) clear(k AlarmKey, a *tracked, at time.Time) (change, bool) {
+	delete(t.alarms, k)
+
+	return change{alarm: a.alarm, cleared: true, at: at}, true
 }
 
 // conflictResolved reports whether a raised conflict is behind a decided effective
