@@ -59,7 +59,12 @@ type Plan struct {
 	// Mode is how the operation writes the new generation.
 	Mode                              dcctlv1.Operation_Mode
 	PreviousGeneration, NewGeneration int64
-	Steps                             []Step
+	// PreviousActive is the active datacenter the plan starts from, by name,
+	// see [coord.Base]. When it or PreviousGeneration is set, the operation
+	// starts only when the voters still hold that record, as the preflight saw
+	// it.
+	PreviousActive string
+	Steps          []Step
 }
 
 func (p Plan) validate() error {

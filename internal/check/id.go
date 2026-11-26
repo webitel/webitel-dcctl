@@ -22,6 +22,9 @@ const (
 	// CoordProfile fails on an action the profile has no scenario for, as demote and
 	// repoint in stretch.
 	CoordProfile ID = "coord.profile"
+	// CoordBaseUnchanged fails when the voters no longer hold the record an operation
+	// was planned from. The engine decides it under the lock, after the preflight.
+	CoordBaseUnchanged ID = "coord.base_unchanged"
 )
 
 // Patroni checks. A check about one datacenter has a result for each datacenter the

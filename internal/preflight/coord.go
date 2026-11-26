@@ -508,3 +508,25 @@ func (in *Input) dcNeedsRecovery() check.Check {
 
 	return s.pass(dc+" needs recovery", facts)
 }
+
+// BaseUnchanged is coord.base_unchanged: it fails unless the record an action starts
+// from on view, see [coord.Base], has generation and active datacenter active. A zero
+// generation or an empty active is not compared.
+func BaseUnchanged(view coord.View, failover bool, generation int64, active string) check.Check {
+	c := block(check.CoordBaseUnchanged, "")
+	facts := map[string]any{"planned_generation": generation, "planned_active_datacenter": active}
+
+	base := coord.Base(view, failover)
+	if base == nil {
+		return c.fail("the voters hold no record the action can start from; plan it again", facts)
+	}
+
+	facts["generation"], facts["active_datacenter"] = base.State.Generation, base.State.ActiveDatacenter
+
+	if generation != 0 && base.State.Generation != generation || active != "" && base.State.ActiveDatacenter != active {
+		return c.fail(fmt.Sprintf("the voters hold generation %d of %s, the action was planned from generation %d of %s; plan it again",
+			base.State.Generation, base.State.ActiveDatacenter, generation, active), facts)
+	}
+
+	return c.pass(fmt.Sprintf("the voters still hold generation %d of %s", base.State.Generation, base.State.ActiveDatacenter), facts)
+}

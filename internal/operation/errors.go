@@ -34,6 +34,10 @@ var (
 	// rollback; it cannot be resumed. It comes with the refusal of
 	// op.not_rolled_back.
 	ErrRolledBack = errors.New("operation was rolled back")
+	// ErrStateChanged means the voters no longer hold the record the plan
+	// starts from: the state changed after the preflight. It comes with the
+	// refusal of coord.base_unchanged; the action is planned again.
+	ErrStateChanged = errors.New("state changed since the preflight")
 	// ErrStopping means the instance stops: its operation is interrupted.
 	ErrStopping = errors.New("instance is stopping")
 	// errOrphaned interrupts an operation no live session of dcctl/lock holds.
