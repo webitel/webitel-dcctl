@@ -204,9 +204,10 @@ func (s *core) noPrimary(r route) operation.StepFunc {
 
 // generation writes the new generation with b active and takes the lease of b. The
 // record is built from what the voters hold now: a resumed step finishes the record an
-// earlier run wrote. A failure that leaves a still active, with nothing written, rolls
-// back; one that finds a record of another writer, or that comes after the record is
-// committed, interrupts.
+// earlier run wrote. The mode is the one those voters allow, see [coord.AdvanceMode]; a
+// forced write needs the isolation of a confirmed by the run of the step. A failure
+// that leaves a still active, with nothing written, rolls back; one that finds a record
+// of another writer, or that comes after the record is committed, interrupts.
 func (s *core) generation(r route) operation.StepFunc {
 	return func(ctx context.Context, x *operation.Exec) error {
 		op := x.Operation()
@@ -223,16 +224,21 @@ func (s *core) generation(r route) operation.StepFunc {
 		}
 
 		if !done {
-			opts := coord.AdvanceOptions{Mode: coord.WriteQuorum}
-			if to.Forced {
-				opts = coord.AdvanceOptions{Mode: coord.WriteForced, IsolationConfirmed: op.GetConfirmation().GetIsolation()}
+			mode, err := coord.AdvanceMode(view, from, to)
+			if err == nil && mode == coord.WriteForced && !x.Confirmed().Isolation {
+				err = fmt.Errorf("generation %d is written forced only with the isolation of %s confirmed: %w",
+					next.Generation, r.a, coord.ErrConfirmationRequired)
 			}
 
-			x.Progress(fmt.Sprintf("writing generation %d with %s active", next.Generation, r.b))
+			if err == nil {
+				to.Forced = mode == coord.WriteForced
 
-			_, err := x.Write(ctx, "advance generation", func(ctx context.Context) (coord.WriteResult, error) {
-				return s.d.Coordinator.Advance(ctx, from, to, opts)
-			})
+				x.Progress(fmt.Sprintf("writing generation %d with %s active, %s", next.Generation, r.b, mode))
+
+				_, err = x.Write(ctx, "advance generation", func(ctx context.Context) (coord.WriteResult, error) {
+					return s.d.Coordinator.Advance(ctx, from, to, coord.AdvanceOptions{Mode: mode, IsolationConfirmed: x.Confirmed().Isolation})
+				})
+			}
 
 			switch {
 			case err == nil:
@@ -260,14 +266,13 @@ func (s *core) generation(r route) operation.StepFunc {
 }
 
 // advanceRecords returns the records [coord.Coordinator.Advance] writes the generation
-// of op with, or done when the voters hold it committed already. A record held by some
-// voters from an earlier run is written as it is, forced when the operation now is; held
+// of op with, before the mode sets forced, or done when the voters hold it committed
+// already. A record held by some voters from an earlier run is written as it is; held
 // tells it. The base is the record the voters hold, effective or undetermined, and only
 // when none holds it the generation and active datacenter the switch was planned from.
 func advanceRecords(view coord.View, op *dcctlv1.Operation, r route) (from, to kv.State, held, done bool, err error) {
 	base, next := records(op, r)
 	opID := operationID(op.GetName())
-	forced := op.GetMode() == dcctlv1.Operation_FORCED
 
 	if next.Generation != base.Generation+1 {
 		return from, to, false, false, fmt.Errorf("generation %d does not follow %d", next.Generation, base.Generation)
@@ -299,8 +304,6 @@ func advanceRecords(view coord.View, op *dcctlv1.Operation, r route) (from, to k
 				next.Generation, next.ActiveDatacenter, to.Revision))
 		}
 
-		to.Forced = to.Forced || forced
-
 		return from, to, held, false, nil
 	}
 
@@ -308,7 +311,6 @@ func advanceRecords(view coord.View, op *dcctlv1.Operation, r route) (from, to k
 		Generation:       next.Generation,
 		ActiveDatacenter: next.ActiveDatacenter,
 		OpID:             opID,
-		Forced:           forced,
 		PatroniTimeline:  from.PatroniTimeline,
 		NeedsRecovery:    needsRecovery(from.NeedsRecovery, r),
 	}, false, false, nil
