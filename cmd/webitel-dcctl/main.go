@@ -326,8 +326,8 @@ type operationDeps struct {
 
 // newEngine returns the operation engine, the preflight of the actions and their
 // planners. The preflight collects with consistent reads and plans the managed jobs on
-// the Nomad leaders, as an action acts on what it reads. In warm_standby the switch
-// plans the switches and resumes its interrupted operations.
+// the Nomad leaders, as an action acts on what it reads. In warm_standby the switch and
+// the failover plan their actions and resume their interrupted operations.
 func newEngine(cfg *config.Serve, d operationDeps) (*operation.Engine, *preflight.Runner, api.Planners, error) {
 	locker, err := coord.NewLocker(d.kvs, coord.LockOptions{
 		TTL:       cfg.Coordination.SessionTTL,
@@ -376,12 +376,13 @@ func newEngine(cfg *config.Serve, d operationDeps) (*operation.Engine, *prefligh
 	var actions api.Planners
 
 	if cfg.Profile == config.ProfileWarmStandby {
-		sw, err := newSwitch(cfg, d, runner, nomads)
+		sw, fo, err := newScenarios(cfg, d, runner, nomads)
 		if err != nil {
 			return nil, nil, api.Planners{}, err
 		}
 
 		resumers[dcctlv1.Operation_SWITCH], actions.Switch = sw, sw
+		resumers[dcctlv1.Operation_FAILOVER], actions.Failover = fo, fo
 	}
 
 	e, err := operation.New(operation.Config{
@@ -403,18 +404,19 @@ func newEngine(cfg *config.Serve, d operationDeps) (*operation.Engine, *prefligh
 	return e, runner, actions, nil
 }
 
-// newSwitch returns the switch of warm_standby. It changes the apps through the Nomad
-// clients of the preflight, which read consistently, and Patroni through clients that
-// find the members in the Consul of their datacenter without stale reads.
-func newSwitch(cfg *config.Serve, d operationDeps, verifier *preflight.Runner, nomads map[string]*nomad.Client) (*scenario.Switch, error) {
+// newScenarios returns the switch and the failover of warm_standby. They change the apps
+// through the Nomad clients of the preflight, which read consistently, and Patroni
+// through clients that find the members in the Consul of their datacenter without stale
+// reads.
+func newScenarios(cfg *config.Serve, d operationDeps, verifier *preflight.Runner, nomads map[string]*nomad.Client) (*scenario.Switch, *scenario.Failover, error) {
 	a, err := apps.New(cfg.Apps, logging.New(logging.WithComponent("dcctl.apps")))
 	if err != nil {
-		return nil, fmt.Errorf("apps: %w", err)
+		return nil, nil, fmt.Errorf("apps: %w", err)
 	}
 
 	pg, err := pgctl.New(cfg.Patroni, d.clients, logging.New(logging.WithComponent("dcctl.pgctl")))
 	if err != nil {
-		return nil, fmt.Errorf("patroni: %w", err)
+		return nil, nil, fmt.Errorf("patroni: %w", err)
 	}
 
 	dcs := make(map[string]scenario.Datacenter, len(nomads))
@@ -422,24 +424,31 @@ func newSwitch(cfg *config.Serve, d operationDeps, verifier *preflight.Runner, n
 	for dc, nc := range nomads {
 		pc, err := patroni.FromConfig(*cfg, dc, d.clients)
 		if err != nil {
-			return nil, fmt.Errorf("patroni of %s: %w", dc, err)
+			return nil, nil, fmt.Errorf("patroni of %s: %w", dc, err)
 		}
 
 		dcs[dc] = scenario.Datacenter{Nomad: nc, Patroni: pc}
 	}
 
-	sw, err := scenario.NewSwitch(scenario.Deps{
+	deps := scenario.Deps{
 		Apps:        a,
 		Patroni:     pg,
 		Coordinator: d.coordinator,
 		Verifier:    verifier,
 		Datacenters: dcs,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("switch: %w", err)
 	}
 
-	return sw, nil
+	sw, err := scenario.NewSwitch(deps)
+	if err != nil {
+		return nil, nil, fmt.Errorf("switch: %w", err)
+	}
+
+	fo, err := scenario.NewFailover(deps)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failover: %w", err)
+	}
+
+	return sw, fo, nil
 }
 
 // keepLease renews the lease of this datacenter while the effective state names it.
