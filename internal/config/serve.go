@@ -164,8 +164,8 @@ type ArbiterClient struct {
 
 // UI is where serve takes the UI build from.
 type UI struct {
-	// Dir is an optional directory of the UI build, an override of the build
-	// embedded in the binary. While the binary embeds none, empty serves no
+	// Dir is the absolute path of the UI build, installed by the
+	// webitel-dcctl-ui package to /usr/share/webitel-dcctl/ui. Empty serves no
 	// UI.
 	Dir string `yaml:"dir"`
 }
