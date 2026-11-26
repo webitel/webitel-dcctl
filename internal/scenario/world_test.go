@@ -100,7 +100,7 @@ func newWorld(t *testing.T) *world {
 	return w
 }
 
-// engine returns an engine of this instance on w.
+// engine returns an engine of this instance on w that resumes switches with w.sw.
 func (w *world) engine() *operation.Engine {
 	w.t.Helper()
 
@@ -120,6 +120,7 @@ func (w *world) engine() *operation.Engine {
 		Preflight:   fakePreflight{},
 		Journal:     w.journal,
 		Recorder:    fakeRecorder{},
+		Resumers:    map[dcctlv1.Operation_Type]operation.Resumer{dcctlv1.Operation_SWITCH: w.sw},
 		Interval:    15 * time.Second,
 		Log:         quietLog(),
 	})
@@ -193,6 +194,38 @@ func (w *world) lockFree() bool {
 	}
 
 	return true
+}
+
+// rawOps returns dcctl/op of every KV as stored.
+func (w *world) rawOps() map[string][]byte {
+	out := map[string][]byte{}
+	for dc, c := range w.consuls {
+		out[dc] = c.rawOp()
+	}
+
+	return out
+}
+
+func (w *world) setRawOps(ops map[string][]byte) {
+	for dc, b := range ops {
+		w.consuls[dc].setRawOp(b)
+	}
+}
+
+// crashAt makes the primitive of key wait until the operation stops, and keeps dcctl/op
+// as it was stored while the primitive ran: the record a crash would leave.
+func (w *world) crashAt(key string) (crashed func() map[string][]byte) {
+	var saved map[string][]byte
+
+	w.infra.hook(key, func(ctx context.Context) error {
+		saved = w.rawOps()
+
+		<-ctx.Done()
+
+		return context.Cause(ctx)
+	})
+
+	return func() map[string][]byte { return saved }
 }
 
 // stepOf returns the step of op of type typ and stage.
