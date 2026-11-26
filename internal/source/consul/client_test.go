@@ -309,3 +309,59 @@ func TestFailover(t *testing.T) {
 		assert.Zero(t, ok.hits.Load())
 	})
 }
+
+func TestQueryMeta_endpointIsTheServerThatAnswered(t *testing.T) {
+	ctx := t.Context()
+
+	routes := http.NewServeMux()
+	routes.HandleFunc("/v1/health/service/", respond(http.StatusOK, healthBody))
+	routes.HandleFunc("/v1/query/", respond(http.StatusOK, `{"Nodes":`+healthBody+`}`))
+	routes.HandleFunc("/v1/kv/present", respond(http.StatusOK, `[{"Key":"present","Value":"dg==","ModifyIndex":1}]`))
+	routes.HandleFunc("/v1/kv/missing", respond(http.StatusNotFound, ""))
+
+	ok := newFake(t, routes.ServeHTTP)
+
+	tests := []struct {
+		name    string
+		read    func(c *Client) (QueryMeta, error)
+		wantErr error
+	}{
+		{name: "instances", read: func(c *Client) (QueryMeta, error) {
+			_, meta, err := c.Instances(ctx, "web", "", true)
+
+			return meta, err
+		}},
+		{name: "cluster_instances", read: func(c *Client) (QueryMeta, error) {
+			_, meta, err := c.ClusterInstances(ctx, "web", "", true)
+
+			return meta, err
+		}},
+		{name: "execute_query", read: func(c *Client) (QueryMeta, error) {
+			_, meta, err := c.ExecuteQuery(ctx, "webitel-api")
+
+			return meta, err
+		}},
+		{name: "kv_get", read: func(c *Client) (QueryMeta, error) {
+			_, meta, err := c.KVGet(ctx, "present")
+
+			return meta, err
+		}},
+		{name: "kv_get_missing_key", wantErr: ErrKeyNotFound, read: func(c *Client) (QueryMeta, error) {
+			_, meta, err := c.KVGet(ctx, "missing")
+
+			return meta, err
+		}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			broken := newFake(t, respond(http.StatusInternalServerError, "No cluster leader"))
+			c := newTestClient(t, broken.addr(), ok.addr())
+
+			meta, err := tt.read(c)
+			require.ErrorIs(t, err, tt.wantErr)
+			assert.Equal(t, int32(1), broken.hits.Load(), "the read falls over from the first server")
+			assert.Equal(t, ok.addr(), meta.Endpoint)
+		})
+	}
+}

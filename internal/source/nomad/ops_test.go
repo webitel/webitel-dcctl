@@ -393,3 +393,39 @@ func TestVersion(t *testing.T) {
 	assert.Equal(t, "1.7.2+ent", version)
 	assert.True(t, f.stale["GET /v1/agent/self"], "a status read may be answered by a follower")
 }
+
+func TestLeader(t *testing.T) {
+	ca := newTestCA(t, "dc_a CA")
+	f := newFakeNomad()
+	good := startTLS(t, ca, f.handler())
+	c := newClient(t, ca, closedAddr(t), good)
+
+	t.Run("known", func(t *testing.T) {
+		leader, endpoint, err := c.Leader(t.Context())
+		require.NoError(t, err)
+		assert.Equal(t, "127.0.0.1:4647", leader)
+		assert.Equal(t, "https://"+good, endpoint)
+		assert.True(t, f.stale["GET /v1/status/leader"], "a status read may be answered by a follower")
+	})
+
+	t.Run("none", func(t *testing.T) {
+		f.mu.Lock()
+		f.leader = ""
+		f.mu.Unlock()
+
+		leader, endpoint, err := c.Leader(t.Context())
+		require.NoError(t, err)
+		assert.Empty(t, leader)
+		assert.Equal(t, "https://"+good, endpoint)
+	})
+
+	t.Run("unreachable", func(t *testing.T) {
+		c := newClient(t, ca, closedAddr(t))
+
+		leader, endpoint, err := c.Leader(t.Context())
+		require.Error(t, err)
+		assert.Equal(t, source.ReasonRefused, reasonOf(t, err))
+		assert.Empty(t, leader)
+		assert.Empty(t, endpoint)
+	})
+}

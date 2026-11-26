@@ -194,7 +194,7 @@ func TestReadConsistency(t *testing.T) {
 	t.Run("stale_reads_report_the_leader_state", func(t *testing.T) {
 		f, stale := serve(t)
 		c := newStaleClient(t, f.addr())
-		want := QueryMeta{KnownLeader: false, LastContact: 1500 * time.Millisecond}
+		want := QueryMeta{KnownLeader: false, LastContact: 1500 * time.Millisecond, Endpoint: f.addr()}
 
 		e, meta, err := c.KVGet(ctx, "dcctl/state")
 		require.NoError(t, err)

@@ -42,9 +42,11 @@ type fakeNomad struct {
 	conflictAlways bool
 	gets           int
 	version        string
-	stale          map[string]bool
-	queries        map[string]string
-	planStatus     int
+	// leader is what GET /v1/status/leader answers; empty is a cluster without one.
+	leader     string
+	stale      map[string]bool
+	queries    map[string]string
+	planStatus int
 }
 
 func newFakeNomad() *fakeNomad {
@@ -53,6 +55,7 @@ func newFakeNomad() *fakeNomad {
 		allocs:         map[string]string{},
 		conflictStatus: http.StatusInternalServerError,
 		version:        "1.10.0",
+		leader:         "127.0.0.1:4647",
 		stale:          map[string]bool{},
 		queries:        map[string]string{},
 	}
@@ -106,7 +109,10 @@ func (f *fakeNomad) handler() http.Handler {
 		_ = json.NewEncoder(w).Encode(map[string]any{"ID": r.PathValue("id"), "Meta": f.nodeMeta[r.PathValue("id")]})
 	})
 	mux.HandleFunc("GET /v1/status/leader", func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = io.WriteString(w, `"127.0.0.1:4647"`)
+		f.mu.Lock()
+		defer f.mu.Unlock()
+
+		_ = json.NewEncoder(w).Encode(f.leader)
 	})
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

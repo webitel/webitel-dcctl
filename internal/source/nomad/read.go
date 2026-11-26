@@ -150,6 +150,32 @@ func (c *Client) Version(ctx context.Context) (string, error) {
 	return version, nil
 }
 
+// Leader returns the RPC address of the leader of the cluster, empty when the server
+// that answered knows none, and the URL of that server.
+func (c *Client) Leader(ctx context.Context) (leader, endpoint string, err error) {
+	err = c.each(ctx, func(ctx context.Context, nc *api.Client) error {
+		l, err := request(ctx, c, func(ctx context.Context) (string, error) {
+			var l string
+
+			_, err := nc.Raw().Query("/v1/status/leader", &l, c.query(ctx))
+
+			return l, err
+		})
+		if err != nil {
+			return err
+		}
+
+		leader, endpoint = l, nc.Address()
+
+		return nil
+	})
+	if err != nil {
+		return "", "", err
+	}
+
+	return leader, endpoint, nil
+}
+
 // build reads the version of the server nc talks to.
 func (c *Client) build(ctx context.Context, nc *api.Client) (string, error) {
 	self, err := request(ctx, c, func(ctx context.Context) (api.AgentSelf, error) {

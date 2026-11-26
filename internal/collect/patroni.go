@@ -18,12 +18,12 @@ var errNoLeader = fmt.Errorf("patroni cluster has no leader: %w", source.ErrNoEn
 // readPatroni reads the members, then /config and /history of the leader at once. prev
 // holds the last known /config and /history.
 func readPatroni(ctx context.Context, r PatroniReader, prev Patroni) (Patroni, error) {
-	members, err := r.Members(ctx)
+	members, seed, err := r.Discover(ctx)
 	if err != nil {
 		return Patroni{}, err
 	}
 
-	p := Patroni{Members: make([]Member, len(members))}
+	p := Patroni{Endpoint: seed, Members: make([]Member, len(members))}
 	for i, m := range members {
 		p.Members[i] = Member{Member: m}
 	}

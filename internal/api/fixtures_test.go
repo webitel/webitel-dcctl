@@ -19,11 +19,13 @@ var observeTime = time.Date(2026, 11, 23, 10, 14, 55, 0, time.UTC)
 
 func ptr[T any](v T) *T { return &v }
 
-func reachableSources() []status.Source {
+// reachableSources are the sources of a datacenter whose servers are in the
+// network prefix, such as 10.1.
+func reachableSources(prefix string) []status.Source {
 	return []status.Source{
-		{System: status.SystemConsul, Reachable: true, ObserveTime: observeTime},
-		{System: status.SystemNomad, Reachable: true, ObserveTime: observeTime},
-		{System: status.SystemPatroni, Reachable: true, ObserveTime: observeTime},
+		{System: status.SystemConsul, Endpoint: prefix + ".0.89:8500", Reachable: true, ObserveTime: observeTime},
+		{System: status.SystemNomad, Endpoint: "https://" + prefix + ".0.91:4646", Reachable: true, ObserveTime: observeTime},
+		{System: status.SystemPatroni, Endpoint: "https://" + prefix + ".0.95:8008", Reachable: true, ObserveTime: observeTime},
 	}
 }
 
@@ -32,12 +34,12 @@ func exampleDCA() status.Datacenter {
 		Name:    "dc_a",
 		State:   status.StateActive,
 		Health:  status.HealthOK,
-		Sources: reachableSources(),
+		Sources: reachableSources("10.1"),
 		Patroni: status.Patroni{
 			Leader: "pg-a1", Role: status.RolePrimary, Timeline: ptr[int64](5),
 			Divergence: status.Divergence{Known: true},
 		},
-		Nomad: status.Nomad{ReadyNodeCount: 3, JobCounts: status.JobCounts{Healthy: 12}},
+		Nomad: status.Nomad{Leader: "10.1.0.91:4647", ReadyNodeCount: 3, JobCounts: status.JobCounts{Healthy: 12}},
 	}
 }
 
@@ -59,7 +61,7 @@ func exampleDCB() status.Datacenter {
 		Name:    "dc_b",
 		State:   status.StateStandby,
 		Health:  status.HealthOK,
-		Sources: reachableSources(),
+		Sources: reachableSources("10.2"),
 		Patroni: status.Patroni{
 			Leader: "pg-b1", Role: status.RoleStandbyLeader, Timeline: ptr[int64](5),
 			StandbyClusterHost: "10.1.0.95", UpstreamDatacenter: "dc_a", LagBytes: ptr[int64](0),
@@ -70,6 +72,7 @@ func exampleDCB() status.Datacenter {
 			},
 		},
 		Nomad: status.Nomad{
+			Leader:         "10.2.0.91:4647",
 			ReadyNodeCount: 3,
 			JobCounts:      status.JobCounts{Stopped: 12},
 			Stages: []status.Stage{
@@ -126,9 +129,8 @@ func exampleStatus() status.Status {
 // statusExampleSkips are the paths of the GetStatus example the model does
 // not give: the lease and the alarms come from elsewhere.
 func statusExampleSkips() unproducible {
-	skip := prefixed("datacenters.*.", skipEndpoint)
-	skip["lease"] = "the lease is not part of the status model"
-	skip["alarms"] = "alarms come from the alarm provider"
-
-	return skip
+	return unproducible{
+		"lease":  "the lease is not part of the status model",
+		"alarms": "alarms come from the alarm provider",
+	}
 }

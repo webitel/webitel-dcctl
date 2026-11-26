@@ -354,3 +354,37 @@ func TestDatacenter_source(t *testing.T) {
 	none := status.Datacenter{}
 	assert.Equal(t, status.Source{System: status.SystemNomad}, none.Source(status.SystemNomad), "a missing source does not answer")
 }
+
+// withEndpoints sets the servers that answered the sources of dc.
+func withEndpoints(s *collect.Snapshot, dc, consulAddr, nomadURL, patroniURL string) {
+	d := dcOf(s, dc)
+	d.Services.Data.Meta.Endpoint = consulAddr
+	d.Nomad.Data.Endpoint = nomadURL
+
+	cl, _ := s.ClusterOf(dc)
+	cl.Patroni.Data.Endpoint = patroniURL
+}
+
+func TestDatacenter_sourceEndpoint(t *testing.T) {
+	s := warm()
+	withEndpoints(s, dcA, "10.1.0.89:8500", "https://10.1.0.91:4646", "https://10.1.0.95:8008")
+	withEndpoints(s, dcB, "10.2.0.89:8500", "https://10.2.0.91:4646", "https://10.2.0.95:8008")
+	allSourcesDown(s, dcB)
+	st := status.Build(s, testConfig(), now)
+
+	a := datacenter(t, st, dcA)
+	assert.Equal(t, "10.1.0.89:8500", a.Source(status.SystemConsul).Endpoint)
+	assert.Equal(t, "https://10.1.0.91:4646", a.Source(status.SystemNomad).Endpoint)
+	assert.Equal(t, "https://10.1.0.95:8008", a.Source(status.SystemPatroni).Endpoint)
+
+	b := datacenter(t, st, dcB)
+	for sys, want := range map[status.System]string{
+		status.SystemConsul:  "10.2.0.89:8500",
+		status.SystemNomad:   "https://10.2.0.91:4646",
+		status.SystemPatroni: "https://10.2.0.95:8008",
+	} {
+		src := b.Source(sys)
+		assert.False(t, src.Reachable, sys)
+		assert.Equal(t, want, src.Endpoint, "%s keeps the server that answered last", sys)
+	}
+}

@@ -59,6 +59,8 @@ type QueryMeta struct {
 	// LastContact is how long ago that server last heard from the leader; zero on the
 	// leader itself.
 	LastContact time.Duration
+	// Endpoint is the address of the server that answered, as in consul.servers.
+	Endpoint string
 }
 
 // New builds the clients of opts.Servers, which are tried in the order they are listed.

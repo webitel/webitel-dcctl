@@ -48,7 +48,10 @@ const (
 
 // Source is whether a source of the datacenter answers.
 type Source struct {
-	System    System
+	System System
+	// Endpoint is the server that answered the last successful read, kept while the
+	// source does not answer; empty when none ever did.
+	Endpoint  string
 	Reachable bool
 	// Reason is why the source does not answer.
 	Reason source.Reason
@@ -59,9 +62,11 @@ type Source struct {
 	ObserveTime time.Time
 }
 
-func sourceOf[T any](sys System, s collect.Source[T]) Source {
+// sourceOf builds the source of s. The caller passes endpoint from s.Data, which an
+// unreachable source keeps.
+func sourceOf[T any](sys System, s collect.Source[T], endpoint string) Source {
 	return Source{
-		System: sys, Reachable: s.Reachable, Reason: s.Reason,
+		System: sys, Endpoint: endpoint, Reachable: s.Reachable, Reason: s.Reason,
 		UnreachableSince: s.UnreachableSince, ObserveTime: s.ObserveTime,
 	}
 }
@@ -111,8 +116,8 @@ type dcFacts struct {
 func (b *builder) datacenter(d collect.Datacenter) Datacenter {
 	f := dcFacts{
 		name:    d.Name,
-		consul:  sourceOf(SystemConsul, d.Services),
-		nomad:   sourceOf(SystemNomad, d.Nomad),
+		consul:  sourceOf(SystemConsul, d.Services, d.Services.Data.Meta.Endpoint),
+		nomad:   sourceOf(SystemNomad, d.Nomad, d.Nomad.Data.Endpoint),
 		patroni: b.patroniIn(d.Name),
 	}
 

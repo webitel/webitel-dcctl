@@ -26,6 +26,8 @@ const (
 
 // Nomad is the Nomad cluster of a datacenter.
 type Nomad struct {
+	// Leader is the RPC address of the leader; empty when it is not known.
+	Leader              string
 	Version             string
 	ReadyNodeCount      int
 	IneligibleNodeCount int
@@ -108,7 +110,7 @@ type UnmanagedJob struct {
 }
 
 func nomadOf(n collect.Nomad, now time.Time, minHealthy time.Duration) Nomad {
-	out := Nomad{Version: n.Version}
+	out := Nomad{Leader: n.Leader, Version: n.Version}
 
 	for _, node := range n.Nodes {
 		reason := jobstate.OutOfService(node)

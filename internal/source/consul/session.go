@@ -19,7 +19,7 @@ func (c *Client) CreateSession(ctx context.Context, name string) (string, error)
 
 	var id string
 
-	err := c.pool.do(ctx, true, func(ctx context.Context, client *api.Client) error {
+	_, err := c.pool.do(ctx, true, func(ctx context.Context, client *api.Client) error {
 		sid, _, err := client.Session().CreateNoChecks(entry, new(api.WriteOptions).WithContext(ctx))
 		if err != nil {
 			return err
@@ -37,7 +37,7 @@ func (c *Client) CreateSession(ctx context.Context, name string) (string, error)
 func (c *Client) RenewSession(ctx context.Context, id string) error {
 	var found bool
 
-	err := c.pool.do(ctx, true, func(ctx context.Context, client *api.Client) error {
+	_, err := c.pool.do(ctx, true, func(ctx context.Context, client *api.Client) error {
 		entry, _, err := client.Session().Renew(id, new(api.WriteOptions).WithContext(ctx))
 		if err != nil {
 			return err
@@ -60,11 +60,13 @@ func (c *Client) RenewSession(ctx context.Context, id string) error {
 
 // DestroySession invalidates the session, which releases its keys after the lock delay.
 func (c *Client) DestroySession(ctx context.Context, id string) error {
-	return c.pool.do(ctx, true, func(ctx context.Context, client *api.Client) error {
+	_, err := c.pool.do(ctx, true, func(ctx context.Context, client *api.Client) error {
 		_, err := client.Session().Destroy(id, new(api.WriteOptions).WithContext(ctx))
 
 		return err
 	})
+
+	return err
 }
 
 // Acquire locks key for session, writing value, and reports whether it got the lock. A
@@ -90,7 +92,7 @@ func (c *Client) lock(
 ) (bool, error) {
 	var ok bool
 
-	err := c.pool.do(ctx, idempotent, func(ctx context.Context, client *api.Client) error {
+	_, err := c.pool.do(ctx, idempotent, func(ctx context.Context, client *api.Client) error {
 		done, _, err := op(
 			client.KV(),
 			&api.KVPair{Key: key, Value: value, Session: session},

@@ -136,6 +136,8 @@ type fakeServices struct {
 	call
 
 	byName map[string][]consul.ServiceNode
+	// endpoint is the server that answers.
+	endpoint string
 
 	mu    sync.Mutex
 	asked []string
@@ -150,7 +152,10 @@ func (f *fakeServices) Instances(ctx context.Context, service, _ string, _ bool)
 		return nil, consul.QueryMeta{}, err
 	}
 
-	return f.byName[service], leader, nil
+	meta := leader
+	meta.Endpoint = f.endpoint
+
+	return f.byName[service], meta, nil
 }
 
 func (f *fakeServices) names() []string {
@@ -213,12 +218,24 @@ type fakeNomad struct {
 	nodesCall   call
 	versionCall call
 	allocsCall  call
+	leaderCall  call
 
 	version   string
 	managed   []nomad.Job
 	unmanaged []nomad.Job
 	allocs    map[string][]nomad.Alloc
 	nodes     []nomad.Node
+	// leader is empty for a cluster without one; endpoint is the server that answers.
+	leader   string
+	endpoint string
+}
+
+func (f *fakeNomad) Leader(ctx context.Context) (leader, endpoint string, err error) {
+	if err := f.leaderCall.do(ctx); err != nil {
+		return "", "", err
+	}
+
+	return f.leader, f.endpoint, nil
 }
 
 func (f *fakeNomad) Jobs(ctx context.Context) (managed, unmanaged []nomad.Job, err error) {
@@ -259,19 +276,21 @@ type fakePatroni struct {
 	historyCall call
 
 	members []patroni.Member
-	config  map[string]any
-	history []patroni.HistoryEntry
+	// endpoint is the seed that answers.
+	endpoint string
+	config   map[string]any
+	history  []patroni.HistoryEntry
 
 	mu      sync.Mutex
 	histFor []string
 }
 
-func (f *fakePatroni) Members(ctx context.Context) ([]patroni.Member, error) {
+func (f *fakePatroni) Discover(ctx context.Context) ([]patroni.Member, string, error) {
 	if err := f.membersCall.do(ctx); err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
-	return f.members, nil
+	return f.members, f.endpoint, nil
 }
 
 func (f *fakePatroni) Config(ctx context.Context, _ string) (map[string]any, error) {

@@ -36,8 +36,38 @@ func TestMapDatacenterExample(t *testing.T) {
 	got := m.datacenter(&dc, true)
 	require.NoError(t, m.err)
 
-	assertExample(t, swaggerExample(t, "/v1/datacenters/{datacenter}", "get", "200"), gatewayJSON(t, got),
-		prefixed("", skipEndpoint))
+	assertExample(t, swaggerExample(t, "/v1/datacenters/{datacenter}", "get", "200"), gatewayJSON(t, got), nil)
+}
+
+func TestMapDatacenterUnreachableSourceKeepsEndpoint(t *testing.T) {
+	st := exampleStatus()
+	dc := exampleDCB()
+	dc.Sources[1] = status.Source{
+		System: status.SystemNomad, Endpoint: "https://10.2.0.91:4646", Reason: source.ReasonTimeout,
+		UnreachableSince: observeTime, ObserveTime: observeTime.Add(-time.Minute),
+	}
+
+	m := newMapper(&st, observerAddress)
+	got := m.datacenter(&dc, false)
+	require.NoError(t, m.err)
+
+	nomad := got.GetSources()[1]
+	assert.Equal(t, dcctlv1.Source_NOMAD, nomad.GetSystem())
+	assert.False(t, nomad.GetReachable())
+	assert.Equal(t, dcctlv1.Source_TIMEOUT, nomad.GetError())
+	assert.Equal(t, "https://10.2.0.91:4646", nomad.GetEndpoint(), "the server that answered last")
+}
+
+func TestMapNomadLeader(t *testing.T) {
+	st := exampleStatus()
+	m := newMapper(&st, observerAddress)
+
+	known := m.nomad(&status.Nomad{Leader: "10.2.0.91:4647"}, false)
+	assert.Equal(t, "10.2.0.91:4647", known.GetLeader())
+
+	unknown := m.nomad(&status.Nomad{}, false)
+	assert.NotContains(t, gatewayJSON(t, unknown), "leader", "an unknown leader is not set")
+	require.NoError(t, m.err)
 }
 
 func TestMapDatacenterSummary(t *testing.T) {
