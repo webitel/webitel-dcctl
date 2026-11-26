@@ -35,7 +35,7 @@ func records(op *dcctlv1.Operation, r route) (base, next coord.RecordKey) {
 // guard returns the guard of the primitives of a step of x: the lock is held, and the
 // resolved effective record is the one of p, written by this operation after the
 // generation step. A record that changed interrupts the operation.
-func (s *Switch) guard(x *operation.Exec, r route, p phase) func(context.Context) error {
+func (s *core) guard(x *operation.Exec, r route, p phase) func(context.Context) error {
 	op := x.Operation()
 	want, next := records(op, r)
 	opID := ""
@@ -86,7 +86,7 @@ func warnApps(x *operation.Exec, res apps.Result) {
 }
 
 // stopApps stops the apps of a from stage from up; from 0 stops every stage.
-func (s *Switch) stopApps(r route, from int) operation.StepFunc {
+func (s *core) stopApps(r route, from int) operation.StepFunc {
 	return func(ctx context.Context, x *operation.Exec) error {
 		res, err := s.d.Apps.StopFrom(ctx, s.d.apps(r.a), from, appsOptions(x, s.guard(x, r, beforeGeneration)))
 		if err == nil {
@@ -98,7 +98,7 @@ func (s *Switch) stopApps(r route, from int) operation.StepFunc {
 }
 
 // startApps starts the apps of dc up to stage to; math.MaxInt starts every stage.
-func (s *Switch) startApps(r route, dc string, to int, p phase) operation.StepFunc {
+func (s *core) startApps(r route, dc string, to int, p phase) operation.StepFunc {
 	return func(ctx context.Context, x *operation.Exec) error {
 		res, err := s.d.Apps.StartUpTo(ctx, s.d.apps(dc), to, appsOptions(x, s.guard(x, r, p)))
 		if err == nil {
@@ -112,7 +112,7 @@ func (s *Switch) startApps(r route, dc string, to int, p phase) operation.StepFu
 // demote makes the cluster of a a standby of b. When it fails with a still primary,
 // the rollback undoes whatever the request did; any other state of a is left to the
 // operator.
-func (s *Switch) demote(r route) operation.StepFunc {
+func (s *core) demote(r route) operation.StepFunc {
 	return func(ctx context.Context, x *operation.Exec) error {
 		res, err := s.d.Patroni.Demote(ctx, s.d.cluster(r.a), s.d.cluster(r.b),
 			patroniOptions(x, s.guard(x, r, beforeGeneration)))
@@ -131,7 +131,7 @@ func (s *Switch) demote(r route) operation.StepFunc {
 // checkNoPrimary checks that no cluster of need and others is primary: the clusters of
 // need must be read, one of others that is not read is a warning. A primary found
 // interrupts the operation.
-func (s *Switch) checkNoPrimary(ctx context.Context, x *operation.Exec, need, others []string) error {
+func (s *core) checkNoPrimary(ctx context.Context, x *operation.Exec, need, others []string) error {
 	res, err := s.d.Patroni.NoPrimary(ctx, s.d.clusters(need...), s.d.clusters(others...), patroniOptions(x, nil))
 
 	var pe *pgctl.PrimaryError
@@ -149,7 +149,7 @@ func (s *Switch) checkNoPrimary(ctx context.Context, x *operation.Exec, need, ot
 // promoteBack removes standby_cluster from a, as the rollback of its demotion, unless b
 // or another standby is read as primary. One that is not read is a warning: the
 // generation still names a and the switch did not promote b.
-func (s *Switch) promoteBack(r route) operation.StepFunc {
+func (s *core) promoteBack(r route) operation.StepFunc {
 	return func(ctx context.Context, x *operation.Exec) error {
 		if err := s.checkNoPrimary(ctx, x, nil, slices.Concat([]string{r.b}, r.c)); err != nil {
 			return err
@@ -163,7 +163,7 @@ func (s *Switch) promoteBack(r route) operation.StepFunc {
 
 // catchup waits for b to catch up with a; b or another datacenter found primary
 // interrupts the operation.
-func (s *Switch) catchup(r route) operation.StepFunc {
+func (s *core) catchup(r route) operation.StepFunc {
 	return func(ctx context.Context, x *operation.Exec) error {
 		_, err := s.d.Patroni.Catchup(ctx, s.d.cluster(r.a), s.d.cluster(r.b), patroniOptions(x, nil))
 
@@ -173,7 +173,7 @@ func (s *Switch) catchup(r route) operation.StepFunc {
 
 // noPrimary checks that neither a nor b is primary before b is promoted, nor a standby
 // of r.c that is read. A primary other than a interrupts the operation.
-func (s *Switch) noPrimary(r route) operation.StepFunc {
+func (s *core) noPrimary(r route) operation.StepFunc {
 	return func(ctx context.Context, x *operation.Exec) error {
 		res, err := s.d.Patroni.NoPrimary(ctx, s.d.clusters(r.a, r.b), s.d.clusters(r.c...), patroniOptions(x, nil))
 
@@ -190,7 +190,7 @@ func (s *Switch) noPrimary(r route) operation.StepFunc {
 // earlier run wrote. A failure that leaves a still active, with nothing written, rolls
 // back; one that finds a record of another writer, or that comes after the record is
 // committed, interrupts.
-func (s *Switch) generation(r route) operation.StepFunc {
+func (s *core) generation(r route) operation.StepFunc {
 	return func(ctx context.Context, x *operation.Exec) error {
 		op := x.Operation()
 		_, next := records(op, r)
@@ -327,7 +327,7 @@ func heldRecord(view coord.View, next coord.RecordKey, opID string) (kv.State, b
 
 // keepGeneration refuses to roll back past a generation this operation wrote: the
 // voters name b active, so a must not start again.
-func (s *Switch) keepGeneration(r route) operation.StepFunc {
+func (s *core) keepGeneration(r route) operation.StepFunc {
 	return func(ctx context.Context, x *operation.Exec) error {
 		op := x.Operation()
 		_, next := records(op, r)
@@ -348,7 +348,7 @@ func (s *Switch) keepGeneration(r route) operation.StepFunc {
 // promote promotes the cluster of b, once neither a nor another standby is primary, and
 // writes its new timeline into the generation. a must be read, unless the run of the
 // step confirmed the isolation of a: the switch saw it a standby before.
-func (s *Switch) promote(r route) operation.StepFunc {
+func (s *core) promote(r route) operation.StepFunc {
 	return func(ctx context.Context, x *operation.Exec) error {
 		need, others := []string{r.a}, r.c
 		if x.Confirmed().Isolation {
@@ -388,7 +388,7 @@ func (s *Switch) promote(r route) operation.StepFunc {
 }
 
 // repoint points the standby c at b; a failure is a warning, c is repointed later.
-func (s *Switch) repoint(r route, c string) operation.StepFunc {
+func (s *core) repoint(r route, c string) operation.StepFunc {
 	return func(ctx context.Context, x *operation.Exec) error {
 		_, err := s.d.Patroni.Repoint(ctx, s.d.cluster(c), s.d.cluster(r.b), patroniOptions(x, s.guard(x, r, afterGeneration)))
 		if err == nil || stopping(ctx, err) {
@@ -402,7 +402,7 @@ func (s *Switch) repoint(r route, c string) operation.StepFunc {
 }
 
 // follow waits for a, already pointed at b, to stream from it; a failure is a warning.
-func (s *Switch) follow(r route) operation.StepFunc {
+func (s *core) follow(r route) operation.StepFunc {
 	return func(ctx context.Context, x *operation.Exec) error {
 		_, err := s.d.Patroni.Follow(ctx, s.d.cluster(r.a), s.d.cluster(r.b), patroniOptions(x, nil))
 		if err == nil || ctx.Err() != nil {
@@ -416,7 +416,7 @@ func (s *Switch) follow(r route) operation.StepFunc {
 }
 
 // verify checks that the switch is complete; what is not is a warning.
-func (s *Switch) verify() operation.StepFunc {
+func (s *core) verify() operation.StepFunc {
 	return func(ctx context.Context, x *operation.Exec) error {
 		v, err := s.d.Verifier.Run(ctx, preflight.Request{Action: preflight.Verify})
 
