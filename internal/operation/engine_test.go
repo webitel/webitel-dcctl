@@ -843,3 +843,34 @@ func TestFailoverStartsFromUndeterminedOfForcedGeneration(t *testing.T) {
 		assert.Equal(t, dcctlv1.Operation_SUCCEEDED, w.op("dc_a").GetState())
 	})
 }
+
+// The start journals what the target and the other standbys received even when the
+// check passed: the loss the failover accepts.
+func TestStartJournalsLossEstimate(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		w := newWorld(t)
+		facts := map[string]any{"target": map[string]any{"datacenter": "dc_b", "received_location": float64(1000)}}
+		w.preflight.verdict = check.Verdict{Outcome: check.Allowed, Checks: []check.Check{{
+			ID: check.PatroniTargetMaxLSN, Result: check.Pass, Effect: check.Confirm, Confirmation: check.ConfirmNotMaxLSN, Facts: facts,
+		}}}
+
+		e := w.engine(self)
+		stop := start(t, e)
+
+		defer stop()
+
+		synctest.Wait()
+
+		_, err := e.Start(t.Context(), switchPlan(operation.Step{
+			Type: dcctlv1.Operation_Step_VERIFY, Run: func(context.Context, *operation.Exec) error { return nil },
+		}))
+		require.NoError(t, err)
+
+		synctest.Wait()
+
+		started := w.journal.event("start")
+		require.Len(t, started, 1)
+		assert.Equal(t, facts, started[0].GetParams().AsMap()["loss_estimate"])
+		assert.NotContains(t, started[0].GetParams().AsMap(), "confirmations", "a check that passed needs no confirmation")
+	})
+}

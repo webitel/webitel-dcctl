@@ -73,6 +73,10 @@ func (e *Engine) journalStart(ctx context.Context, op *dcctlv1.Operation, event 
 		params["confirmations"] = facts
 	}
 
+	if facts := lossFacts(v); facts != nil {
+		params["loss_estimate"] = facts
+	}
+
 	result := dcctlv1.JournalEntry_OK
 	if len(op.GetWarnings()) > 0 {
 		result = dcctlv1.JournalEntry_WARNING
@@ -268,6 +272,19 @@ func confirmationFacts(v check.Verdict) []any {
 	}
 
 	return out
+}
+
+// lossFacts returns the facts of patroni.target_max_lsn whatever its result, nil when
+// the action has none: what the target and the other standbys received, the loss a
+// failover accepts.
+func lossFacts(v check.Verdict) map[string]any {
+	for _, c := range v.Checks {
+		if c.ID == check.PatroniTargetMaxLSN && len(c.Facts) > 0 {
+			return c.Facts
+		}
+	}
+
+	return nil
 }
 
 // requestParams returns the request of op as a JSON object, nil when it has none.
