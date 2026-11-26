@@ -3,8 +3,6 @@ package cli
 import (
 	"regexp"
 	"strings"
-
-	"github.com/urfave/cli/v2"
 )
 
 var (
@@ -34,15 +32,4 @@ func operationArg(arg string) (string, error) {
 	}
 
 	return id, nil
-}
-
-// exactArgs returns the check that the command gets n arguments.
-func exactArgs(n int, usage string) cli.BeforeFunc {
-	return func(c *cli.Context) error {
-		if c.NArg() != n {
-			return usageErrorf("%s: expected %s, got %d argument(s)", c.Command.Name, usage, c.NArg())
-		}
-
-		return nil
-	}
 }

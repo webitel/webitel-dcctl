@@ -1,0 +1,29 @@
+{
+  "type": "SWITCH",
+  "target": "datacenters/dc_b",
+  "mode": "QUORUM",
+  "checks": [
+    {
+      "id": "coord.lock_free",
+      "result": "PASS",
+      "effect": "BLOCK",
+      "detail": "the lock is free"
+    }
+  ],
+  "steps": [
+    {
+      "index": 1,
+      "type": "APPS_STOP",
+      "stage": 3,
+      "state": "PENDING",
+      "datacenter": "datacenters/dc_a"
+    },
+    {
+      "index": 2,
+      "type": "GENERATION",
+      "state": "PENDING",
+      "point_of_no_return": true
+    }
+  ],
+  "end_time": "2026-11-23T10:17:00Z"
+}

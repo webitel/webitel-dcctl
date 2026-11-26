@@ -138,3 +138,21 @@ func printSteps(w io.Writer, steps []*dcctlv1.Operation_Step) {
 
 	_ = tw.Flush()
 }
+
+// printCheckFacts writes the facts of the checks that did not pass, under the
+// table of checks: they are what a confirmation is given on, so the operator
+// sees them whoever answered the question, the flags or the terminal.
+func printCheckFacts(w io.Writer, checks []*dcctlv1.Check) {
+	for _, c := range checks {
+		if c.GetFacts() == nil || c.GetResult() != dcctlv1.Check_FAIL && c.GetResult() != dcctlv1.Check_WARN {
+			continue
+		}
+
+		b, err := marshalJSON(c.GetFacts(), false)
+		if err != nil {
+			continue
+		}
+
+		_, _ = fmt.Fprintf(w, "facts of %s %s: %s\n", c.GetId(), dash(shortName(c.GetDatacenter())), b)
+	}
+}

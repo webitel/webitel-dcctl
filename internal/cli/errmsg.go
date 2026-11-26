@@ -145,9 +145,15 @@ func describeStatus(b *strings.Builder, err error, st *status.Status) {
 
 	if reason == apierr.ReasonConfirmationRequired && pf != nil {
 		for _, c := range pf.GetChecks() {
-			if flag := confirmationFlag(c.GetConfirmation()); flag != "" && c.GetEffect() == dcctlv1.Check_CONFIRM &&
-				c.GetResult() == dcctlv1.Check_FAIL {
-				fmt.Fprintf(b, "\n  needs %s (%s)", flag, c.GetId())
+			flag := confirmationFlag(c.GetConfirmation())
+			if flag == "" || c.GetEffect() != dcctlv1.Check_CONFIRM || c.GetResult() != dcctlv1.Check_FAIL {
+				continue
+			}
+
+			fmt.Fprintf(b, "\n  needs %s: %s: %s", flag, c.GetId(), c.GetDetail())
+
+			if facts, err := marshalJSON(c.GetFacts(), false); err == nil && c.GetFacts() != nil {
+				fmt.Fprintf(b, "\n    facts: %s", facts)
 			}
 		}
 	}

@@ -231,20 +231,32 @@ type offer struct {
 	discard *int64
 }
 
-// answer returns the decision the flags give for n, if they give one.
-func (o offer) answer(n need) (decision, bool) {
+// answer returns the decision the flags give for n, if they give one. A bound
+// below the amount the checks show is an error: the operator was told what is
+// needed. A decision made from a flag holds the amount the checks show, not
+// the bound of the flag, so that no more than what the operator was shown is
+// confirmed; the bound is sent as it is only with --yes, which shows nothing.
+func (o offer) answer(n need) (decision, bool, error) {
 	switch n.kind {
 	case confIsolation:
-		return decision{flag: true}, o.isolation
+		return decision{flag: true}, o.isolation, nil
 	case confNotMaxLSN:
-		return decision{flag: true}, o.notMaxLSN
+		return decision{flag: true}, o.notMaxLSN, nil
 	case confMaxDiscard:
-		if o.discard != nil && (n.amount < 0 || *o.discard >= n.amount) {
-			return decision{flag: true, amount: *o.discard}, true
+		switch {
+		case o.discard == nil:
+		case n.amount < 0:
+			// The server compares the bound with an amount the client is not told.
+			return decision{flag: true, amount: *o.discard}, true, nil
+		case *o.discard < n.amount:
+			return decision{}, false, fmt.Errorf("the checks show %d bytes would be discarded, "+
+				"--%s %d is not enough: needs --%s >= %d", n.amount, flagMaxDiscard, *o.discard, flagMaxDiscard, n.amount)
+		default:
+			return decision{flag: true, amount: n.amount}, true, nil
 		}
 	}
 
-	return decision{}, false
+	return decision{}, false, nil
 }
 
 // confirmation returns the confirmation of the flags as they are, for a call

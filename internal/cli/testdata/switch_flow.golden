@@ -1,0 +1,15 @@
+Nothing is changed yet. The plan:
+Type:            SWITCH
+Target:          dc_b
+Mode:            QUORUM
+
+CHECK            RESULT  EFFECT  DATACENTER  DETAIL
+coord.lock_free  PASS    BLOCK   -           the lock is free
+
+STEP  TYPE        STAGE  STATE    DATACENTER  DETAIL
+1     APPS_STOP   3      PENDING  dc_a
+2     GENERATION  -      PENDING  -  (point of no return)
+operations/op7 SWITCH -> dc_b: RUNNING
+step 1 APPS_STOP dc_a: RUNNING
+operations/op7: SUCCEEDED
+step 1 APPS_STOP dc_a: SUCCEEDED

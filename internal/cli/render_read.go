@@ -204,8 +204,14 @@ func printOperation(w io.Writer, op *dcctlv1.Operation) {
 		kv(w, "Operation", op.GetName())
 	}
 
-	kv(w, "Type", op.GetType().String())
-	kv(w, "State", op.GetState().String())
+	if op.GetType() != dcctlv1.Operation_TYPE_UNSPECIFIED {
+		kv(w, "Type", op.GetType().String())
+	}
+
+	if op.GetState() != dcctlv1.Operation_STATE_UNSPECIFIED {
+		kv(w, "State", op.GetState().String())
+	}
+
 	kv(w, "Target", dash(shortName(op.GetTarget())))
 	kv(w, "Mode", op.GetMode().String())
 
@@ -228,6 +234,7 @@ func printOperation(w io.Writer, op *dcctlv1.Operation) {
 	if len(op.GetChecks()) > 0 {
 		_, _ = fmt.Fprintln(w)
 		printChecks(w, op.GetChecks())
+		printCheckFacts(w, op.GetChecks())
 	}
 
 	if len(op.GetSteps()) > 0 {
