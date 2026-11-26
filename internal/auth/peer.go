@@ -21,6 +21,7 @@ import (
 
 	"github.com/webitel/webitel-go-kit/pkg/logging"
 
+	"github.com/webitel/webitel-dcctl/internal/apierr"
 	"github.com/webitel/webitel-dcctl/internal/buildinfo"
 )
 
@@ -100,7 +101,8 @@ func (p *Peers) UnaryServerInterceptor() grpc.UnaryServerInterceptor {
 
 // StreamServerInterceptor admits the call of a dcctl instance and puts its
 // InitiatorKey metadata in the context; any other call fails with
-// PermissionDenied. Consul unreachable with nothing known yet denies too.
+// PermissionDenied. Consul unreachable with nothing known yet denies too. A
+// call with several InitiatorKey values fails with REQUEST_INVALID.
 func (p *Peers) StreamServerInterceptor() grpc.StreamServerInterceptor {
 	return func(srv any, ss grpc.ServerStream, _ *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		ctx, err := p.admit(ss.Context())
@@ -126,8 +128,13 @@ func (p *Peers) admit(ctx context.Context) (context.Context, error) {
 	}
 
 	md, _ := metadata.FromIncomingContext(ctx)
-	if v := md.Get(InitiatorKey); len(v) > 0 {
+
+	switch v := md.Get(InitiatorKey); len(v) {
+	case 0:
+	case 1:
 		ctx = context.WithValue(ctx, initiatorKey{}, v[0])
+	default:
+		return nil, apierr.New(apierr.ReasonRequestInvalid, InitiatorKey+" has more than one value")
 	}
 
 	return ctx, nil
