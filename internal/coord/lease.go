@@ -173,11 +173,18 @@ func (w LeaseWrite) Written() int {
 // CAS. The lease is taken when a majority of voters took it; otherwise the
 // result comes with [ErrLeaseMinority].
 func (c *Coordinator) AcquireLease(ctx context.Context, h LeaseHolder) (LeaseWrite, error) {
+	return c.writeLeaseOf(ctx, h, false)
+}
+
+// writeLeaseOf is [Coordinator.AcquireLease]; with resolved it also writes
+// nothing unless the effective record tells the active datacenter, see
+// [ActiveKnown].
+func (c *Coordinator) writeLeaseOf(ctx context.Context, h LeaseHolder, resolved bool) (LeaseWrite, error) {
 	if err := h.validate(); err != nil {
 		return LeaseWrite{}, err
 	}
 
-	if err := c.checkHolder(ctx, h); err != nil {
+	if err := c.checkHolder(ctx, h, resolved); err != nil {
 		return LeaseWrite{}, err
 	}
 
@@ -220,7 +227,7 @@ func (c *Coordinator) AcquireLease(ctx context.Context, h LeaseHolder) (LeaseWri
 }
 
 // checkHolder reads dcctl/state and tells whether h is the effective holder.
-func (c *Coordinator) checkHolder(ctx context.Context, h LeaseHolder) error {
+func (c *Coordinator) checkHolder(ctx context.Context, h LeaseHolder, resolved bool) error {
 	view, err := c.Read(ctx)
 	if err != nil {
 		return err
@@ -231,6 +238,8 @@ func (c *Coordinator) checkHolder(ctx context.Context, h LeaseHolder) error {
 	switch {
 	case e == nil:
 		return fmt.Errorf("no effective %s: %w", kv.StateKey, ErrLeaseHolderUndetermined)
+	case resolved && !ActiveKnown(view):
+		return fmt.Errorf("effective %s does not tell the active datacenter: %w", kv.StateKey, ErrLeaseHolderUndetermined)
 	case e.State.Generation > h.Generation,
 		e.State.Generation == h.Generation && e.State.ActiveDatacenter != h.Datacenter:
 		return fmt.Errorf("effective %s is %s at generation %d, not %s at %d: %w", kv.StateKey,
