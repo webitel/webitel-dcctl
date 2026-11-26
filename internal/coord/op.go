@@ -24,9 +24,15 @@ import (
 // whose write has an unknown outcome.
 const opWriteAttempts = 3
 
-// ErrOperationFinished is the error of [OpConflict] when the copy holds the
-// operation in a final state: it is never changed again.
-var ErrOperationFinished = errors.New("operation is finished")
+var (
+	// ErrOperationFinished is the error of [OpConflict] when the copy holds
+	// the operation in a final state: it is never changed again.
+	ErrOperationFinished = errors.New("operation is finished")
+	// ErrOpSuperseded is the error of [OpConflict] when the copy holds another
+	// change of the operation at the revision written or above: another
+	// instance wrote it since.
+	ErrOpSuperseded = errors.New("copy holds a newer change of the operation")
+)
 
 // OperationRunningError means a copy of dcctl/op holds an operation that is
 // not finished, or cannot be read and so may hold one. Its gRPC status is
@@ -228,7 +234,9 @@ const (
 	OpWritten OpWriteOutcome = "written"
 	// OpConflict means the copy was left as it is: it holds another
 	// operation that is not finished ([*OperationRunningError]), cannot be
-	// read, or holds this operation finished ([ErrOperationFinished]).
+	// read, holds this operation finished ([ErrOperationFinished]), or holds
+	// another change of it at the same or a higher revision
+	// ([ErrOpSuperseded]).
 	OpConflict OpWriteOutcome = "conflict"
 	// OpMismatch means the copy changed between every read and its write.
 	OpMismatch OpWriteOutcome = "mismatch"
@@ -329,7 +337,10 @@ func (s *OpStore) readCopy(ctx context.Context, k KV) OpCopy {
 // before it, and an unknown outcome is read again. A copy of the same
 // operation keeps the fields this dcctl does not know. A copy holding
 // another operation that is not finished, or that cannot be read, is never
-// overwritten. Write fails only for an op without a name or when ctx ends.
+// overwritten, and neither is a copy of the same operation at the revision of
+// op or above, which another instance wrote since; an op without a revision,
+// as an older dcctl writes it, is not compared. Write fails only for an op
+// without a name or when ctx ends.
 func (s *OpStore) Write(ctx context.Context, op *dcctlv1.Operation) ([]OpWrite, error) {
 	if op.GetName() == "" {
 		return nil, errors.New("operation has no name")
@@ -551,12 +562,19 @@ func nextValue(cur OpCopy, op *dcctlv1.Operation, value []byte, w *OpWrite) ([]b
 
 		return value, false
 	case proto.Equal(cur.Operation, op):
+		// Before the revision check: a retry after an unknown outcome finds its own write.
 		w.Outcome, w.Err = OpWritten, nil
 
 		return nil, true
 	case finished(cur.Operation.GetState()):
 		w.Outcome = OpConflict
 		w.Err = fmt.Errorf("%s in %s: %s is %s: %w", kv.OpKey, cur.Name, op.GetName(), cur.Operation.GetState(), ErrOperationFinished)
+
+		return nil, true
+	case op.GetRevision() > 0 && cur.Operation.GetRevision() >= op.GetRevision():
+		w.Outcome = OpConflict
+		w.Err = fmt.Errorf("%s in %s: %s is at revision %d, not below %d: %w",
+			kv.OpKey, cur.Name, op.GetName(), cur.Operation.GetRevision(), op.GetRevision(), ErrOpSuperseded)
 
 		return nil, true
 	}
