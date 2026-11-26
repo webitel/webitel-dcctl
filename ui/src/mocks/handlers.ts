@@ -2,6 +2,7 @@ import { HttpResponse, http } from 'msw';
 import { getListDatacentersMockHandler } from '@/api/gen/datacenter-service/datacenter-service.msw';
 import { getVerifyStatusMockHandler } from '@/api/gen/status-service/status-service.msw';
 import { encodeBasicToken } from '@/utils/basicAuth';
+import { actionHandlers } from './actionVariants';
 import { currentDatacenterResponse } from './datacenterVariants';
 import { example } from './example';
 import { currentJournalResponse } from './journalVariants';
@@ -35,6 +36,7 @@ const requireAuth = http.all('*/v1/*', ({ request }) => {
 
 export const handlers = [
 	requireAuth,
+	...actionHandlers,
 	http.get('*/v1/status', () => currentStatusResponse()),
 	getVerifyStatusMockHandler(example('/v1/status:verify', 'get')),
 	getListDatacentersMockHandler(example('/v1/datacenters', 'get')),
