@@ -50,6 +50,7 @@ status:
   info_services: [opensips, engine, storage, grafana]
 journal:
   max_entries: 1000
+  align_interval: 1m
 arbiter:
   address: 10.9.0.10:10024
 # Directory of the UI build. The webitel-dcctl-ui package installs it here;

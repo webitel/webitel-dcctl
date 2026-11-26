@@ -172,6 +172,7 @@ func TestServeValidate_invalid(t *testing.T) {
 		{"status_info_services_blank", func(c *Serve) { c.Status.InfoServices = []string{"engine", ""} }, "status.info_services[1]: must not be empty"},
 
 		{"journal_max_entries_zero", func(c *Serve) { c.Journal.MaxEntries = 0 }, "journal.max_entries: must be positive"},
+		{"journal_align_interval_zero", func(c *Serve) { c.Journal.AlignInterval = 0 }, "journal.align_interval: must be positive"},
 		{"ui_dir_relative", func(c *Serve) { c.UI.Dir = "ui/dist" }, `ui.dir: "ui/dist" is not an absolute path`},
 
 		{"arbiter_address_on_stretch", func(c *Serve) { c.Profile = ProfileStretch }, "arbiter.address: must be empty for profile stretch"},

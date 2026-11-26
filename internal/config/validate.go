@@ -62,6 +62,8 @@ func (c *Serve) Validate() error {
 		v.add("journal.max_entries", "must be positive")
 	}
 
+	v.positive("journal.align_interval", c.Journal.AlignInterval)
+
 	if c.Arbiter.Address != "" {
 		if c.Profile == ProfileStretch {
 			v.add("arbiter.address", "must be empty for profile %s", ProfileStretch)

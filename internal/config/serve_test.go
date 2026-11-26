@@ -73,7 +73,7 @@ func TestParseServe_defaults(t *testing.T) {
 		RabbitMQService: "rabbitmq",
 		InfoServices:    []string{"opensips", "engine", "storage", "grafana"},
 	}, got.Status)
-	assert.Equal(t, Journal{MaxEntries: 1000}, got.Journal)
+	assert.Equal(t, Journal{MaxEntries: 1000, AlignInterval: time.Minute}, got.Journal)
 }
 
 func TestParseServe_rendered(t *testing.T) {
