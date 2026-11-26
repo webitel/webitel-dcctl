@@ -20,7 +20,7 @@ export const startMockWorker = () => {
 	selectOperationsVariantFromUrl(window.location.search);
 	selectJournalVariantFromUrl(window.location.search);
 	return worker.start({
-		onUnhandledRequest: 'warn',
+		onUnhandledFrame: 'warn',
 		serviceWorker: { url: `${import.meta.env.BASE_URL}mockServiceWorker.js` },
 	});
 };

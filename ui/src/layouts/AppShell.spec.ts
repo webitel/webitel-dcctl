@@ -17,7 +17,7 @@ import { mountWithApp } from '@/tests/mountWithApp';
 import { encodeBasicToken } from '@/utils/basicAuth';
 import AppShell from './AppShell.vue';
 
-beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
+beforeAll(() => server.listen({ onUnhandledFrame: 'error' }));
 afterEach(() => {
 	server.resetHandlers();
 	setStatusVariant('normal');

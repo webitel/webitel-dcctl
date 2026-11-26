@@ -34,7 +34,7 @@ const list = (query: Record<string, string> = {}) =>
 const entries = async (query: Record<string, string> = {}) =>
 	((await (await list(query)).json()) as List).journal_entries ?? [];
 
-beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
+beforeAll(() => server.listen({ onUnhandledFrame: 'error' }));
 afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
 beforeEach(() => setJournalVariant('normal'));

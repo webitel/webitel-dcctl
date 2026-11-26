@@ -69,7 +69,7 @@ describe('status variants', () => {
 });
 
 describe('mock GET /v1/status', () => {
-	beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
+	beforeAll(() => server.listen({ onUnhandledFrame: 'error' }));
 	afterEach(() => {
 		server.resetHandlers();
 		setStatusVariant('normal');
