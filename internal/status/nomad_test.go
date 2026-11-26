@@ -129,6 +129,15 @@ func TestBuild_systemJob(t *testing.T) {
 	})
 }
 
+func TestBuild_nomadLeader(t *testing.T) {
+	n := runningNomad()
+	n.Leader = "10.1.0.91:4647"
+	assert.Equal(t, "10.1.0.91:4647", nomadOf(t, n).Leader)
+
+	n.Leader = ""
+	assert.Empty(t, nomadOf(t, n).Leader, "unknown")
+}
+
 func TestBuild_nomadSummary(t *testing.T) {
 	n := runningNomad()
 	n.Managed = append(n.Managed,

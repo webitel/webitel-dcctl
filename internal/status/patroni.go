@@ -133,7 +133,7 @@ func (b *builder) patroniIn(dc string) dcPatroni {
 		return dcPatroni{src: Source{System: SystemPatroni, Reason: source.ReasonNoEndpoints}}
 	}
 
-	p := dcPatroni{cluster: cl, src: sourceOf(SystemPatroni, cl.Patroni)}
+	p := dcPatroni{cluster: cl, src: sourceOf(SystemPatroni, cl.Patroni, cl.Patroni.Data.Endpoint)}
 
 	all := cl.Patroni.Data.Members
 	for i := range all {
