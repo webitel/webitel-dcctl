@@ -596,6 +596,71 @@ func TestStartRefusedWhileOperationRunning(t *testing.T) {
 	})
 }
 
+// requestOp is a finished switch started by the request of switchPlan, with
+// its request_id.
+func requestOp(req *dcctlv1.SwitchDatacenterRequest) *dcctlv1.Operation {
+	op := interruptedOp("earlier", 4)
+	op.State = dcctlv1.Operation_SUCCEEDED
+	op.RequestId = switchPlan().RequestID
+	op.Request = &dcctlv1.Operation_SwitchDatacenter{SwitchDatacenter: req}
+
+	return op
+}
+
+func TestStartReplaysRequestID(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		w := newWorld(t)
+		earlier := requestOp(&dcctlv1.SwitchDatacenterRequest{Name: "datacenters/dc_b"})
+		w.setOp(earlier)
+
+		e := w.engine(self)
+		stop := start(t, e)
+
+		defer stop()
+
+		synctest.Wait()
+
+		var tr trace
+
+		op, err := e.Start(t.Context(), switchPlan(tr.step(dcctlv1.Operation_Step_APPS_STOP, "stop", nil)))
+		require.NoError(t, err)
+		assert.Equal(t, "operations/earlier", op.GetName())
+		assert.Equal(t, dcctlv1.Operation_SUCCEEDED, op.GetState())
+
+		synctest.Wait()
+
+		assert.Empty(t, tr.all(), "nothing runs again")
+		assert.True(t, w.lockFree())
+		assert.Equal(t, "operations/earlier", w.op("dc_a").GetName())
+	})
+}
+
+func TestStartRequestIDOfAnotherRequest(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		w := newWorld(t)
+		w.setOp(requestOp(&dcctlv1.SwitchDatacenterRequest{Name: "datacenters/dc_c"}))
+
+		e := w.engine(self)
+		stop := start(t, e)
+
+		defer stop()
+
+		synctest.Wait()
+
+		var tr trace
+
+		_, err := e.Start(t.Context(), switchPlan(tr.step(dcctlv1.Operation_Step_APPS_STOP, "stop", nil)))
+		assert.Equal(t, codes.AlreadyExists, status.Code(err), "error = %v", err)
+		assert.Equal(t, "REQUEST_ID_MISMATCH", reasonOf(err))
+
+		synctest.Wait()
+
+		assert.Empty(t, tr.all())
+		assert.True(t, w.lockFree())
+		assert.Equal(t, "operations/earlier", w.op("dc_a").GetName())
+	})
+}
+
 func TestStartNotRecorded(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		w := newWorld(t)
