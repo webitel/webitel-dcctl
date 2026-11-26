@@ -121,6 +121,26 @@ func TestCatchupDemotedIsPrimary(t *testing.T) {
 		_, err := w.ctl.Catchup(t.Context(), pgctl.Cluster{Datacenter: dcA, Patroni: a}, pgctl.Cluster{Datacenter: dcB, Patroni: b},
 			pgctl.Options{})
 		require.ErrorIs(t, err, pgctl.ErrPrecondition)
+
+		var pe *pgctl.PrimaryError
+		require.ErrorAs(t, err, &pe)
+		assert.Equal(t, dcA, pe.Datacenter)
+	})
+}
+
+func TestCatchupTargetIsPrimary(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		w := newWorld(t)
+		a, b := demoted(w)
+		b.do(func(f *fakeCluster) { f.setRole("b1", patroni.RolePrimary) })
+
+		_, err := w.ctl.Catchup(t.Context(), pgctl.Cluster{Datacenter: dcA, Patroni: a}, pgctl.Cluster{Datacenter: dcB, Patroni: b},
+			pgctl.Options{})
+
+		var pe *pgctl.PrimaryError
+		require.ErrorAs(t, err, &pe)
+		assert.Equal(t, dcB, pe.Datacenter)
+		assert.Equal(t, "leader b1", pe.Where)
 	})
 }
 
@@ -129,9 +149,6 @@ func TestCatchupPrecondition(t *testing.T) {
 		name  string
 		setup func(a, b *fakeCluster)
 	}{
-		{name: "target is primary", setup: func(_, b *fakeCluster) {
-			b.do(func(f *fakeCluster) { f.setRole("b1", patroni.RolePrimary) })
-		}},
 		{name: "target on another timeline", setup: func(_, b *fakeCluster) {
 			// Positions on timeline 6 say nothing about the end of timeline 5.
 			b.do(func(f *fakeCluster) {

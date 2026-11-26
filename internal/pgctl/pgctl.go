@@ -12,6 +12,9 @@
 //   - [Controller.Catchup], PATRONI_CATCHUP, within catchup: the standby leader of the
 //     target, on the timeline of the demoted leader, received at least its
 //     replayed_location and replayed all it received;
+//   - [Controller.NoPrimary], PATRONI_NO_PRIMARY, within catchup: no cluster of the
+//     datacenters has a primary, by GET /patroni of their members and in Consul; the
+//     clusters it does not need may stay unread;
 //   - [Controller.Promote], PATRONI_PROMOTE, within promote: the leader is primary on a
 //     newer timeline, GET /primary answers 200, standby_cluster is gone from the dynamic
 //     configuration and the leader is the only primary, by GET /patroni and in Consul;
