@@ -22,8 +22,11 @@ import (
 	"github.com/webitel/webitel-dcctl/internal/config"
 	"github.com/webitel/webitel-dcctl/internal/coord"
 	"github.com/webitel/webitel-dcctl/internal/journal"
+	"github.com/webitel/webitel-dcctl/internal/operation"
+	"github.com/webitel/webitel-dcctl/internal/preflight"
 	"github.com/webitel/webitel-dcctl/internal/runtime"
 	"github.com/webitel/webitel-dcctl/internal/source/consul"
+	"github.com/webitel/webitel-dcctl/internal/source/nomad"
 	"github.com/webitel/webitel-dcctl/internal/status"
 	"github.com/webitel/webitel-dcctl/internal/telemetry"
 )
@@ -159,10 +162,30 @@ func runServe(ctx context.Context, cfg *config.Serve) (err error) {
 
 	defer func() { err = errors.Join(err, metrics.Unregister()) }()
 
-	apiOpts, err := readAPI(cfg, clients, j, tracker)
+	kvs, err := coord.NewKVs(cfg.Profile, clients)
 	if err != nil {
 		return err
 	}
+
+	ops, err := coord.NewOpStore(kvs, cfg.Status.RequestTimeout, logging.New(logging.WithComponent("dcctl.op")))
+	if err != nil {
+		return fmt.Errorf("operations: %w", err)
+	}
+
+	coordinator, err := newCoordinator(cfg, clients, arb)
+	if err != nil {
+		return err
+	}
+
+	engine, err := newEngine(cfg, operationDeps{
+		self: self, kvs: kvs, ops: ops, coordinator: coordinator, journal: j,
+		clients: clients, arb: arb, last: collector.Snapshot,
+	})
+	if err != nil {
+		return err
+	}
+
+	apiOpts := readAPI(cfg, ops, j, tracker)
 
 	if cfg.UI.Dir != "" {
 		root, rootErr := os.OpenRoot(cfg.UI.Dir)
@@ -185,6 +208,9 @@ func runServe(ctx context.Context, cfg *config.Serve) (err error) {
 
 	wg.Go(func() { collector.Run(ctx) })
 	wg.Go(func() { tracker.Run(ctx, collector) })
+	wg.Go(func() { _ = engine.Run(ctx) })
+	wg.Go(func() { _ = j.Run(ctx, cfg.Journal.AlignInterval) })
+	wg.Go(func() { keepLease(ctx, cfg, coordinator) })
 
 	err = rt.Run(ctx)
 
@@ -232,19 +258,9 @@ func newJournal(cfg *config.Serve, clients *consul.Clients) (*journal.Journal, e
 }
 
 // readAPI returns what the API reads from: the status and the alarms of the last cycle
-// of tracker, dcctl/op in the KV of every voter, the journal j and listen.peer as the
+// of tracker, the copies of dcctl/op in ops, the journal j and listen.peer as the
 // observer address. Nothing provides verify checks yet.
-func readAPI(cfg *config.Serve, clients *consul.Clients, j *journal.Journal, tracker *status.Tracker) (api.Options, error) {
-	kvs, err := coord.NewKVs(cfg.Profile, clients)
-	if err != nil {
-		return api.Options{}, err
-	}
-
-	ops, err := coord.NewOpStore(kvs, cfg.Status.RequestTimeout, logging.New(logging.WithComponent("dcctl.op")))
-	if err != nil {
-		return api.Options{}, fmt.Errorf("operations: %w", err)
-	}
-
+func readAPI(cfg *config.Serve, ops *coord.OpStore, j *journal.Journal, tracker *status.Tracker) api.Options {
 	log := logging.New(logging.WithComponent("dcctl.api"))
 
 	return api.Options{
@@ -254,7 +270,104 @@ func readAPI(cfg *config.Serve, clients *consul.Clients, j *journal.Journal, tra
 		Journal:    j,
 		Alarms:     api.TrackerAlarms(tracker, log),
 		Log:        log,
-	}, nil
+	}
+}
+
+// newCoordinator returns the coordinator of the voters of serve: the KVs read through
+// clients, which allow no stale reads, and the arbiter when there is one.
+func newCoordinator(cfg *config.Serve, clients *consul.Clients, arb *arbiter.Client) (*coord.Coordinator, error) {
+	voters, err := coord.NewVoters(cfg.Profile, clients, arb)
+	if err != nil {
+		return nil, err
+	}
+
+	c, err := coord.New(voters, cfg.Status.RequestTimeout, logging.New(logging.WithComponent("dcctl.coord")))
+	if err != nil {
+		return nil, fmt.Errorf("coordination: %w", err)
+	}
+
+	return c, nil
+}
+
+// operationDeps is what the operation engine of serve is built on.
+type operationDeps struct {
+	self        collect.Instance
+	kvs         []coord.KV
+	ops         *coord.OpStore
+	coordinator *coord.Coordinator
+	journal     *journal.Journal
+	clients     *consul.Clients
+	arb         *arbiter.Client
+	last        func() *collect.Snapshot
+}
+
+// newEngine returns the operation engine. Its preflight collects with consistent
+// reads and plans the managed jobs on the Nomad leaders, as an action acts on what it
+// reads. No scenario resumes an operation yet.
+func newEngine(cfg *config.Serve, d operationDeps) (*operation.Engine, error) {
+	locker, err := coord.NewLocker(d.kvs, coord.LockOptions{
+		TTL:       cfg.Coordination.SessionTTL,
+		LockDelay: cfg.Coordination.LockDelay,
+		Timeout:   cfg.Status.RequestTimeout,
+	}, logging.New(logging.WithComponent("dcctl.lock")))
+	if err != nil {
+		return nil, fmt.Errorf("lock: %w", err)
+	}
+
+	consistent, err := collect.FromConfig(cfg, d.self, d.arb, collect.ReadsConsistent,
+		logging.New(logging.WithComponent("dcctl.preflight")))
+	if err != nil {
+		return nil, err
+	}
+
+	planners := make(map[string]preflight.Planner, len(d.clients.Datacenters()))
+
+	for _, dc := range d.clients.Datacenters() {
+		nc, err := nomad.New(nomad.Options{
+			Datacenter:      dc,
+			Service:         nomad.ServiceName(cfg.Profile, dc),
+			CAFile:          cfg.TLS.CA,
+			CertFile:        cfg.TLS.Cert,
+			KeyFile:         cfg.TLS.Key,
+			Resolver:        d.clients,
+			RequestTimeout:  cfg.Status.RequestTimeout,
+			ConsistentReads: true,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("nomad of %s: %w", dc, err)
+		}
+
+		planners[dc] = nc
+	}
+
+	recorder, err := telemetry.NewOperationRecorder(otel.GetMeterProvider())
+	if err != nil {
+		return nil, err
+	}
+
+	e, err := operation.New(operation.Config{
+		Self:        operation.Instance{Node: d.self.Node, Datacenter: d.self.Datacenter, Address: cfg.Listen.Peer},
+		Locker:      locker,
+		Ops:         d.ops,
+		Coordinator: d.coordinator,
+		Preflight:   preflight.New(preflight.ConfigFrom(cfg), consistent, planners, d.last),
+		Journal:     d.journal,
+		Recorder:    recorder,
+		Interval:    cfg.Coordination.SessionTTL,
+		Log:         logging.New(logging.WithComponent("dcctl.operation")),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("operations: %w", err)
+	}
+
+	return e, nil
+}
+
+// keepLease renews the lease of this datacenter while the effective state names it.
+func keepLease(ctx context.Context, cfg *config.Serve, c *coord.Coordinator) {
+	if err := c.KeepLease(ctx, cfg.Datacenter, cfg.Coordination.LeasePeriod, false); err != nil {
+		logging.New(logging.WithComponent("dcctl.coord")).ErrorCtx(ctx, "lease is not renewed", logging.Err(err))
+	}
 }
 
 // instance names this dcctl instance as the node of the local Consul agent, which is
