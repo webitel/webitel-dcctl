@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	dcctlv1 "github.com/webitel/webitel-dcctl/gen/go/dcctl/v1"
+	"github.com/webitel/webitel-dcctl/internal/buildinfo"
 	"github.com/webitel/webitel-dcctl/internal/check"
 	"github.com/webitel/webitel-dcctl/internal/coord"
 	"github.com/webitel/webitel-dcctl/internal/kv"
@@ -315,4 +316,117 @@ func (in *Input) arbiterStatesEqual() check.Check {
 func samePayload(a, b kv.State) bool {
 	return a.Generation == b.Generation && a.ActiveDatacenter == b.ActiveDatacenter && a.OpID == b.OpID &&
 		a.Forced == b.Forced && a.PatroniTimeline == b.PatroniTimeline && slices.Equal(a.NeedsRecovery, b.NeedsRecovery)
+}
+
+// KnownStepType reports whether this dcctl knows the step type t. A step written by a
+// newer dcctl with a type it does not know reads as TYPE_UNSPECIFIED, or as a number
+// without a name.
+func KnownStepType(t dcctlv1.Operation_Step_Type) bool {
+	_, ok := dcctlv1.Operation_Step_Type_name[int32(t)]
+
+	return ok && t != dcctlv1.Operation_Step_TYPE_UNSPECIFIED
+}
+
+// StepsKnown is op.steps_known of op: it fails when a step of op has a type this dcctl
+// does not know. The engine decides it again under the lock.
+func StepsKnown(op *dcctlv1.Operation) check.Check {
+	c := block(check.OpStepsKnown, "")
+
+	var unknown []any
+
+	first := -1
+
+	for i, st := range op.GetSteps() {
+		if KnownStepType(st.GetType()) {
+			continue
+		}
+
+		if first < 0 {
+			first = i
+		}
+
+		unknown = append(unknown, map[string]any{"index": i, "type": int32(st.GetType())})
+	}
+
+	if len(unknown) == 0 {
+		return c.pass("every step type is known", nil)
+	}
+
+	return c.fail(fmt.Sprintf("step %d has type %d, which dcctl %s does not know; resume it with the version that started it, or abandon it",
+		first, op.GetSteps()[first].GetType(), buildinfo.Version),
+		map[string]any{"steps": unknown, "version": buildinfo.Version})
+}
+
+// NotRolledBack is op.not_rolled_back of op: it fails when the rollback of a step of
+// op ran, as running op forward would leave the undone steps undone. The engine
+// decides it again under the lock.
+func NotRolledBack(op *dcctlv1.Operation) check.Check {
+	c := block(check.OpNotRolledBack, "")
+
+	var rolled []any
+
+	for i, st := range op.GetSteps() {
+		if kv.StepRolledBack(st) {
+			rolled = append(rolled, map[string]any{"index": i, "type": st.GetType().String()})
+		}
+	}
+
+	if len(rolled) == 0 {
+		return c.pass("no step was rolled back", nil)
+	}
+
+	return c.fail("the operation was interrupted during or after its rollback and cannot run forward; abandon it",
+		map[string]any{"rolled_back": rolled})
+}
+
+// GenerationDetermined is op.generation_determined of op on view: abandoning op
+// reverts its new generation, which needs [check.ConfirmIsolation] when voters that
+// do not answer may hold it. The revert decides it again under the lock.
+func GenerationDetermined(op *dcctlv1.Operation, view coord.View) check.Check {
+	c := confirm(check.OpGenerationDetermined, check.ConfirmIsolation, "")
+
+	if op.GetNewGeneration() <= 0 || op.GetTarget() == "" {
+		return c.skip("the operation writes no generation")
+	}
+
+	to := kv.State{
+		Generation:       op.GetNewGeneration(),
+		ActiveDatacenter: datacenterID(op.GetTarget()),
+		OpID:             strings.TrimPrefix(op.GetName(), "operations/"),
+	}
+	facts := map[string]any{"generation": to.Generation, "active_datacenter": to.ActiveDatacenter}
+
+	if coord.RevertNeedsConfirmation(view, to) {
+		return c.fail(fmt.Sprintf("generation %d of %s may be committed on voters that do not answer or lost the key; "+
+			"reverting it needs the isolation confirmed", to.Generation, to.ActiveDatacenter), facts)
+	}
+
+	return c.pass(fmt.Sprintf("generation %d of %s can be reverted without a confirmation", to.Generation, to.ActiveDatacenter), facts)
+}
+
+func (in *Input) opStepsKnown() check.Check {
+	op := in.operation()
+	if op == nil {
+		return block(check.OpStepsKnown, "").skip("the operation is not found")
+	}
+
+	return StepsKnown(op)
+}
+
+func (in *Input) opNotRolledBack() check.Check {
+	op := in.operation()
+	if op == nil {
+		return block(check.OpNotRolledBack, "").skip("the operation is not found")
+	}
+
+	return NotRolledBack(op)
+}
+
+func (in *Input) opGenerationDetermined() check.Check {
+	op := in.operation()
+	if op == nil {
+		return confirm(check.OpGenerationDetermined, check.ConfirmIsolation, "").skip("the operation is not found")
+	}
+
+	return GenerationDetermined(op, in.Status.View)
 }
