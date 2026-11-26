@@ -276,6 +276,12 @@ func readNomad(ctx context.Context, r NomadReader) (Nomad, error) {
 		return err
 	})
 	g.Go(func() error {
+		leader, endpoint, err := r.Leader(ctx)
+		n.Leader, n.Endpoint = leader, endpoint
+
+		return err
+	})
+	g.Go(func() error {
 		nodes, err := r.Nodes(ctx)
 		n.Nodes = nodes
 

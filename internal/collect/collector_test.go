@@ -103,6 +103,84 @@ func TestCycle_unreachableKeepsLastData(t *testing.T) {
 	})
 }
 
+func TestCycle_endpoints(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		w := newWorld(config.ProfileWarmStandby)
+		w.services["dc_a"].endpoint = "10.1.0.89:8500"
+		w.nomad["dc_a"].endpoint = "https://10.1.0.91:4646"
+		w.patroni[0].endpoint = "https://10.1.0.95:8008"
+
+		c := newCollector(t, w)
+		start(t, c)
+
+		a := waitSeq(c, 1).Datacenters[0]
+		assert.Equal(t, "10.1.0.89:8500", a.Services.Data.Meta.Endpoint)
+		assert.Equal(t, "https://10.1.0.91:4646", a.Nomad.Data.Endpoint)
+
+		cl, ok := waitSeq(c, 1).ClusterOf("dc_a")
+		require.True(t, ok)
+		assert.Equal(t, "https://10.1.0.95:8008", cl.Patroni.Data.Endpoint)
+	})
+}
+
+func TestCycle_unreachableKeepsLastEndpoint(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		w := newWorld(config.ProfileWarmStandby)
+		w.services["dc_a"].endpoint = "10.1.0.89:8500"
+		w.nomad["dc_a"].endpoint = "https://10.1.0.91:4646"
+		w.patroni[0].endpoint = "https://10.1.0.95:8008"
+
+		c := newCollector(t, w)
+		start(t, c)
+		waitSeq(c, 1)
+
+		w.services["dc_a"].set(errRefused, false)
+		w.nomad["dc_a"].leaderCall.set(errRefused, false)
+		w.patroni[0].membersCall.set(errRefused, false)
+
+		s := waitSeq(c, 2)
+		a := s.Datacenters[0]
+		require.False(t, a.Services.Reachable)
+		assert.Equal(t, "10.1.0.89:8500", a.Services.Data.Meta.Endpoint)
+		require.False(t, a.Nomad.Reachable)
+		assert.Equal(t, "https://10.1.0.91:4646", a.Nomad.Data.Endpoint)
+
+		cl, ok := s.ClusterOf("dc_a")
+		require.True(t, ok)
+		require.False(t, cl.Patroni.Reachable)
+		assert.Equal(t, "https://10.1.0.95:8008", cl.Patroni.Data.Endpoint)
+	})
+}
+
+func TestCycle_nomadLeader(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		w := newWorld(config.ProfileWarmStandby)
+		w.nomad["dc_a"].leader = "10.1.0.91:4647"
+
+		c := newCollector(t, w)
+		start(t, c)
+
+		s := waitSeq(c, 1)
+		assert.Equal(t, "10.1.0.91:4647", s.Datacenters[0].Nomad.Data.Leader)
+		assert.True(t, s.Datacenters[1].Nomad.Reachable)
+		assert.Empty(t, s.Datacenters[1].Nomad.Data.Leader, "a cluster without a leader")
+	})
+}
+
+func TestCycle_nomadLeaderReadFailureIsTheSourceFailure(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		w := newWorld(config.ProfileWarmStandby)
+		w.nomad["dc_a"].leaderCall.set(errRefused, false)
+
+		c := newCollector(t, w)
+		start(t, c)
+
+		n := waitSeq(c, 1).Datacenters[0].Nomad
+		assert.False(t, n.Reachable)
+		assert.Equal(t, source.ReasonRefused, n.Reason)
+	})
+}
+
 func TestCycle_nomadFailureIsNotHiddenByCanceledSiblings(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		w := newWorld(config.ProfileWarmStandby)

@@ -56,7 +56,8 @@ type KV struct {
 	Lock  *consul.KVEntry
 	// Meta is how current the reads are: KnownLeader only when every server that answered
 	// knew its leader, and the longest LastContact. A Consul without a leader, such as the
-	// minority side of a partition, still answers, with KnownLeader false.
+	// minority side of a partition, still answers, with KnownLeader false. Its Endpoint is
+	// the server that answered the first read.
 	Meta consul.QueryMeta
 }
 
@@ -98,6 +99,10 @@ type Instances struct {
 
 // Nomad is what was read from the Nomad cluster of a datacenter.
 type Nomad struct {
+	// Endpoint is the URL of the server that answered the leader read.
+	Endpoint string
+	// Leader is the RPC address of the leader; empty when that server knows none.
+	Leader string
 	// Version is the version of the server that answered.
 	Version   string
 	Managed   []nomad.Job
@@ -121,7 +126,9 @@ type Cluster struct {
 
 // Patroni is the state of the members of a cluster.
 type Patroni struct {
-	Members []Member
+	// Endpoint is the URL of the member whose GET /cluster gave Members.
+	Endpoint string
+	Members  []Member
 	// Leader is the name of the member with the cluster role leader or standby_leader;
 	// empty when there is none.
 	Leader string
@@ -162,9 +169,13 @@ func (s *Snapshot) ClusterOf(dc string) (*Cluster, bool) {
 }
 
 // leastCurrent folds the meta of several reads of one source: KnownLeader only when every
-// server that answered knew its leader, and the longest LastContact.
+// server that answered knew its leader, the longest LastContact, and the Endpoint of the
+// first read.
 func leastCurrent(metas ...consul.QueryMeta) consul.QueryMeta {
 	out := consul.QueryMeta{KnownLeader: len(metas) > 0}
+	if len(metas) > 0 {
+		out.Endpoint = metas[0].Endpoint
+	}
 
 	for _, m := range metas {
 		out.KnownLeader = out.KnownLeader && m.KnownLeader

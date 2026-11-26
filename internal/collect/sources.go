@@ -32,11 +32,12 @@ type NomadReader interface {
 	Allocs(ctx context.Context, jobID string) ([]nomad.Alloc, error)
 	Nodes(ctx context.Context) ([]nomad.Node, error)
 	Version(ctx context.Context) (string, error)
+	Leader(ctx context.Context) (leader, endpoint string, err error)
 }
 
 // PatroniReader reads a Patroni cluster; [patroni.Client] is one.
 type PatroniReader interface {
-	Members(ctx context.Context) ([]patroni.Member, error)
+	Discover(ctx context.Context) (members []patroni.Member, endpoint string, err error)
 	Config(ctx context.Context, endpoint string) (map[string]any, error)
 	History(ctx context.Context, endpoint string) ([]patroni.HistoryEntry, error)
 }
