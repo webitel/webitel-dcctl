@@ -8,7 +8,10 @@
 import * as zod from 'zod';
 
 /**
- * @summary Lists operations from newest to oldest.
+ * @summary Lists operations from newest to oldest. Each Consul KV keeps only its
+current or last operation in `dcctl/op`, so earlier operations are not
+listed; their history is in the journal, entries with
+`type = "OPERATION"`.
  */
 export const ListOperationsQueryParams = zod.object({
 	page_size: zod
@@ -552,6 +555,12 @@ export const ListOperationsResponse = zod
 							})
 							.optional()
 							.describe('RESOLVE_CONFLICT request.'),
+						revision: zod
+							.string()
+							.optional()
+							.describe(
+								'Revision of the operation: 1 when it is created and one more on every\nchange. Every copy of the same change carries the same revision, also\none that alignment writes to another Consul KV; an instance that takes\nthe operation over continues from the highest revision of the copies.\nA state resent as a WatchOperation keepalive keeps its revision. Order\nthe updates of an operation by revision, not by update_time: instances\nthat run it in turn do not share a clock.',
+							),
 						state: zod
 							.enum([
 								'STATE_UNSPECIFIED',
@@ -756,7 +765,7 @@ export const ListOperationsResponse = zod
 							),
 					})
 					.describe(
-						'An action started through the API. The same message is stored as protojson\nin the Consul KV key `dcctl/op`; field names are part of that KV format,\nand the Ansible role `topology` reads `state` from it. Actions dcctl takes\nby itself (fencing, generation alignment) are not operations; they are\njournal entries of type SYSTEM.',
+						'An action started through the API. The same message is stored as protojson\nin the Consul KV key `dcctl/op`; field names are part of that KV format,\nand the Ansible role `topology` reads `state` from it. Each Consul KV keeps\nonly its current or last operation there; the history of operations is the\njournal, entries with `type = "OPERATION"`. Actions dcctl takes by itself\n(fencing, generation alignment) are not operations; they are journal\nentries of type SYSTEM.',
 					),
 			)
 			.optional()
@@ -1254,6 +1263,12 @@ export const GetOperationResponse = zod
 			})
 			.optional()
 			.describe('RESOLVE_CONFLICT request.'),
+		revision: zod
+			.string()
+			.optional()
+			.describe(
+				'Revision of the operation: 1 when it is created and one more on every\nchange. Every copy of the same change carries the same revision, also\none that alignment writes to another Consul KV; an instance that takes\nthe operation over continues from the highest revision of the copies.\nA state resent as a WatchOperation keepalive keeps its revision. Order\nthe updates of an operation by revision, not by update_time: instances\nthat run it in turn do not share a clock.',
+			),
 		state: zod
 			.enum([
 				'STATE_UNSPECIFIED',
@@ -1450,7 +1465,7 @@ export const GetOperationResponse = zod
 			),
 	})
 	.describe(
-		'An action started through the API. The same message is stored as protojson\nin the Consul KV key `dcctl/op`; field names are part of that KV format,\nand the Ansible role `topology` reads `state` from it. Actions dcctl takes\nby itself (fencing, generation alignment) are not operations; they are\njournal entries of type SYSTEM.',
+		'An action started through the API. The same message is stored as protojson\nin the Consul KV key `dcctl/op`; field names are part of that KV format,\nand the Ansible role `topology` reads `state` from it. Each Consul KV keeps\nonly its current or last operation there; the history of operations is the\njournal, entries with `type = "OPERATION"`. Actions dcctl takes by itself\n(fencing, generation alignment) are not operations; they are journal\nentries of type SYSTEM.',
 	);
 
 /**
@@ -1972,6 +1987,12 @@ export const AbandonOperationResponse = zod
 			})
 			.optional()
 			.describe('RESOLVE_CONFLICT request.'),
+		revision: zod
+			.string()
+			.optional()
+			.describe(
+				'Revision of the operation: 1 when it is created and one more on every\nchange. Every copy of the same change carries the same revision, also\none that alignment writes to another Consul KV; an instance that takes\nthe operation over continues from the highest revision of the copies.\nA state resent as a WatchOperation keepalive keeps its revision. Order\nthe updates of an operation by revision, not by update_time: instances\nthat run it in turn do not share a clock.',
+			),
 		state: zod
 			.enum([
 				'STATE_UNSPECIFIED',
@@ -2168,7 +2189,7 @@ export const AbandonOperationResponse = zod
 			),
 	})
 	.describe(
-		'An action started through the API. The same message is stored as protojson\nin the Consul KV key `dcctl/op`; field names are part of that KV format,\nand the Ansible role `topology` reads `state` from it. Actions dcctl takes\nby itself (fencing, generation alignment) are not operations; they are\njournal entries of type SYSTEM.',
+		'An action started through the API. The same message is stored as protojson\nin the Consul KV key `dcctl/op`; field names are part of that KV format,\nand the Ansible role `topology` reads `state` from it. Each Consul KV keeps\nonly its current or last operation there; the history of operations is the\njournal, entries with `type = "OPERATION"`. Actions dcctl takes by itself\n(fencing, generation alignment) are not operations; they are journal\nentries of type SYSTEM.',
 	);
 
 /**
@@ -2690,6 +2711,12 @@ export const ResumeOperationResponse = zod
 			})
 			.optional()
 			.describe('RESOLVE_CONFLICT request.'),
+		revision: zod
+			.string()
+			.optional()
+			.describe(
+				'Revision of the operation: 1 when it is created and one more on every\nchange. Every copy of the same change carries the same revision, also\none that alignment writes to another Consul KV; an instance that takes\nthe operation over continues from the highest revision of the copies.\nA state resent as a WatchOperation keepalive keeps its revision. Order\nthe updates of an operation by revision, not by update_time: instances\nthat run it in turn do not share a clock.',
+			),
 		state: zod
 			.enum([
 				'STATE_UNSPECIFIED',
@@ -2886,13 +2913,16 @@ export const ResumeOperationResponse = zod
 			),
 	})
 	.describe(
-		'An action started through the API. The same message is stored as protojson\nin the Consul KV key `dcctl/op`; field names are part of that KV format,\nand the Ansible role `topology` reads `state` from it. Actions dcctl takes\nby itself (fencing, generation alignment) are not operations; they are\njournal entries of type SYSTEM.',
+		'An action started through the API. The same message is stored as protojson\nin the Consul KV key `dcctl/op`; field names are part of that KV format,\nand the Ansible role `topology` reads `state` from it. Each Consul KV keeps\nonly its current or last operation there; the history of operations is the\njournal, entries with `type = "OPERATION"`. Actions dcctl takes by itself\n(fencing, generation alignment) are not operations; they are journal\nentries of type SYSTEM.',
 	);
 
 /**
- * @summary Streams the operation after every change; the first message is the
-current state. Through the gateway every message is one JSON line
-`{"result": ...}`. After a disconnect, get the operation and watch again.
+ * @summary Streams the operation after every change. The first message is the
+current state; the server may send the current state again as a
+keepalive. The stream stays open until the operation is SUCCEEDED,
+FAILED or ABANDONED; an INTERRUPTED operation does not end it. Through
+the gateway every message is one JSON line `{"result": ...}`. After a
+disconnect, get the operation and watch again.
  */
 export const WatchOperationParams = zod.object({
 	operation: zod.string(),
@@ -3391,6 +3421,12 @@ export const WatchOperationResponse = zod.object({
 				})
 				.optional()
 				.describe('RESOLVE_CONFLICT request.'),
+			revision: zod
+				.string()
+				.optional()
+				.describe(
+					'Revision of the operation: 1 when it is created and one more on every\nchange. Every copy of the same change carries the same revision, also\none that alignment writes to another Consul KV; an instance that takes\nthe operation over continues from the highest revision of the copies.\nA state resent as a WatchOperation keepalive keeps its revision. Order\nthe updates of an operation by revision, not by update_time: instances\nthat run it in turn do not share a clock.',
+				),
 			state: zod
 				.enum([
 					'STATE_UNSPECIFIED',
@@ -3590,6 +3626,6 @@ export const WatchOperationResponse = zod.object({
 		})
 		.optional()
 		.describe(
-			'An action started through the API. The same message is stored as protojson\nin the Consul KV key `dcctl/op`; field names are part of that KV format,\nand the Ansible role `topology` reads `state` from it. Actions dcctl takes\nby itself (fencing, generation alignment) are not operations; they are\njournal entries of type SYSTEM.',
+			'An action started through the API. The same message is stored as protojson\nin the Consul KV key `dcctl/op`; field names are part of that KV format,\nand the Ansible role `topology` reads `state` from it. Each Consul KV keeps\nonly its current or last operation there; the history of operations is the\njournal, entries with `type = "OPERATION"`. Actions dcctl takes by itself\n(fencing, generation alignment) are not operations; they are journal\nentries of type SYSTEM.',
 		),
 });

@@ -33,7 +33,8 @@ export interface WebitelDcctlV1DatacenterPatroni {
 	readonly divergence_state?: WebitelDcctlV1DatacenterPatroniDivergenceState;
 	/**
 	 * Lag of the datacenter behind the active primary. Approximate between
-	 * clusters.
+	 * clusters. Not set for the datacenter of the primary and when it is not
+	 * known.
 	 */
 	readonly lag_bytes?: string;
 	/** Leader member of the datacenter. */
@@ -46,7 +47,7 @@ export interface WebitelDcctlV1DatacenterPatroni {
 	readonly role?: WebitelDcctlV1DatacenterPatroniRole;
 	/** `standby_cluster.host` from the leader config. */
 	readonly standby_cluster_host?: string;
-	/** Timeline of the leader. */
+	/** Timeline of the leader. Not set when it is not known. */
 	readonly timeline?: string;
 	/** Datacenter whose nodes standby_cluster_host points at. */
 	readonly upstream_datacenter?: string;

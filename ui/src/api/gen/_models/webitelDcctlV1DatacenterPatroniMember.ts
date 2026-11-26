@@ -22,7 +22,10 @@ export interface WebitelDcctlV1DatacenterPatroniMember {
 	readonly error?: WebitelDcctlV1SourceError;
 	/** Patroni failover_priority tag. */
 	readonly failover_priority?: number;
-	/** Lag behind the cluster leader. */
+	/**
+	 * Lag behind the cluster leader. Not set for the leader or the standby
+	 * leader and when Patroni does not report it.
+	 */
 	readonly lag_bytes?: string;
 	/** Member name. */
 	readonly member?: string;
@@ -39,7 +42,7 @@ export interface WebitelDcctlV1DatacenterPatroniMember {
 	readonly replication_state?: string;
 	/** Member role. */
 	readonly role?: WebitelDcctlV1DatacenterPatroniRole;
-	/** Timeline. */
+	/** Timeline. Not set when it is not known. */
 	readonly timeline?: string;
 	/** Why the member cannot be used. */
 	readonly unusable_reason?: WebitelDcctlV1DatacenterPatroniUnusableReason;

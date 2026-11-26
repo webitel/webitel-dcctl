@@ -51,7 +51,10 @@ export interface WebitelDcctlV1Status {
 	readonly observe_time?: string;
 	/** Instance whose view this is. */
 	readonly observer?: WebitelDcctlV1Instance;
-	/** Current RUNNING or INTERRUPTED operation. */
+	/**
+	 * Current operation, only while it is RUNNING or INTERRUPTED. A finished
+	 * operation is not shown here; read it with GetOperation.
+	 */
 	readonly operation?: WebitelDcctlV1Operation;
 	/** Patroni timeline of the effective state. */
 	readonly patroni_timeline?: string;

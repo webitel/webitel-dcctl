@@ -27,7 +27,11 @@ export interface WebitelDcctlV1Error {
 	 * `instance`, `state`.
 	 */
 	readonly metadata?: WebitelDcctlV1ErrorMetadata;
-	/** Full preflight result of PREFLIGHT_FAILED and CONFIRMATION_REQUIRED. */
+	/**
+	 * Full preflight result. Always present for `dcctl.preflight.failed` and
+	 * `dcctl.confirmation.required`; may also come with any other refusal of a
+	 * preflight, for example `dcctl.lock.busy`.
+	 */
 	readonly preflight?: WebitelDcctlV1Preflight;
 	/** HTTP status text. */
 	readonly status?: string;

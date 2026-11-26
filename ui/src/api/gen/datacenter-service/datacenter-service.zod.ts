@@ -531,6 +531,12 @@ export const InitializeArbiterResponse = zod
 			})
 			.optional()
 			.describe('RESOLVE_CONFLICT request.'),
+		revision: zod
+			.string()
+			.optional()
+			.describe(
+				'Revision of the operation: 1 when it is created and one more on every\nchange. Every copy of the same change carries the same revision, also\none that alignment writes to another Consul KV; an instance that takes\nthe operation over continues from the highest revision of the copies.\nA state resent as a WatchOperation keepalive keeps its revision. Order\nthe updates of an operation by revision, not by update_time: instances\nthat run it in turn do not share a clock.',
+			),
 		state: zod
 			.enum([
 				'STATE_UNSPECIFIED',
@@ -727,7 +733,7 @@ export const InitializeArbiterResponse = zod
 			),
 	})
 	.describe(
-		'An action started through the API. The same message is stored as protojson\nin the Consul KV key `dcctl/op`; field names are part of that KV format,\nand the Ansible role `topology` reads `state` from it. Actions dcctl takes\nby itself (fencing, generation alignment) are not operations; they are\njournal entries of type SYSTEM.',
+		'An action started through the API. The same message is stored as protojson\nin the Consul KV key `dcctl/op`; field names are part of that KV format,\nand the Ansible role `topology` reads `state` from it. Each Consul KV keeps\nonly its current or last operation there; the history of operations is the\njournal, entries with `type = "OPERATION"`. Actions dcctl takes by itself\n(fencing, generation alignment) are not operations; they are journal\nentries of type SYSTEM.',
 	);
 
 /**
@@ -766,34 +772,6 @@ export const ListDatacentersResponse = zod
 			.array(
 				zod
 					.object({
-						consul: zod
-							.object({
-								servers: zod
-									.array(
-										zod
-											.object({
-												address: zod
-													.string()
-													.optional()
-													.describe('Server address.'),
-												consul_datacenter: zod
-													.string()
-													.optional()
-													.describe(
-														'Consul datacenter reported by the server. Differs from the\ndatacenter name on a misconfiguration.',
-													),
-												reachable: zod
-													.boolean()
-													.optional()
-													.describe('The server answers.'),
-											})
-											.describe('Consul server from the config.'),
-									)
-									.optional()
-									.describe('Servers of the datacenter.'),
-							})
-							.optional()
-							.describe('Consul. GetDatacenter only.'),
 						health: zod
 							.enum(['HEALTH_UNSPECIFIED', 'OK', 'DEGRADED', 'DOWN', 'UNKNOWN'])
 							.default(listDatacentersResponseDatacentersItemHealthDefault)
@@ -1153,7 +1131,7 @@ export const ListDatacentersResponse = zod
 									.string()
 									.optional()
 									.describe(
-										'Lag of the datacenter behind the active primary. Approximate between\nclusters.',
+										'Lag of the datacenter behind the active primary. Approximate between\nclusters. Not set for the datacenter of the primary and when it is not\nknown.',
 									),
 								leader: zod
 									.string()
@@ -1195,7 +1173,9 @@ export const ListDatacentersResponse = zod
 												lag_bytes: zod
 													.string()
 													.optional()
-													.describe('Lag behind the cluster leader.'),
+													.describe(
+														'Lag behind the cluster leader. Not set for the leader or the standby\nleader and when Patroni does not report it.',
+													),
 												member: zod
 													.string()
 													.optional()
@@ -1233,7 +1213,10 @@ export const ListDatacentersResponse = zod
 														listDatacentersResponseDatacentersItemPatroniMembersItemRoleDefault,
 													)
 													.describe('Member role.'),
-												timeline: zod.string().optional().describe('Timeline.'),
+												timeline: zod
+													.string()
+													.optional()
+													.describe('Timeline. Not set when it is not known.'),
 												unusable_reason: zod
 													.enum([
 														'UNUSABLE_REASON_UNSPECIFIED',
@@ -1309,7 +1292,9 @@ export const ListDatacentersResponse = zod
 								timeline: zod
 									.string()
 									.optional()
-									.describe('Timeline of the leader.'),
+									.describe(
+										'Timeline of the leader. Not set when it is not known.',
+									),
 								upstream_datacenter: zod
 									.string()
 									.optional()
@@ -1425,31 +1410,6 @@ export const getDatacenterResponseStateDefault = `STATE_UNSPECIFIED`;
 
 export const GetDatacenterResponse = zod
 	.object({
-		consul: zod
-			.object({
-				servers: zod
-					.array(
-						zod
-							.object({
-								address: zod.string().optional().describe('Server address.'),
-								consul_datacenter: zod
-									.string()
-									.optional()
-									.describe(
-										'Consul datacenter reported by the server. Differs from the\ndatacenter name on a misconfiguration.',
-									),
-								reachable: zod
-									.boolean()
-									.optional()
-									.describe('The server answers.'),
-							})
-							.describe('Consul server from the config.'),
-					)
-					.optional()
-					.describe('Servers of the datacenter.'),
-			})
-			.optional()
-			.describe('Consul. GetDatacenter only.'),
 		health: zod
 			.enum(['HEALTH_UNSPECIFIED', 'OK', 'DEGRADED', 'DOWN', 'UNKNOWN'])
 			.default(getDatacenterResponseHealthDefault)
@@ -1762,7 +1722,7 @@ export const GetDatacenterResponse = zod
 					.string()
 					.optional()
 					.describe(
-						'Lag of the datacenter behind the active primary. Approximate between\nclusters.',
+						'Lag of the datacenter behind the active primary. Approximate between\nclusters. Not set for the datacenter of the primary and when it is not\nknown.',
 					),
 				leader: zod
 					.string()
@@ -1799,7 +1759,9 @@ export const GetDatacenterResponse = zod
 								lag_bytes: zod
 									.string()
 									.optional()
-									.describe('Lag behind the cluster leader.'),
+									.describe(
+										'Lag behind the cluster leader. Not set for the leader or the standby\nleader and when Patroni does not report it.',
+									),
 								member: zod.string().optional().describe('Member name.'),
 								no_failover: zod
 									.boolean()
@@ -1832,7 +1794,10 @@ export const GetDatacenterResponse = zod
 									])
 									.default(getDatacenterResponsePatroniMembersItemRoleDefault)
 									.describe('Member role.'),
-								timeline: zod.string().optional().describe('Timeline.'),
+								timeline: zod
+									.string()
+									.optional()
+									.describe('Timeline. Not set when it is not known.'),
 								unusable_reason: zod
 									.enum([
 										'UNUSABLE_REASON_UNSPECIFIED',
@@ -1893,7 +1858,10 @@ export const GetDatacenterResponse = zod
 					.string()
 					.optional()
 					.describe('`standby_cluster.host` from the leader config.'),
-				timeline: zod.string().optional().describe('Timeline of the leader.'),
+				timeline: zod
+					.string()
+					.optional()
+					.describe('Timeline of the leader. Not set when it is not known.'),
 				upstream_datacenter: zod
 					.string()
 					.optional()
@@ -2498,6 +2466,12 @@ export const DemoteDatacenterResponse = zod
 			})
 			.optional()
 			.describe('RESOLVE_CONFLICT request.'),
+		revision: zod
+			.string()
+			.optional()
+			.describe(
+				'Revision of the operation: 1 when it is created and one more on every\nchange. Every copy of the same change carries the same revision, also\none that alignment writes to another Consul KV; an instance that takes\nthe operation over continues from the highest revision of the copies.\nA state resent as a WatchOperation keepalive keeps its revision. Order\nthe updates of an operation by revision, not by update_time: instances\nthat run it in turn do not share a clock.',
+			),
 		state: zod
 			.enum([
 				'STATE_UNSPECIFIED',
@@ -2694,7 +2668,7 @@ export const DemoteDatacenterResponse = zod
 			),
 	})
 	.describe(
-		'An action started through the API. The same message is stored as protojson\nin the Consul KV key `dcctl/op`; field names are part of that KV format,\nand the Ansible role `topology` reads `state` from it. Actions dcctl takes\nby itself (fencing, generation alignment) are not operations; they are\njournal entries of type SYSTEM.',
+		'An action started through the API. The same message is stored as protojson\nin the Consul KV key `dcctl/op`; field names are part of that KV format,\nand the Ansible role `topology` reads `state` from it. Each Consul KV keeps\nonly its current or last operation there; the history of operations is the\njournal, entries with `type = "OPERATION"`. Actions dcctl takes by itself\n(fencing, generation alignment) are not operations; they are journal\nentries of type SYSTEM.',
 	);
 
 /**
@@ -3227,6 +3201,12 @@ export const FailoverDatacenterResponse = zod
 			})
 			.optional()
 			.describe('RESOLVE_CONFLICT request.'),
+		revision: zod
+			.string()
+			.optional()
+			.describe(
+				'Revision of the operation: 1 when it is created and one more on every\nchange. Every copy of the same change carries the same revision, also\none that alignment writes to another Consul KV; an instance that takes\nthe operation over continues from the highest revision of the copies.\nA state resent as a WatchOperation keepalive keeps its revision. Order\nthe updates of an operation by revision, not by update_time: instances\nthat run it in turn do not share a clock.',
+			),
 		state: zod
 			.enum([
 				'STATE_UNSPECIFIED',
@@ -3423,7 +3403,7 @@ export const FailoverDatacenterResponse = zod
 			),
 	})
 	.describe(
-		'An action started through the API. The same message is stored as protojson\nin the Consul KV key `dcctl/op`; field names are part of that KV format,\nand the Ansible role `topology` reads `state` from it. Actions dcctl takes\nby itself (fencing, generation alignment) are not operations; they are\njournal entries of type SYSTEM.',
+		'An action started through the API. The same message is stored as protojson\nin the Consul KV key `dcctl/op`; field names are part of that KV format,\nand the Ansible role `topology` reads `state` from it. Each Consul KV keeps\nonly its current or last operation there; the history of operations is the\njournal, entries with `type = "OPERATION"`. Actions dcctl takes by itself\n(fencing, generation alignment) are not operations; they are journal\nentries of type SYSTEM.',
 	);
 
 /**
@@ -3954,6 +3934,12 @@ export const MarkDatacenterRecoveredResponse = zod
 			})
 			.optional()
 			.describe('RESOLVE_CONFLICT request.'),
+		revision: zod
+			.string()
+			.optional()
+			.describe(
+				'Revision of the operation: 1 when it is created and one more on every\nchange. Every copy of the same change carries the same revision, also\none that alignment writes to another Consul KV; an instance that takes\nthe operation over continues from the highest revision of the copies.\nA state resent as a WatchOperation keepalive keeps its revision. Order\nthe updates of an operation by revision, not by update_time: instances\nthat run it in turn do not share a clock.',
+			),
 		state: zod
 			.enum([
 				'STATE_UNSPECIFIED',
@@ -4150,7 +4136,7 @@ export const MarkDatacenterRecoveredResponse = zod
 			),
 	})
 	.describe(
-		'An action started through the API. The same message is stored as protojson\nin the Consul KV key `dcctl/op`; field names are part of that KV format,\nand the Ansible role `topology` reads `state` from it. Actions dcctl takes\nby itself (fencing, generation alignment) are not operations; they are\njournal entries of type SYSTEM.',
+		'An action started through the API. The same message is stored as protojson\nin the Consul KV key `dcctl/op`; field names are part of that KV format,\nand the Ansible role `topology` reads `state` from it. Each Consul KV keeps\nonly its current or last operation there; the history of operations is the\njournal, entries with `type = "OPERATION"`. Actions dcctl takes by itself\n(fencing, generation alignment) are not operations; they are journal\nentries of type SYSTEM.',
 	);
 
 /**
@@ -4683,6 +4669,12 @@ export const RepointDatacenterResponse = zod
 			})
 			.optional()
 			.describe('RESOLVE_CONFLICT request.'),
+		revision: zod
+			.string()
+			.optional()
+			.describe(
+				'Revision of the operation: 1 when it is created and one more on every\nchange. Every copy of the same change carries the same revision, also\none that alignment writes to another Consul KV; an instance that takes\nthe operation over continues from the highest revision of the copies.\nA state resent as a WatchOperation keepalive keeps its revision. Order\nthe updates of an operation by revision, not by update_time: instances\nthat run it in turn do not share a clock.',
+			),
 		state: zod
 			.enum([
 				'STATE_UNSPECIFIED',
@@ -4879,7 +4871,7 @@ export const RepointDatacenterResponse = zod
 			),
 	})
 	.describe(
-		'An action started through the API. The same message is stored as protojson\nin the Consul KV key `dcctl/op`; field names are part of that KV format,\nand the Ansible role `topology` reads `state` from it. Actions dcctl takes\nby itself (fencing, generation alignment) are not operations; they are\njournal entries of type SYSTEM.',
+		'An action started through the API. The same message is stored as protojson\nin the Consul KV key `dcctl/op`; field names are part of that KV format,\nand the Ansible role `topology` reads `state` from it. Each Consul KV keeps\nonly its current or last operation there; the history of operations is the\njournal, entries with `type = "OPERATION"`. Actions dcctl takes by itself\n(fencing, generation alignment) are not operations; they are journal\nentries of type SYSTEM.',
 	);
 
 /**
@@ -5410,6 +5402,12 @@ export const SwitchDatacenterResponse = zod
 			})
 			.optional()
 			.describe('RESOLVE_CONFLICT request.'),
+		revision: zod
+			.string()
+			.optional()
+			.describe(
+				'Revision of the operation: 1 when it is created and one more on every\nchange. Every copy of the same change carries the same revision, also\none that alignment writes to another Consul KV; an instance that takes\nthe operation over continues from the highest revision of the copies.\nA state resent as a WatchOperation keepalive keeps its revision. Order\nthe updates of an operation by revision, not by update_time: instances\nthat run it in turn do not share a clock.',
+			),
 		state: zod
 			.enum([
 				'STATE_UNSPECIFIED',
@@ -5606,7 +5604,7 @@ export const SwitchDatacenterResponse = zod
 			),
 	})
 	.describe(
-		'An action started through the API. The same message is stored as protojson\nin the Consul KV key `dcctl/op`; field names are part of that KV format,\nand the Ansible role `topology` reads `state` from it. Actions dcctl takes\nby itself (fencing, generation alignment) are not operations; they are\njournal entries of type SYSTEM.',
+		'An action started through the API. The same message is stored as protojson\nin the Consul KV key `dcctl/op`; field names are part of that KV format,\nand the Ansible role `topology` reads `state` from it. Each Consul KV keeps\nonly its current or last operation there; the history of operations is the\njournal, entries with `type = "OPERATION"`. Actions dcctl takes by itself\n(fencing, generation alignment) are not operations; they are journal\nentries of type SYSTEM.',
 	);
 
 /**
@@ -6136,6 +6134,12 @@ export const InitializeDatacentersResponse = zod
 			})
 			.optional()
 			.describe('RESOLVE_CONFLICT request.'),
+		revision: zod
+			.string()
+			.optional()
+			.describe(
+				'Revision of the operation: 1 when it is created and one more on every\nchange. Every copy of the same change carries the same revision, also\none that alignment writes to another Consul KV; an instance that takes\nthe operation over continues from the highest revision of the copies.\nA state resent as a WatchOperation keepalive keeps its revision. Order\nthe updates of an operation by revision, not by update_time: instances\nthat run it in turn do not share a clock.',
+			),
 		state: zod
 			.enum([
 				'STATE_UNSPECIFIED',
@@ -6332,7 +6336,7 @@ export const InitializeDatacentersResponse = zod
 			),
 	})
 	.describe(
-		'An action started through the API. The same message is stored as protojson\nin the Consul KV key `dcctl/op`; field names are part of that KV format,\nand the Ansible role `topology` reads `state` from it. Actions dcctl takes\nby itself (fencing, generation alignment) are not operations; they are\njournal entries of type SYSTEM.',
+		'An action started through the API. The same message is stored as protojson\nin the Consul KV key `dcctl/op`; field names are part of that KV format,\nand the Ansible role `topology` reads `state` from it. Each Consul KV keeps\nonly its current or last operation there; the history of operations is the\njournal, entries with `type = "OPERATION"`. Actions dcctl takes by itself\n(fencing, generation alignment) are not operations; they are journal\nentries of type SYSTEM.',
 	);
 
 /**
@@ -6864,6 +6868,12 @@ export const ResolveConflictResponse = zod
 			})
 			.optional()
 			.describe('RESOLVE_CONFLICT request.'),
+		revision: zod
+			.string()
+			.optional()
+			.describe(
+				'Revision of the operation: 1 when it is created and one more on every\nchange. Every copy of the same change carries the same revision, also\none that alignment writes to another Consul KV; an instance that takes\nthe operation over continues from the highest revision of the copies.\nA state resent as a WatchOperation keepalive keeps its revision. Order\nthe updates of an operation by revision, not by update_time: instances\nthat run it in turn do not share a clock.',
+			),
 		state: zod
 			.enum([
 				'STATE_UNSPECIFIED',
@@ -7060,7 +7070,7 @@ export const ResolveConflictResponse = zod
 			),
 	})
 	.describe(
-		'An action started through the API. The same message is stored as protojson\nin the Consul KV key `dcctl/op`; field names are part of that KV format,\nand the Ansible role `topology` reads `state` from it. Actions dcctl takes\nby itself (fencing, generation alignment) are not operations; they are\njournal entries of type SYSTEM.',
+		'An action started through the API. The same message is stored as protojson\nin the Consul KV key `dcctl/op`; field names are part of that KV format,\nand the Ansible role `topology` reads `state` from it. Each Consul KV keeps\nonly its current or last operation there; the history of operations is the\njournal, entries with `type = "OPERATION"`. Actions dcctl takes by itself\n(fencing, generation alignment) are not operations; they are journal\nentries of type SYSTEM.',
 	);
 
 /**
@@ -7587,6 +7597,12 @@ export const SyncAppsResponse = zod
 			})
 			.optional()
 			.describe('RESOLVE_CONFLICT request.'),
+		revision: zod
+			.string()
+			.optional()
+			.describe(
+				'Revision of the operation: 1 when it is created and one more on every\nchange. Every copy of the same change carries the same revision, also\none that alignment writes to another Consul KV; an instance that takes\nthe operation over continues from the highest revision of the copies.\nA state resent as a WatchOperation keepalive keeps its revision. Order\nthe updates of an operation by revision, not by update_time: instances\nthat run it in turn do not share a clock.',
+			),
 		state: zod
 			.enum([
 				'STATE_UNSPECIFIED',
@@ -7783,5 +7799,5 @@ export const SyncAppsResponse = zod
 			),
 	})
 	.describe(
-		'An action started through the API. The same message is stored as protojson\nin the Consul KV key `dcctl/op`; field names are part of that KV format,\nand the Ansible role `topology` reads `state` from it. Actions dcctl takes\nby itself (fencing, generation alignment) are not operations; they are\njournal entries of type SYSTEM.',
+		'An action started through the API. The same message is stored as protojson\nin the Consul KV key `dcctl/op`; field names are part of that KV format,\nand the Ansible role `topology` reads `state` from it. Each Consul KV keeps\nonly its current or last operation there; the history of operations is the\njournal, entries with `type = "OPERATION"`. Actions dcctl takes by itself\n(fencing, generation alignment) are not operations; they are journal\nentries of type SYSTEM.',
 	);

@@ -119,6 +119,28 @@ describe('DatacenterTable', () => {
 		expect(cell).toContain('lag 1 kB');
 	});
 
+	it('shows a lag of 0 of a caught-up standby, and no lag that is not known', async () => {
+		const wrapper = await mountTable({
+			datacenters: [
+				{
+					name: 'datacenters/dc_b',
+					patroni: { leader: 'pg-b1', role: 'STANDBY_LEADER', lag_bytes: '0' },
+				},
+				{
+					name: 'datacenters/dc_c',
+					patroni: { leader: 'pg-c1', role: 'STANDBY_LEADER' },
+				},
+			],
+		});
+
+		expect(
+			rowOf(wrapper, 'dc_b').find('[data-test="dc-patroni"]').text(),
+		).toContain('lag 0 byte');
+		expect(
+			rowOf(wrapper, 'dc_c').find('[data-test="dc-patroni"]').text(),
+		).not.toContain('lag');
+	});
+
 	it('shows healthy over all managed apps and reachable over all sources', async () => {
 		const wrapper = await mountTable({
 			datacenters: [

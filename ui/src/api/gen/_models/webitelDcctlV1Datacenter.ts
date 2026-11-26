@@ -6,7 +6,6 @@
  * OpenAPI spec version: v1
  */
 import type { WebitelDcctlV1Check } from './webitelDcctlV1Check';
-import type { WebitelDcctlV1DatacenterConsul } from './webitelDcctlV1DatacenterConsul';
 import type { WebitelDcctlV1DatacenterHealth } from './webitelDcctlV1DatacenterHealth';
 import type { WebitelDcctlV1DatacenterNomad } from './webitelDcctlV1DatacenterNomad';
 import type { WebitelDcctlV1DatacenterPatroni } from './webitelDcctlV1DatacenterPatroni';
@@ -20,8 +19,6 @@ import type { WebitelDcctlV1Source } from './webitelDcctlV1Source';
  * info checks are filled by GetDatacenter only.
  */
 export interface WebitelDcctlV1Datacenter {
-	/** Consul. GetDatacenter only. */
-	readonly consul?: WebitelDcctlV1DatacenterConsul;
 	/** Whether the datacenter works in its role. */
 	readonly health?: WebitelDcctlV1DatacenterHealth;
 	/** Why health is DEGRADED, DOWN or UNKNOWN. */

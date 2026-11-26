@@ -57,43 +57,6 @@
         </span>
       </template>
     </wt-table>
-
-    <h3 class="typo-heading-4">{{ $t('dcctl.datacenter.sources.consul') }}</h3>
-    <p
-      v-if="!servers.length"
-      class="typo-body-1"
-      data-test="consul-empty"
-    >
-      {{ $t('dcctl.datacenter.sources.noServers') }}
-    </p>
-    <wt-table
-      v-else
-      :headers="serverHeaders"
-      :data="servers"
-      data-key="address"
-      :sortable="false"
-      data-test="consul-servers"
-    >
-      <template #reachable="{ item }">
-        <wt-chip :color="toChipColor(item.reachable ? 'green' : 'red')">
-          {{ item.reachable
-            ? $t('dcctl.datacenter.sources.reachable')
-            : $t('dcctl.datacenter.sources.unreachable') }}
-        </wt-chip>
-      </template>
-      <template #consul_datacenter="{ item }">
-        <span class="dc-cell">
-          {{ item.consul_datacenter || '—' }}
-          <wt-chip
-            v-if="mismatch(item.consul_datacenter)"
-            :color="toChipColor('red')"
-            data-test="consul-mismatch"
-          >
-            {{ $t('dcctl.datacenter.sources.mismatch', { name: datacenterId }) }}
-          </wt-chip>
-        </span>
-      </template>
-    </wt-table>
   </div>
 </template>
 
@@ -107,7 +70,6 @@ import { useEnumLabel } from '@/composables/useEnumLabel';
 import { useTimeText } from '@/composables/useTimeText';
 import { useStatusStore } from '@/stores/status';
 import { sourceRow } from '@/utils/datacenterDetail';
-import { resourceId } from '@/utils/datacenterSummary';
 import { toChipColor } from '@/utils/statusMapping';
 import './dcGrid.css';
 
@@ -123,8 +85,6 @@ const ageText = useAgeText();
 const formatTime = useTimeText();
 const statusStore = useStatusStore();
 
-const datacenterId = computed(() => resourceId(props.datacenter.name));
-
 const headers = computed(() => [
 	{ value: 'system', text: t('dcctl.datacenter.sources.system') },
 	{ value: 'endpoint', text: t('dcctl.datacenter.sources.endpoint') },
@@ -134,15 +94,6 @@ const headers = computed(() => [
 	{ value: 'age', text: t('dcctl.datacenter.sources.lastData') },
 ]);
 
-const serverHeaders = computed(() => [
-	{ value: 'address', text: t('dcctl.datacenter.sources.server') },
-	{ value: 'reachable', text: t('dcctl.datacenter.sources.reachability') },
-	{
-		value: 'consul_datacenter',
-		text: t('dcctl.datacenter.sources.consulDatacenter'),
-	},
-]);
-
 const rows = computed(() =>
 	(props.datacenter.sources ?? []).map((source) => ({
 		key: source.system,
@@ -150,17 +101,7 @@ const rows = computed(() =>
 		...sourceRow(source, props.nowMs, statusStore.staleAfter),
 	})),
 );
-const servers = computed(() => props.datacenter.consul?.servers ?? []);
 
 const rowClass = (row: { source: { system?: string }; stale: boolean }) =>
 	`source-row source-row--${row.source.system}${row.stale ? ' dc-row--stale' : ''}`;
-
-/**
- * A server of another Consul datacenter means a wrong config. Not in stretch:
- * one Consul serves both datacenters and reports a single name.
- */
-const mismatch = (consulDatacenter: string | undefined): boolean =>
-	statusStore.status?.profile !== 'STRETCH' &&
-	!!consulDatacenter &&
-	consulDatacenter !== datacenterId.value;
 </script>

@@ -10,9 +10,10 @@ import type { WebitelDcctlV1OperationMode } from './webitelDcctlV1OperationMode'
 import type { WebitelDcctlV1OperationStep } from './webitelDcctlV1OperationStep';
 
 /**
- * Error detail `webitel.dcctl.v1.Preflight` of PREFLIGHT_FAILED and
- * CONFIRMATION_REQUIRED: all checks of the action with their facts, the plan
- * and the write mode.
+ * Error detail `webitel.dcctl.v1.Preflight`: all checks of the action with
+ * their facts, the plan and the write mode. Always present for
+ * PREFLIGHT_FAILED and CONFIRMATION_REQUIRED; may also come with any other
+ * refusal of a preflight, for example LOCK_BUSY.
  */
 export interface WebitelDcctlV1Preflight {
 	/** All checks of the action. */

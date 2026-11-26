@@ -15,4 +15,10 @@ export interface WebitelDcctlV1ListJournalEntriesResponse {
 	readonly journal_entries?: readonly WebitelDcctlV1JournalEntry[];
 	/** Token of the next page. Empty on the last page. */
 	readonly next_page_token?: string;
+	/**
+	 * Datacenters whose journal could not be read, as
+	 * `datacenters/{datacenter}`: entries of these datacenters may be missing
+	 * from the response.
+	 */
+	readonly unreachable?: readonly string[];
 }

@@ -32,18 +32,28 @@ const withSources = (dc: Datacenter, now: number): Datacenter => ({
 	})),
 });
 
-/** The swagger example, moved to `now` and without its arbiter alarm. */
+/**
+ * The swagger example, moved to `now` and without its arbiter alarm: the
+ * arbiter answers with the record the datacenter voters have.
+ */
 const normal = (now: number): Status => {
 	const base = example<Status>('/v1/status', 'get');
 	return {
 		...base,
 		observe_time: ago(now, 3),
 		alarms: [],
-		voters: base.voters?.map((voter) => ({
-			...voter,
-			reachable: true,
-			error: undefined,
-		})),
+		voters: base.voters?.map((voter) =>
+			voter.type === 'ARBITER'
+				? {
+						type: 'ARBITER',
+						reachable: true,
+						generation: base.generation,
+						active_datacenter: base.active_datacenter,
+						valid: true,
+						initialized: true,
+					}
+				: voter,
+		),
 		datacenters: base.datacenters?.map((dc) => withSources(dc, now)),
 	};
 };

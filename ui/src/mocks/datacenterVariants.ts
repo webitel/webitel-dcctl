@@ -110,13 +110,6 @@ const activeDatacenter = (now: number): Datacenter => ({
 	observer,
 	observe_time: ago(now, 3),
 	sources: sources(now, 1),
-	consul: {
-		servers: [
-			{ address: '10.1.0.89:8500', reachable: true, consul_datacenter: 'dc_a' },
-			{ address: '10.1.0.90:8500', reachable: true, consul_datacenter: 'dc_a' },
-			{ address: '10.1.0.91:8500', reachable: true, consul_datacenter: 'dc_a' },
-		],
-	},
 	patroni: {
 		leader: 'pg-a1',
 		role: 'PRIMARY',
@@ -128,7 +121,7 @@ const activeDatacenter = (now: number): Datacenter => ({
 				replication_state: undefined,
 				xlog: { location: '83886176' },
 			}),
-			member(now, 'pg-a2', '10.1.0.96', {}),
+			member(now, 'pg-a2', '10.1.0.96', { lag_bytes: '0' }),
 			member(now, 'pg-a3', '10.1.0.97', { lag_bytes: '1024' }),
 		],
 	},
@@ -194,11 +187,9 @@ const standbyDatacenter = (now: number): Datacenter => {
 		sources: sources(now, 2),
 		patroni: {
 			...base.patroni,
-			lag_bytes: undefined,
 			divergence_state: 'NOT_DIVERGED',
 			members: base.patroni?.members?.map((m) => ({
 				...m,
-				lag_bytes: undefined,
 				xlog: { ...m.xlog, replay_time: ago(now, 1) },
 			})),
 		},
@@ -371,7 +362,10 @@ const stretchDatacenter = (id: 'dc_a' | 'dc_b', now: number): Datacenter => {
 							replication_state: undefined,
 							xlog: { location: '83886176' },
 						}),
-						member(now, 'pg-a2', '10.1.0.96', { role: 'SYNC_STANDBY' }),
+						member(now, 'pg-a2', '10.1.0.96', {
+							role: 'SYNC_STANDBY',
+							lag_bytes: '0',
+						}),
 					]
 				: [
 						member(now, 'pg-b1', '10.2.0.95', {

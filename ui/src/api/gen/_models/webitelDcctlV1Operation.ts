@@ -27,9 +27,11 @@ import type { WebitelDcctlV1SyncAppsRequest } from './webitelDcctlV1SyncAppsRequ
 /**
  * An action started through the API. The same message is stored as protojson
  * in the Consul KV key `dcctl/op`; field names are part of that KV format,
- * and the Ansible role `topology` reads `state` from it. Actions dcctl takes
- * by itself (fencing, generation alignment) are not operations; they are
- * journal entries of type SYSTEM.
+ * and the Ansible role `topology` reads `state` from it. Each Consul KV keeps
+ * only its current or last operation there; the history of operations is the
+ * journal, entries with `type = "OPERATION"`. Actions dcctl takes by itself
+ * (fencing, generation alignment) are not operations; they are journal
+ * entries of type SYSTEM.
  */
 export interface WebitelDcctlV1Operation {
 	/**
@@ -76,6 +78,16 @@ export interface WebitelDcctlV1Operation {
 	readonly request_id?: string;
 	/** RESOLVE_CONFLICT request. */
 	readonly resolve_conflict?: WebitelDcctlV1ResolveConflictRequest;
+	/**
+	 * Revision of the operation: 1 when it is created and one more on every
+	 * change. Every copy of the same change carries the same revision, also
+	 * one that alignment writes to another Consul KV; an instance that takes
+	 * the operation over continues from the highest revision of the copies.
+	 * A state resent as a WatchOperation keepalive keeps its revision. Order
+	 * the updates of an operation by revision, not by update_time: instances
+	 * that run it in turn do not share a clock.
+	 */
+	readonly revision?: string;
 	/** Operation state. */
 	readonly state?: WebitelDcctlV1OperationState;
 	/** Plan and progress. */

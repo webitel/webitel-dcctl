@@ -271,18 +271,33 @@ describe('Patroni tab', () => {
 		expect(replica.text()).toContain('5');
 	});
 
-	it('shows a lag the gateway omitted as 0, not as no data', async () => {
+	it('shows a lag of 0 as 0 and a lag that is not known as no data', async () => {
 		const mounted = await mountWith(
 			build('normal', 'dc_b'),
 			'/datacenters/dc_b',
 		);
 
+		expect(text(mounted, '[data-test="patroni-lag"]')).toBe('0 byte');
+		expect(
+			mounted.wrapper
+				.find('.member-row--pg-b2 [data-test="member-lag"]')
+				.text(),
+		).toBe('0 byte');
 		expect(
 			mounted.wrapper
 				.find('.member-row--pg-b1 [data-test="member-lag"]')
 				.text(),
-		).toBe('0 byte');
-		expect(text(mounted, '[data-test="patroni-lag"]')).toBe('0 byte');
+		).toBe('—');
+	});
+
+	it('shows no lag for a standby whose lag is not known', async () => {
+		const dc = build('normal', 'dc_b');
+		const mounted = await mountWith(
+			{ ...dc, patroni: { ...dc.patroni, lag_bytes: undefined } },
+			'/datacenters/dc_b',
+		);
+
+		expect(text(mounted, '[data-test="patroni-lag"]')).toBe('—');
 	});
 
 	it('shows no lag for the active datacenter: it has no meaning there', async () => {
@@ -835,45 +850,6 @@ describe('Sources tab', () => {
 		expect(cell(mounted, 'age', 'CONSUL').text()).toContain('unknown');
 		expect(cell(mounted, 'age', 'CONSUL').attributes('data-stale')).toBe(
 			'true',
-		);
-	});
-
-	const wrongConsul = () => {
-		const dc = build('normal', 'dc_a');
-		return {
-			...dc,
-			consul: {
-				servers: [
-					{
-						address: '10.1.0.89:8500',
-						reachable: true,
-						consul_datacenter: 'dc_a',
-					},
-					{
-						address: '10.1.0.90:8500',
-						reachable: true,
-						consul_datacenter: 'dc_z',
-					},
-				],
-			},
-		};
-	};
-
-	it('flags a Consul server of another datacenter', async () => {
-		const mounted = await open(wrongConsul());
-
-		const mismatches = mounted.wrapper.findAll('[data-test="consul-mismatch"]');
-		expect(mismatches).toHaveLength(1);
-		expect(mismatches[0].text()).toContain('does not match dc_a');
-	});
-
-	it('does not flag a differing Consul datacenter in stretch: one Consul reports one name', async () => {
-		const mounted = await open(wrongConsul());
-		setStatus(mounted, { profile: 'STRETCH' });
-		await flushPromises();
-
-		expect(mounted.wrapper.find('[data-test="consul-mismatch"]').exists()).toBe(
-			false,
 		);
 	});
 
