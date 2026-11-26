@@ -117,14 +117,21 @@ type View struct {
 	Conflict []Record
 }
 
-type recordKey struct {
-	generation int64
-	datacenter string
+// RecordKey names a record: voters with the same generation and active
+// datacenter hold one record, whatever else differs.
+type RecordKey struct {
+	Generation       int64
+	ActiveDatacenter string
+}
+
+// KeyOf returns the key of the record s belongs to.
+func KeyOf(s kv.State) RecordKey {
+	return RecordKey{Generation: s.Generation, ActiveDatacenter: s.ActiveDatacenter}
 }
 
 // group is one record and the indexes of the voters holding it.
 type group struct {
-	key     recordKey
+	key     RecordKey
 	members []int
 	forced  bool
 }
@@ -142,7 +149,7 @@ func Evaluate(voters []VoterState) View {
 
 	var (
 		groups []*group
-		byKey  = make(map[recordKey]*group)
+		byKey  = make(map[RecordKey]*group)
 		voting int
 		// unknown counts the voters that may hold any record.
 		unknown int
@@ -173,7 +180,7 @@ func Evaluate(voters []VoterState) View {
 			continue
 		}
 
-		k := recordKey{generation: vs.State.Generation, datacenter: vs.State.ActiveDatacenter}
+		k := KeyOf(vs.State)
 
 		g, ok := byKey[k]
 		if !ok {
@@ -197,15 +204,15 @@ func Evaluate(voters []VoterState) View {
 	)
 
 	for _, g := range groups {
-		if valid(g) && (!haveTop || g.key.generation > topGen) {
-			topGen, haveTop = g.key.generation, true
+		if valid(g) && (!haveTop || g.key.Generation > topGen) {
+			topGen, haveTop = g.key.Generation, true
 		}
 	}
 
 	var top []*group
 
 	for _, g := range groups {
-		if valid(g) && g.key.generation == topGen {
+		if valid(g) && g.key.Generation == topGen {
 			top = append(top, g)
 		}
 	}
@@ -214,7 +221,7 @@ func Evaluate(voters []VoterState) View {
 		r := v.record(top[0])
 		v.Effective = &r
 	} else {
-		slices.SortFunc(top, func(a, b *group) int { return cmp.Compare(a.key.datacenter, b.key.datacenter) })
+		slices.SortFunc(top, func(a, b *group) int { return cmp.Compare(a.key.ActiveDatacenter, b.key.ActiveDatacenter) })
 
 		for _, g := range top {
 			v.Conflict = append(v.Conflict, v.record(g))
@@ -228,14 +235,14 @@ func Evaluate(voters []VoterState) View {
 	forcedMinority := v.Effective != nil && len(v.Effective.Voters) < v.Majority
 
 	for _, g := range groups {
-		sideOfForced := forcedMinority && g.key.generation == topGen
-		if !valid(g) && (!haveTop || g.key.generation > topGen || sideOfForced) {
+		sideOfForced := forcedMinority && g.key.Generation == topGen
+		if !valid(g) && (!haveTop || g.key.Generation > topGen || sideOfForced) {
 			above = append(above, g)
 		}
 	}
 
 	slices.SortFunc(above, func(a, b *group) int {
-		return cmp.Or(cmp.Compare(b.key.generation, a.key.generation), cmp.Compare(a.key.datacenter, b.key.datacenter))
+		return cmp.Or(cmp.Compare(b.key.Generation, a.key.Generation), cmp.Compare(a.key.ActiveDatacenter, b.key.ActiveDatacenter))
 	})
 
 	for _, g := range above {
@@ -383,7 +390,7 @@ func (o overwrite) lostRecord(s kv.State) bool {
 // sameRecord reports whether a and b are the same record: the same
 // generation and active datacenter.
 func sameRecord(a, b kv.State) bool {
-	return a.Generation == b.Generation && a.ActiveDatacenter == b.ActiveDatacenter
+	return KeyOf(a) == KeyOf(b)
 }
 
 // samePayload compares the fields that decisions are based on; UpdatedAt
