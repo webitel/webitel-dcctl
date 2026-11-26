@@ -83,14 +83,15 @@ func (e *NotRecordedError) Error() string {
 
 func (e *NotRecordedError) Unwrap() error { return e.Err }
 
-// GRPCStatus returns the status the API answers with.
+// GRPCStatus returns the status the API answers with. Its message is fixed:
+// the errors of the writes stay in Err, for the log.
 func (e *NotRecordedError) GRPCStatus() *status.Status {
 	md := map[string]string{"operation": e.Name}
 	if len(e.Datacenters) > 0 {
 		md["datacenters"] = strings.Join(e.Datacenters, ",")
 	}
 
-	return apierr.Status(apierr.ReasonKVUnavailable, e.Error(), md)
+	return apierr.Status(apierr.ReasonKVUnavailable, e.Name+" is not started: no copy of dcctl/op took it", md)
 }
 
 // NotInterruptedError is returned by [Engine.Resume] and [Engine.Abandon] for
@@ -161,8 +162,9 @@ func interrupting(err error) bool {
 		errors.Is(err, errNotRecorded)
 }
 
-// operationError returns err as the error of an operation: its detail, and the
-// reason, id and metadata of the API error it carries.
+// operationError returns err as the error of an operation: the message, reason,
+// id and metadata of the API error it carries, or its text when it carries
+// none.
 func operationError(err error) *dcctlv1.OperationError {
 	oe := &dcctlv1.OperationError{Detail: truncate(err.Error())}
 
@@ -171,7 +173,10 @@ func operationError(err error) *dcctlv1.OperationError {
 		return oe
 	}
 
-	for _, d := range gs.GRPCStatus().Details() {
+	st := gs.GRPCStatus()
+	oe.Detail = truncate(st.Message())
+
+	for _, d := range st.Details() {
 		if info, ok := d.(*errdetails.ErrorInfo); ok {
 			oe.Reason, oe.Id, oe.Metadata = info.GetReason(), apierr.Reason(info.GetReason()).ID(), info.GetMetadata()
 
