@@ -186,6 +186,7 @@ func runServe(ctx context.Context, cfg *config.Serve) (err error) {
 	}
 
 	apiOpts := readAPI(cfg, ops, j, tracker)
+	apiOpts.Events = api.FromEngine(engine)
 
 	if cfg.UI.Dir != "" {
 		root, rootErr := os.OpenRoot(cfg.UI.Dir)
