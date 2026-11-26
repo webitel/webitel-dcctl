@@ -56,7 +56,7 @@ func (in *Input) opInterrupted() check.Check {
 	name := "operations/" + in.Params.Operation
 
 	for _, cp := range status.Operations(in.Snapshot).Copies {
-		if cp.Status == coord.StatusPresent && cp.Operation.GetName() == name && finished(cp.Operation.GetState()) {
+		if cp.Status == coord.StatusPresent && cp.Operation.GetName() == name && coord.Finished(cp.Operation.GetState()) {
 			st := cp.Operation.GetState()
 
 			return c.fail(name+" is "+stateName(st),
@@ -81,10 +81,6 @@ func (in *Input) opInterrupted() check.Check {
 	}
 
 	return c.pass(name+" is interrupted", facts)
-}
-
-func finished(s dcctlv1.Operation_State) bool {
-	return s == dcctlv1.Operation_SUCCEEDED || s == dcctlv1.Operation_FAILED || s == dcctlv1.Operation_ABANDONED
 }
 
 // pointOfNoReturn warns when the operation may have passed its point of no return:

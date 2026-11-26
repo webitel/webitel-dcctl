@@ -391,7 +391,7 @@ func (r *run) finish(ctx context.Context, out outcome) {
 
 	r.e.journalEnd(ctx, op, eventEnd, r.e.system(), nil)
 
-	if finishedState(op.GetState()) {
+	if coord.Finished(op.GetState()) {
 		if err := r.e.cfg.Recorder.RecordOperation(ctx, op); err != nil {
 			r.e.cfg.Log.WarnCtx(ctx, "operation duration not recorded", logging.Str("operation", op.GetName()), logging.Err(err))
 		}

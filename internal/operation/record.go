@@ -167,9 +167,7 @@ func latest(view coord.OpView, name string) (*dcctlv1.Operation, int64) {
 			continue
 		}
 
-		switch rev := c.Operation.GetRevision(); {
-		case out == nil, rev > out.GetRevision(),
-			rev == out.GetRevision() && stateRank(c.Operation.GetState()) > stateRank(out.GetState()):
+		if out == nil || coord.Supersedes(c.Operation, out) {
 			out = c.Operation
 		}
 	}
@@ -179,18 +177,6 @@ func latest(view coord.OpView, name string) (*dcctlv1.Operation, int64) {
 	}
 
 	return proto.CloneOf(out), out.GetRevision()
-}
-
-// stateRank orders the states of copies at one revision for [latest].
-func stateRank(s dcctlv1.Operation_State) int {
-	switch {
-	case finishedState(s):
-		return 2
-	case s != dcctlv1.Operation_RUNNING:
-		return 1
-	default:
-		return 0
-	}
 }
 
 // operationName returns the resource name of the operation id.
@@ -230,17 +216,6 @@ func truncate(s string) string {
 	}
 
 	return s[:cut] + "…"
-}
-
-// finishedState reports whether s is a final state of an operation.
-func finishedState(s dcctlv1.Operation_State) bool {
-	switch s {
-	case dcctlv1.Operation_SUCCEEDED, dcctlv1.Operation_FAILED, dcctlv1.Operation_ABANDONED:
-		return true
-	case dcctlv1.Operation_STATE_UNSPECIFIED, dcctlv1.Operation_RUNNING, dcctlv1.Operation_INTERRUPTED:
-	}
-
-	return false
 }
 
 // lockHolder is the value of dcctl/lock this instance holds for the operation id.
