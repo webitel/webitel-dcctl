@@ -12,8 +12,8 @@ export class WatchHttpError extends Error {
 	/** `id` of the API error body, when the body is one. */
 	readonly apiErrorId: string | undefined;
 
-	constructor(status: number, apiErrorId?: string) {
-		super(`watch failed with status ${status}`);
+	constructor(status: number, apiErrorId?: string, detail?: string) {
+		super(detail || `watch failed with status ${status}`);
 		this.name = 'WatchHttpError';
 		this.status = status;
 		this.apiErrorId = apiErrorId;
@@ -22,9 +22,13 @@ export class WatchHttpError extends Error {
 
 /** The stream sent something that is not an operation message. */
 export class WatchProtocolError extends Error {
-	constructor(message: string) {
+	/** `id` of an `{"error":…}` line, when the stream sent one. */
+	readonly apiErrorId: string | undefined;
+
+	constructor(message: string, apiErrorId?: string) {
 		super(message);
 		this.name = 'WatchProtocolError';
+		this.apiErrorId = apiErrorId;
 	}
 }
 
@@ -42,8 +46,10 @@ const parseLine = (text: string): Operation => {
 		throw new WatchProtocolError('a line of the stream is not an object');
 	}
 	if (isObject(message.error)) {
+		const { detail, id } = message.error;
 		throw new WatchProtocolError(
-			`the stream failed: ${String(message.error.message ?? 'unknown error')}`,
+			`the stream failed: ${typeof detail === 'string' && detail ? detail : 'unknown error'}`,
+			typeof id === 'string' ? id : undefined,
 		);
 	}
 	if (!isObject(message.result)) {
@@ -98,12 +104,18 @@ export interface WatchOptions {
 const abortError = () =>
 	new DOMException('The watch was aborted', 'AbortError');
 
-const errorIdOf = async (response: Response): Promise<string | undefined> => {
+const errorOf = async (
+	response: Response,
+): Promise<{ id?: string; detail?: string }> => {
 	try {
 		const body: unknown = await response.json();
-		return isObject(body) && typeof body.id === 'string' ? body.id : undefined;
+		if (!isObject(body)) return {};
+		return {
+			id: typeof body.id === 'string' ? body.id : undefined,
+			detail: typeof body.detail === 'string' ? body.detail : undefined,
+		};
 	} catch {
-		return undefined;
+		return {};
 	}
 };
 
@@ -143,7 +155,8 @@ export const watchOperation = async (
 		clearTimeout(timer);
 		recordServerDate(response.headers.get('date'));
 		if (!response.ok) {
-			throw new WatchHttpError(response.status, await errorIdOf(response));
+			const { id, detail } = await errorOf(response);
+			throw new WatchHttpError(response.status, id, detail);
 		}
 		if (!response.body)
 			throw new WatchProtocolError('the response has no body');

@@ -78,9 +78,20 @@ describe('createWatchParser', () => {
 		expect(() => createWatchParser().push(text)).toThrow(WatchProtocolError);
 	});
 
-	it('fails with the message of a gateway error line', () => {
-		const text = `${JSON.stringify({ error: { code: 14, message: 'unavailable' } })}\n`;
-		expect(() => createWatchParser().push(text)).toThrow(/unavailable/);
+	it('fails with the detail and the id of a gateway error line', () => {
+		const text = `${JSON.stringify({ error: { id: 'dcctl.leader.unavailable', code: 503, detail: 'the leader does not answer' } })}\n`;
+		expect(() => createWatchParser().push(text)).toThrow(
+			/the leader does not answer/,
+		);
+		expect(() => createWatchParser().push(text)).toThrow(
+			expect.objectContaining({ apiErrorId: 'dcctl.leader.unavailable' }),
+		);
+	});
+
+	it('says unknown error for an error line without a detail', () => {
+		expect(() => createWatchParser().push('{"error":{"code":14}}\n')).toThrow(
+			/unknown error/,
+		);
 	});
 
 	it('keeps the operations that came before a malformed line out of the failure', () => {
@@ -201,6 +212,7 @@ describe('watchOperation', () => {
 			name: 'WatchHttpError',
 			status: 404,
 			apiErrorId: 'dcctl.operation.not_found',
+			message: 'x',
 		});
 		await expect(promise).rejects.toBeInstanceOf(WatchHttpError);
 	});
@@ -254,6 +266,28 @@ describe('watchOperation', () => {
 		});
 		await expect(promise).rejects.toBeDefined();
 		expect(cancel).toHaveBeenCalled();
+	});
+
+	it('rejects with the detail of an error line after the first message', async () => {
+		const first = JSON.stringify({ result: { name: 'operations/x' } });
+		const failure = JSON.stringify({
+			error: { id: 'dcctl.lock.unavailable', code: 503, detail: 'no consul' },
+		});
+		const { promise, seen } = run((async () =>
+			respond(
+				streamOf(
+					`${first}
+`,
+					`${failure}
+`,
+				),
+			)) as never);
+		await expect(promise).rejects.toMatchObject({
+			name: 'WatchProtocolError',
+			apiErrorId: 'dcctl.lock.unavailable',
+			message: expect.stringContaining('no consul'),
+		});
+		expect(seen).toHaveLength(1);
 	});
 
 	it('rejects on a malformed line', async () => {
