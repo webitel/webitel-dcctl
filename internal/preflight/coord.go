@@ -232,7 +232,7 @@ func (in *Input) noUncommitted() check.Check {
 	if u := view.Undetermined; len(u) > 0 {
 		facts := map[string]any{"generation": u[0].State.Generation, "records": recordFacts(u)}
 
-		if _, ok := in.undeterminedTop(); !ok {
+		if _, ok := coord.UndeterminedTop(view); !ok {
 			return s.fail(fmt.Sprintf("records of generation %d that voters that do not answer may hold name different datacenters",
 				u[0].State.Generation), facts)
 		}

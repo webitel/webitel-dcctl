@@ -79,41 +79,14 @@ func (in *Input) warm() bool {
 	return in.Snapshot.Profile == config.ProfileWarmStandby
 }
 
-// reference is the state the action starts from: the effective state of the voters
-// when it tells the active datacenter. A failover starts from the highest record that
-// unreachable voters may have committed, as after a generation that reached only some
-// of them, when there is one: it is above the effective record. Records of that
-// generation that name different datacenters give no state to start from.
+// reference is the state the action starts from, see [coord.Base]; the engine checks
+// under the lock that the voters still hold it.
 func (in *Input) reference() *kv.State {
-	if in.Action == Failover {
-		if top, ok := in.undeterminedTop(); top != nil {
-			if !ok {
-				return nil
-			}
-
-			return &top.State
-		}
+	if r := coord.Base(in.Status.View, in.Action == Failover); r != nil {
+		return &r.State
 	}
 
-	return in.Status.Effective
-}
-
-// undeterminedTop returns the highest record that unreachable voters may have
-// committed, nil when there is none, and false when the records of its generation name
-// different datacenters.
-func (in *Input) undeterminedTop() (*coord.Record, bool) {
-	u := in.Status.View.Undetermined
-	if len(u) == 0 {
-		return nil, true
-	}
-
-	for _, r := range u[1:] {
-		if r.State.Generation == u[0].State.Generation && r.State.ActiveDatacenter != u[0].State.ActiveDatacenter {
-			return &u[0], false
-		}
-	}
-
-	return &u[0], true
+	return nil
 }
 
 // active returns the active datacenter of [Input.reference]; false also when that is
