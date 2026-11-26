@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+	WebitelDcctlV1CheckEffect,
 	WebitelDcctlV1JournalEntryResult,
 	WebitelDcctlV1JournalEntrySystemAction,
 	WebitelDcctlV1JournalEntryType,
@@ -37,6 +38,7 @@ describe('operation labels', () => {
 		journalResult: WebitelDcctlV1JournalEntryResult,
 		journalAlarmResult: WebitelDcctlV1JournalEntryResult,
 		'overview.alarms.type': WebitelDcctlV1StatusAlarmType,
+		checkEffect: WebitelDcctlV1CheckEffect,
 	};
 
 	it.each(Object.entries(groups))(

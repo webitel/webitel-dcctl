@@ -241,6 +241,134 @@ const en = {
 			age: 'Last known data from {age} ago.',
 		},
 	},
+	action: {
+		button: {
+			switch: 'Switch here',
+			failover: 'Fail over here',
+			demote: 'Demote',
+			repoint: 'Repoint',
+			markRecovered: 'Mark recovered',
+			syncApps: 'Sync apps',
+			resolve: 'Resolve',
+			initArbiter: 'Initialize the arbiter',
+			resume: 'Resume',
+			abandon: 'Abandon',
+			more: 'More actions',
+		},
+		title: {
+			switch: 'Switch to {target}',
+			failover: 'Fail over to {target}',
+			demote: 'Demote {target}',
+			repoint: 'Repoint {target}',
+			markRecovered: 'Mark {target} as recovered',
+			syncApps: 'Sync apps of {target}',
+			resolve: 'Resolve the conflict',
+			initArbiter: 'Initialize the arbiter',
+			resume: 'Resume the operation',
+			abandon: 'Abandon the operation',
+		},
+		unavailable: {
+			statusUnknown: 'The status is not known yet',
+			alreadyActive: 'This datacenter is already active',
+			needsRecovery: 'The datacenter needs recovery: mark it recovered first',
+			activeUnreachable:
+				'The active datacenter does not answer: a switch needs it, use a failover',
+			operationRunning: 'An operation is running or interrupted',
+			roleNotPrimary:
+				'The Patroni leader is not a primary, or its role is not known',
+			roleNotStandbyLeader:
+				'The Patroni leader is not a standby leader, or its role is not known',
+			notNeedsRecovery: 'The datacenter does not need recovery',
+			notActive: 'Only the active datacenter has apps to sync',
+			notInterrupted: 'The operation is not interrupted',
+		},
+		dialog: {
+			checking: 'Checking the action…',
+			chooseWinner:
+				'Choose the datacenter whose record wins. The other record is dropped.',
+			winnerNone: 'No datacenter record is known',
+			winnerRole: 'Patroni: {role}',
+			winnerRoleUnknown: 'Patroni: no data',
+			canRun: 'The checks passed. The action can run.',
+			canRunAfter: 'The action can run once you confirm the points below.',
+			blocked: 'The action cannot run: a check fails.',
+			checks: 'Checks',
+			passedChecks: '{n} passed or skipped checks',
+			facts: 'Facts',
+			confirmations: 'Confirmations',
+			pending:
+				'These confirmations will be asked once the failing checks pass. They are not enough on their own.',
+			plan: 'Plan',
+			noPlan: 'The plan is not known',
+			mode: 'Write mode',
+			modeForced:
+				'Forced: the new generation is written without a majority of voters',
+			stepStage: 'stage {n}',
+			pointOfNoReturn: 'point of no return',
+			cannotConfirm:
+				'A check needs a confirmation that cannot be given here, or its amount is not known. The action cannot run.',
+			noTargetName:
+				'The operation has no target datacenter, so its name cannot be asked. The action cannot run.',
+			factsChanged:
+				'The facts changed since the check. Read them again and confirm again.',
+			typeName: 'Type {name} to confirm',
+			typePlaceholder: 'Name of the datacenter',
+			typeMismatch: 'The name does not match',
+			run: 'Run',
+			running: 'Running…',
+			checkAgain: 'Check again',
+			cancel: 'Cancel',
+			operationOpen: 'Open the operation',
+			abandon: {
+				passed:
+					'The point of no return is passed: the new generation is already written. Abandoning stops the operation where it is and the later steps will not run. The datacenters can be left in a mixed state.',
+				maybe:
+					'The point of no return may have been passed: its step ran, failed or its result is not known. Abandoning may leave the datacenters in a mixed state.',
+				ahead:
+					'The point of no return is not passed. Abandoning leaves the datacenters as the finished steps left them.',
+			},
+			resumeForced:
+				'This operation continues in forced mode. Confirm that the old primary is isolated.',
+		},
+		confirm: {
+			isolation:
+				'The old primary is isolated and cannot take writes. I confirm it.',
+			not_max_lsn:
+				'The target does not have the most WAL. I accept losing the difference.',
+			max_discard_bytes: 'I accept discarding {bytes} of data.',
+		},
+		refusal: {
+			preflightFailed: 'A check of the action fails.',
+			confirmationRequired: 'The action needs confirmations.',
+			invalid: 'The request is not valid.',
+			operationRunning: 'Another operation is running or interrupted.',
+			operationNotInterrupted: 'The operation is not interrupted.',
+			operationNotFound: 'No instance has this operation.',
+			datacenterNotFound: 'The datacenter is not in the config.',
+			lockBusy: 'Another instance holds the lock of the operations.',
+			lockUnavailable:
+				'No Consul answers, so the lock and the operations cannot be read.',
+			leaderUnavailable: 'The instance that leads this action does not answer.',
+			requestIdMismatch:
+				'This request id was used with another request. Close the dialog and start again.',
+			unknown: 'The server refused the action.',
+			meta: {
+				operation: 'Operation',
+				holder: 'Held by',
+				datacenter: 'Datacenter',
+				datacenters: 'Datacenters',
+				instance: 'Instance',
+				state: 'State',
+			},
+			network: 'The server does not answer.',
+		},
+	},
+	checkEffect: {
+		BLOCK: 'blocks',
+		WARN_ONLY: 'warns',
+		CONFIRM: 'needs confirmation',
+		EFFECT_UNSPECIFIED: 'information',
+	},
 	overview: {
 		loading: 'Loading the status…',
 		unavailable: 'Cannot get the status',
@@ -746,6 +874,132 @@ const uk: typeof en = {
 			hint: 'Джоби такі, як зараз, а не такі, як були під час кроку.',
 			age: 'Останні відомі дані — {age} тому.',
 		},
+	},
+	action: {
+		button: {
+			switch: 'Перемкнути сюди',
+			failover: 'Аварійно перейти сюди',
+			demote: 'Понизити',
+			repoint: 'Перенаправити',
+			markRecovered: 'Позначити відновленим',
+			syncApps: 'Синхронізувати застосунки',
+			resolve: 'Розв’язати',
+			initArbiter: 'Ініціалізувати арбітра',
+			resume: 'Продовжити',
+			abandon: 'Відмовитися',
+			more: 'Інші дії',
+		},
+		title: {
+			switch: 'Перемикання на {target}',
+			failover: 'Аварійний перехід на {target}',
+			demote: 'Пониження {target}',
+			repoint: 'Перенаправлення {target}',
+			markRecovered: 'Позначити {target} відновленим',
+			syncApps: 'Синхронізація застосунків {target}',
+			resolve: 'Розв’язання конфлікту',
+			initArbiter: 'Ініціалізація арбітра',
+			resume: 'Продовження операції',
+			abandon: 'Відмова від операції',
+		},
+		unavailable: {
+			statusUnknown: 'Статус ще невідомий',
+			alreadyActive: 'Цей датацентр уже активний',
+			needsRecovery:
+				'Датацентр потребує відновлення: спершу позначте його відновленим',
+			activeUnreachable:
+				'Активний датацентр не відповідає: перемикання потребує його, використайте аварійний перехід',
+			operationRunning: 'Є виконувана або перервана операція',
+			roleNotPrimary: 'Лідер Patroni не є primary, або його роль невідома',
+			roleNotStandbyLeader:
+				'Лідер Patroni не є standby leader, або його роль невідома',
+			notNeedsRecovery: 'Датацентр не потребує відновлення',
+			notActive: 'Синхронізувати застосунки можна лише в активному датацентрі',
+			notInterrupted: 'Операція не перервана',
+		},
+		dialog: {
+			checking: 'Перевірка дії…',
+			chooseWinner:
+				'Оберіть датацентр, чий запис перемагає. Інший запис буде відкинуто.',
+			winnerNone: 'Записів датацентрів не відомо',
+			winnerRole: 'Patroni: {role}',
+			winnerRoleUnknown: 'Patroni: немає даних',
+			canRun: 'Перевірки пройдено. Дію можна виконати.',
+			canRunAfter: 'Дію можна виконати, коли ви підтвердите пункти нижче.',
+			blocked: 'Дію не можна виконати: перевірка не пройдена.',
+			checks: 'Перевірки',
+			passedChecks: 'Пройдених або пропущених перевірок: {n}',
+			facts: 'Факти',
+			confirmations: 'Підтвердження',
+			pending:
+				'Ці підтвердження запитають, коли непройдені перевірки пройдуть. Самих їх недостатньо.',
+			plan: 'План',
+			noPlan: 'План невідомий',
+			mode: 'Режим запису',
+			modeForced:
+				'Примусовий: нове покоління записується без більшості voter-ів',
+			stepStage: 'етап {n}',
+			pointOfNoReturn: 'точка неповернення',
+			cannotConfirm:
+				'Перевірка потребує підтвердження, якого тут не дати, або обсяг невідомий. Дію не можна виконати.',
+			noTargetName:
+				'В операції немає цільового датацентру, тож його назву не запитати. Дію не можна виконати.',
+			factsChanged:
+				'Факти змінилися з часу перевірки. Прочитайте їх ще раз і підтвердьте знову.',
+			typeName: 'Введіть {name} для підтвердження',
+			typePlaceholder: 'Назва датацентру',
+			typeMismatch: 'Назва не збігається',
+			run: 'Виконати',
+			running: 'Виконується…',
+			checkAgain: 'Перевірити ще раз',
+			cancel: 'Скасувати',
+			operationOpen: 'Відкрити операцію',
+			abandon: {
+				passed:
+					'Точку неповернення пройдено: нове покоління вже записано. Відмова зупинить операцію на місці, наступні кроки не виконаються. Датацентри можуть лишитися в змішаному стані.',
+				maybe:
+					'Точку неповернення могло бути пройдено: її крок виконувався, завершився помилкою або результат невідомий. Відмова може лишити датацентри в змішаному стані.',
+				ahead:
+					'Точку неповернення не пройдено. Відмова залишить датацентри такими, якими їх лишили виконані кроки.',
+			},
+			resumeForced:
+				'Операція продовжується в примусовому режимі. Підтвердьте, що старий primary ізольований.',
+		},
+		confirm: {
+			isolation: 'Старий primary ізольований і не приймає запису. Підтверджую.',
+			not_max_lsn: 'Ціль не має найбільшого WAL. Погоджуюся втратити різницю.',
+			max_discard_bytes: 'Погоджуюся відкинути {bytes} даних.',
+		},
+		refusal: {
+			preflightFailed: 'Перевірка дії не пройдена.',
+			confirmationRequired: 'Дія потребує підтверджень.',
+			invalid: 'Запит недійсний.',
+			operationRunning: 'Інша операція виконується або перервана.',
+			operationNotInterrupted: 'Операція не перервана.',
+			operationNotFound: 'Жодна інстанція не має цієї операції.',
+			datacenterNotFound: 'Датацентру немає в конфігу.',
+			lockBusy: 'Lock операцій тримає інша інстанція.',
+			lockUnavailable:
+				'Жоден Consul не відповідає, тож lock і операції не прочитати.',
+			leaderUnavailable: 'Інстанція, що веде цю дію, не відповідає.',
+			requestIdMismatch:
+				'Цей ідентифікатор запиту вже використано з іншим запитом. Закрийте діалог і почніть знову.',
+			unknown: 'Сервер відхилив дію.',
+			meta: {
+				operation: 'Операція',
+				holder: 'Тримає',
+				datacenter: 'Датацентр',
+				datacenters: 'Датацентри',
+				instance: 'Інстанція',
+				state: 'Стан',
+			},
+			network: 'Сервер не відповідає.',
+		},
+	},
+	checkEffect: {
+		BLOCK: 'блокує',
+		WARN_ONLY: 'попереджає',
+		CONFIRM: 'потребує підтвердження',
+		EFFECT_UNSPECIFIED: 'інформація',
 	},
 	overview: {
 		loading: 'Завантаження статусу…',
