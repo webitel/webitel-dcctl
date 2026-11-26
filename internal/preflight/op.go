@@ -37,6 +37,38 @@ func (in *Input) operation() *dcctlv1.Operation {
 	return out
 }
 
+// failoverRoute is the route of a failover as its steps record it.
+type failoverRoute struct {
+	// source is the datacenter failed over from, others the standbys that follow target.
+	source, target string
+	others         []string
+}
+
+// failoverRouteOf returns the route of op and whether it is a failover whose target is
+// not promoted yet.
+func failoverRouteOf(op *dcctlv1.Operation) (failoverRoute, bool) {
+	if op.GetType() != dcctlv1.Operation_FAILOVER {
+		return failoverRoute{}, false
+	}
+
+	r := failoverRoute{target: datacenterID(op.GetTarget())}
+	promoted := false
+
+	for _, st := range op.GetSteps() {
+		dc := datacenterID(st.GetDatacenter())
+
+		if t := st.GetType(); t == dcctlv1.Operation_Step_PATRONI_DEMOTE {
+			r.source = dc
+		} else if t == dcctlv1.Operation_Step_PATRONI_REPOINT {
+			r.others = append(r.others, dc)
+		} else if t == dcctlv1.Operation_Step_PATRONI_PROMOTE {
+			promoted = st.GetState() == dcctlv1.Operation_Step_SUCCEEDED
+		}
+	}
+
+	return r, !promoted
+}
+
 // datacenterID returns the datacenter of a name that may be the resource name
 // datacenters/{datacenter}.
 func datacenterID(name string) string {

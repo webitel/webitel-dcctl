@@ -130,7 +130,7 @@ func (w *world) engine() *operation.Engine {
 		Locker:      locker,
 		Ops:         ops,
 		Coordinator: w.coord,
-		Preflight:   fakePreflight{w.infra},
+		Preflight:   fakePreflight{w: w.infra, op: func() *dcctlv1.Operation { return storedOp(w.consuls[dcB]) }},
 		Journal:     w.journal,
 		Recorder:    fakeRecorder{},
 		Resumers: map[dcctlv1.Operation_Type]operation.Resumer{

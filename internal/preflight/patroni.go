@@ -616,19 +616,24 @@ func received(s pgScope) (*int64, map[string]any) {
 }
 
 // targetMaxLSN needs a confirmation when another standby received more WAL than the
-// target, or when what the target or a standby whose Patroni answers received is not
-// known. A standby whose Patroni does not answer is not compared.
+// target, see [Input.maxLSN].
 func (in *Input) targetMaxLSN() check.Check {
-	b := in.Params.Datacenter
-	c := confirm(check.PatroniTargetMaxLSN, check.ConfirmNotMaxLSN, b)
+	return in.maxLSN(in.Params.Datacenter, in.others())
+}
 
-	cs := in.others()
-	if len(cs) == 0 {
-		return c.skip("there is no other standby datacenter")
-	}
+// maxLSN needs a confirmation when a standby of cs received more WAL than b, or when
+// what b or a standby of cs whose Patroni answers received is not known. A standby
+// whose Patroni does not answer is not compared. Its facts are what b and each standby
+// received, whatever the result: the loss a failover to b accepts.
+func (in *Input) maxLSN(b string, cs []string) check.Check {
+	c := confirm(check.PatroniTargetMaxLSN, check.ConfirmNotMaxLSN, b)
 
 	rb, fb := received(in.pgDatacenter(b))
 	facts := map[string]any{"target": fb}
+
+	if len(cs) == 0 {
+		return c.with(check.Skip, "there is no other standby datacenter", facts)
+	}
 
 	var (
 		more, unknown []string

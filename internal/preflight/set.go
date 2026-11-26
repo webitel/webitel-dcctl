@@ -53,8 +53,16 @@ func Checks(in *Input) ([]check.Check, error) {
 			in.opInterrupted(), in.opStepsKnown(), in.opNotRolledBack(), in.lockFree(), in.leaderReachable(),
 			in.noConflict(), in.quorum(check.WarnOnly),
 		}
-		if in.Params.ToForced {
+
+		// A failover not promoted yet decides its confirmations anew, on what the
+		// datacenters show now.
+		r, unpromoted := failoverRouteOf(in.operation())
+		if in.Params.ToForced || unpromoted {
 			cs = append(cs, in.isolation())
+		}
+
+		if unpromoted {
+			cs = append(cs, in.maxLSN(r.target, r.others))
 		}
 
 		return cs, nil

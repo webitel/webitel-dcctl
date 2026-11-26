@@ -412,9 +412,13 @@ func (f *fakeJournal) Append(_ context.Context, e *dcctlv1.JournalEntry) (journa
 // fakePreflight decides the confirmations as the sets of warm_standby do, on the
 // infrastructure of w: a failover always needs the isolation confirmed, and not_max_lsn
 // when a standby other than dc_a, the datacenter the tests fail over from, received
-// more WAL than the target or an amount that is not known; a resume needs the isolation
-// when it writes forced. A switch takes no confirmation.
-type fakePreflight struct{ w *infra }
+// more WAL than the target or an amount that is not known. A resume needs the
+// isolation when it writes forced; one of a failover not promoted yet, op as stored,
+// needs both anew against the standbys the failover repoints. A switch takes none.
+type fakePreflight struct {
+	w  *infra
+	op func() *dcctlv1.Operation
+}
 
 func (f fakePreflight) Run(_ context.Context, req preflight.Request) (check.Verdict, error) {
 	var cs []check.Check
@@ -422,10 +426,23 @@ func (f fakePreflight) Run(_ context.Context, req preflight.Request) (check.Verd
 	switch req.Action {
 	case preflight.Switch:
 	case preflight.Failover:
-		cs = append(cs, isolationCheck(), f.maxLSN(req.Params.Datacenter, dcA))
+		var others []string
+
+		for _, name := range f.w.names() {
+			if name != req.Params.Datacenter && name != dcA {
+				others = append(others, name)
+			}
+		}
+
+		cs = append(cs, isolationCheck(), f.maxLSN(req.Params.Datacenter, others))
 	case preflight.Resume:
-		if req.Params.ToForced {
+		target, others, unpromoted := unpromotedFailover(f.op())
+		if req.Params.ToForced || unpromoted {
 			cs = append(cs, isolationCheck())
+		}
+
+		if unpromoted {
+			cs = append(cs, f.maxLSN(target, others))
 		}
 	case preflight.Demote, preflight.Repoint, preflight.MarkRecovered, preflight.Abandon, preflight.Resolve,
 		preflight.Init, preflight.ArbiterInit, preflight.AppsSync, preflight.Verify:
@@ -435,23 +452,36 @@ func (f fakePreflight) Run(_ context.Context, req preflight.Request) (check.Verd
 	return check.Decide(cs, req.Confirmations), nil
 }
 
+// unpromotedFailover returns the target of op and the standbys it repoints when op is a
+// failover whose promotion did not succeed.
+func unpromotedFailover(op *dcctlv1.Operation) (target string, others []string, ok bool) {
+	if op.GetType() != dcctlv1.Operation_FAILOVER {
+		return "", nil, false
+	}
+
+	ok = true
+
+	for _, st := range op.GetSteps() {
+		if st.GetType() == dcctlv1.Operation_Step_PATRONI_REPOINT {
+			others = append(others, strings.TrimPrefix(st.GetDatacenter(), "datacenters/"))
+		}
+
+		if st.GetType() == dcctlv1.Operation_Step_PATRONI_PROMOTE {
+			ok = st.GetState() != dcctlv1.Operation_Step_SUCCEEDED
+		}
+	}
+
+	return strings.TrimPrefix(op.GetTarget(), "datacenters/"), others, ok
+}
+
 func isolationCheck() check.Check {
 	return check.Check{ID: check.CoordIsolation, Result: check.Fail, Effect: check.Confirm, Confirmation: check.ConfirmIsolation}
 }
 
-// maxLSN is patroni.target_max_lsn of target b against the standbys other than b and
-// except; one whose Patroni is not read is not compared.
-func (f fakePreflight) maxLSN(b string, except ...string) check.Check {
+// maxLSN is patroni.target_max_lsn of target b against others; a standby whose Patroni
+// is not read is not compared.
+func (f fakePreflight) maxLSN(b string, others []string) check.Check {
 	c := check.Check{ID: check.PatroniTargetMaxLSN, Result: check.Pass, Effect: check.Confirm, Confirmation: check.ConfirmNotMaxLSN}
-	tb := f.w.dc(b)
-
-	var others []string
-
-	for _, name := range f.w.names() {
-		if name != b && !slices.Contains(except, name) {
-			others = append(others, name)
-		}
-	}
 
 	if len(others) == 0 {
 		c.Result = check.Skip
@@ -459,6 +489,7 @@ func (f fakePreflight) maxLSN(b string, except ...string) check.Check {
 		return c
 	}
 
+	tb := f.w.dc(b)
 	if tb.receivedUnknown {
 		c.Result = check.Fail
 	}
@@ -470,6 +501,21 @@ func (f fakePreflight) maxLSN(b string, except ...string) check.Check {
 	}
 
 	return c
+}
+
+// storedOp returns dcctl/op of c as stored, nil when it is not or does not decode.
+func storedOp(c *fakeConsul) *dcctlv1.Operation {
+	b := c.rawOp()
+	if b == nil {
+		return nil
+	}
+
+	op := new(dcctlv1.Operation)
+	if kv.DecodeProto(b, op) != nil {
+		return nil
+	}
+
+	return op
 }
 
 type fakeRecorder struct{}
