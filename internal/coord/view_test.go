@@ -555,6 +555,45 @@ func TestEvaluateRevisionOrdersPayloads(t *testing.T) {
 	})
 }
 
+// staleRead is a record read from a Consul without a leader, as the
+// minority side of a partition answers.
+func staleRead(t *testing.T, name string, gen int64, dc string) coord.VoterState {
+	t.Helper()
+
+	vs := kvAt(t, name, gen, dc)
+	vs.Status = coord.StatusStale
+
+	return vs
+}
+
+func TestEvaluateStaleRead(t *testing.T) {
+	t.Run("never_votes", func(t *testing.T) {
+		v := coord.Evaluate([]coord.VoterState{
+			staleRead(t, "dc_a", 9, "dc_a"), kvAt(t, "dc_b", 8, "dc_b"), arbAt(t, 8, "dc_b"),
+		})
+
+		assert.Equal(t, summary{Effective: "8/dc_b", Quorum: true, Initialized: true}, summarize(v),
+			"generation 9 of the stale read is neither a record nor makes the voter stale")
+		assert.Equal(t, 2, v.Voting)
+		assert.False(t, v.Voters[0].Behind)
+	})
+
+	t.Run("counts_as_unknown", func(t *testing.T) {
+		v := coord.Evaluate([]coord.VoterState{
+			staleRead(t, "dc_a", 8, "dc_a"), kvAt(t, "dc_b", 8, "dc_a"), down("dc_c", coord.KindKV),
+		})
+
+		assert.Equal(t, summary{Undetermined: []string{"8/dc_a"}, Initialized: true}, summarize(v),
+			"the stale read holds 8 too, but only the voter it came from can count")
+	})
+
+	t.Run("only_stale_reads", func(t *testing.T) {
+		v := coord.Evaluate([]coord.VoterState{staleRead(t, "dc_a", 8, "dc_a"), staleRead(t, "dc_b", 8, "dc_a")})
+
+		assert.Equal(t, summary{}, summarize(v))
+	})
+}
+
 // A state built without decoding may still hold a negative revision; it
 // must not break the evaluation.
 func TestEvaluateNegativeRevision(t *testing.T) {
@@ -567,6 +606,24 @@ func TestEvaluateNegativeRevision(t *testing.T) {
 	})
 	require.NotNil(t, v.Effective)
 	assert.True(t, v.Effective.Settled)
+}
+
+func TestStatusUnknown(t *testing.T) {
+	tests := []struct {
+		status coord.Status
+		want   bool
+	}{
+		{coord.StatusPresent, false},
+		{coord.StatusAbsent, false},
+		{coord.StatusUninitialized, false},
+		{coord.StatusUnreachable, true},
+		{coord.StatusInvalid, true},
+		{coord.StatusStale, true},
+	}
+
+	for _, tt := range tests {
+		assert.Equal(t, tt.want, tt.status.Unknown(), tt.status)
+	}
 }
 
 // Another record of the effective generation: a write that lost, left on a

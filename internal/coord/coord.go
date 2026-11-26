@@ -250,7 +250,7 @@ func (c *Coordinator) alignVoter(ctx context.Context, v Voter, effective *Record
 		a.Outcome, a.Err = AlignSkipped, fresh.Err
 
 		return a
-	case StatusUnreachable:
+	case StatusUnreachable, StatusStale:
 		a.Outcome, a.Err = AlignFailed, fresh.Err
 
 		return a

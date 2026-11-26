@@ -101,7 +101,7 @@ func NewLeaseTimeline(period, acquireAfter time.Duration) (LeaseTimeline, error)
 // of dcctl/state (View.Effective). It takes the time from the monotonic clock
 // of this instance, so it is to be called right after the reads. It returns
 // the timeline to pass on the next call; tl is not changed. A read that may
-// not be current is passed as unreachable, see [VoterLease].
+// not be current is passed as stale, see [VoterLease].
 //
 // A change of a voter's lease happened between the read before it was seen
 // and the read that saw it. A voter is renewed when its lease names the
@@ -145,7 +145,7 @@ func EvaluateLease(tl LeaseTimeline, voters []VoterLease, effective *Record) (Le
 				next.marks[v.Name] = prev
 			}
 
-			if v.Status == StatusUnreachable || v.Status == StatusInvalid {
+			if v.Status.Unknown() {
 				unknown++
 			}
 

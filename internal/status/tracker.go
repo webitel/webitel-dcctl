@@ -461,7 +461,7 @@ func leaseReads(snap *collect.Snapshot) []coord.VoterLease {
 		case !v.KV.Data.Meta.KnownLeader:
 			// A Consul without a leader may answer with an older lease than it holds.
 			out = append(out, coord.VoterLease{
-				Name: name, Kind: coord.KindKV, Status: coord.StatusUnreachable, Reason: source.ReasonNoLeader, Err: errNoLeader,
+				Name: name, Kind: coord.KindKV, Status: coord.StatusStale, Reason: source.ReasonNoLeader, Err: errNoLeader,
 			})
 		case e == nil:
 			out = append(out, coord.VoterLease{Name: name, Kind: coord.KindKV, Status: coord.StatusAbsent})

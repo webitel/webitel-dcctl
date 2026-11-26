@@ -123,7 +123,7 @@ func Build(snap *collect.Snapshot, cfg Config, now time.Time) Status {
 //   - a forced record may be effective below an undetermined one; when that one names
 //     another datacenter, the active datacenter is not known;
 //   - a forced record held by less than a majority tells it only when the voters that
-//     are unreachable or hold an invalid record are not a majority themselves: such a
+//     may hold any record (see [coord.Status.Unknown]) are not a majority themselves: such a
 //     majority may have committed a newer generation that no voter that answered shows.
 func ActiveKnown(v coord.View) bool {
 	if v.Effective == nil || slices.ContainsFunc(v.Undetermined, func(r coord.Record) bool {
@@ -135,7 +135,7 @@ func ActiveKnown(v coord.View) bool {
 	unknown := 0
 
 	for _, vs := range v.Voters {
-		if vs.Status == coord.StatusUnreachable || vs.Status == coord.StatusInvalid {
+		if vs.Status.Unknown() {
 			unknown++
 		}
 	}

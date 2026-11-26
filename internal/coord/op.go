@@ -166,7 +166,7 @@ func (v OpView) Blocking() *OpCopy {
 			if !finished(c.Operation.GetState()) && v.final(c.Operation.GetName()) == nil {
 				return c
 			}
-		case StatusAbsent, StatusUnreachable, StatusUninitialized:
+		case StatusAbsent, StatusUnreachable, StatusUninitialized, StatusStale:
 		}
 	}
 
@@ -530,7 +530,7 @@ func nextValue(cur OpCopy, op *dcctlv1.Operation, value []byte, w *OpWrite) ([]b
 	switch cur.Status {
 	case StatusAbsent:
 		return value, false
-	case StatusUnreachable:
+	case StatusUnreachable, StatusStale:
 		w.Outcome, w.Err = OpFailed, cur.Err
 
 		return nil, true

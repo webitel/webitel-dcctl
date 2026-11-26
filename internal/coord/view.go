@@ -21,7 +21,18 @@ const (
 	// StatusInvalid is a record that cannot be decoded. It may be written
 	// by a newer dcctl, so it is neither counted nor overwritten.
 	StatusInvalid Status = "invalid"
+	// StatusStale is a read that may not be current, such as one from a
+	// Consul that answered without a known leader on the minority side of
+	// a partition. What it holds is shown but never counted or aligned:
+	// the voter itself may hold any record.
+	StatusStale Status = "stale"
 )
+
+// Unknown reports whether a voter read with status s may hold any record:
+// it did not answer, its record cannot be decoded, or the read is stale.
+func (s Status) Unknown() bool {
+	return s == StatusUnreachable || s == StatusInvalid || s == StatusStale
+}
 
 // VoterState is the result of reading dcctl/state from one voter.
 type VoterState struct {
@@ -31,8 +42,9 @@ type VoterState struct {
 	// Reason is why the voter is unreachable or its record invalid.
 	Reason source.Reason
 	Err    error
-	// State, Raw and Version are set for StatusPresent. Raw is the value as
-	// stored, with the fields this version of dcctl does not know.
+	// State, Raw and Version are set for StatusPresent, and may be for
+	// StatusStale. Raw is the value as stored, with the fields this version
+	// of dcctl does not know.
 	State   kv.State
 	Raw     []byte
 	Version Version
@@ -153,7 +165,7 @@ func Evaluate(voters []VoterState) View {
 			unknown++
 
 			continue
-		case StatusUnreachable:
+		case StatusUnreachable, StatusStale:
 			unknown++
 
 			continue

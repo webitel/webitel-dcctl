@@ -153,7 +153,7 @@ func (b *builder) state(f dcFacts) (State, []State) {
 	if b.effective == nil {
 		if !b.initialized {
 			if !slices.ContainsFunc(b.view.Voters, func(vs coord.VoterState) bool {
-				return vs.Status == coord.StatusUnreachable
+				return vs.Status.Unknown()
 			}) {
 				return StateUninitialized, nil
 			}
@@ -187,7 +187,7 @@ func (b *builder) state(f dcFacts) (State, []State) {
 			return vs.Kind == coord.KindKV && vs.Name == f.name
 		}); i >= 0 {
 			switch vs := b.view.Voters[i]; {
-			case vs.Status == coord.StatusUnreachable, vs.Status == coord.StatusInvalid:
+			case vs.Status.Unknown():
 				skipped = append(skipped, StateStale)
 			case vs.Stale:
 				return StateStale, skipped

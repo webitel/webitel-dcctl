@@ -217,6 +217,23 @@ func TestEvaluateLeaseNoQuorum(t *testing.T) {
 		})
 	})
 
+	t.Run("stale_reads_are_unknown", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			o := newLeaseObserver(t)
+			o.at(0, same3(t, leaseA(5))...)
+
+			staleRead := held(t, "dc_b", coord.KindKV, leaseA(5))
+			staleRead.Status = coord.StatusStale
+
+			got := o.at(2*window,
+				held(t, "dc_a", coord.KindKV, leaseA(5)),
+				staleRead,
+				leaseDown(coord.ArbiterName, coord.KindArbiter))
+
+			assertLease(t, coord.LeaseUnknown, coord.LeaseReasonNoMajority, got)
+		})
+	})
+
 	t.Run("uninitialized_arbiter_does_not_vote", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			o := newLeaseObserver(t)
