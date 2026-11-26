@@ -26,7 +26,7 @@ func (e *Engine) sweep(ctx context.Context) {
 	}
 
 	for _, name := range runningNames(view) {
-		if e.runs(name) {
+		if e.Runs(name) {
 			continue
 		}
 
@@ -42,7 +42,7 @@ func (e *Engine) sweep(ctx context.Context) {
 	}
 
 	for _, name := range divergentNames(view) {
-		if !e.runs(name) {
+		if !e.Runs(name) {
 			e.reconcile(ctx, name)
 		}
 	}
@@ -62,7 +62,7 @@ func (e *Engine) reconcile(ctx context.Context, name string) {
 	defer e.release(ctx, lk, name)
 
 	view, err := e.cfg.Ops.Read(ctx)
-	if err != nil || !diverges(view, name) || e.runs(name) {
+	if err != nil || !diverges(view, name) || e.Runs(name) {
 		return
 	}
 
@@ -122,7 +122,7 @@ func (e *Engine) interruptDead(ctx context.Context, name string, cause error, pa
 	op, _ := latest(view, name)
 
 	switch {
-	case op.GetState() != dcctlv1.Operation_RUNNING, e.runs(name):
+	case op.GetState() != dcctlv1.Operation_RUNNING, e.Runs(name):
 		return false
 	case errors.Is(cause, errRestarted) && !e.cfg.Self.leads(op):
 		// Another instance took the operation over: it runs it under the lock.

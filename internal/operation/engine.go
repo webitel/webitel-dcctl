@@ -217,7 +217,8 @@ func (e *Engine) unclaim(name string) {
 	delete(e.active, name)
 }
 
-func (e *Engine) runs(name string) bool {
+// Runs reports whether this engine runs the operation name now.
+func (e *Engine) Runs(name string) bool {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
