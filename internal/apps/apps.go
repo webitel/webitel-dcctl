@@ -17,6 +17,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"slices"
 	"strings"
 	"time"
@@ -108,13 +109,19 @@ func New(cfg config.Apps, log *logging.Logger) (*Apps, error) {
 // stages, until none is left or the time is up. The result holds the stages that ran,
 // the further passes included; on an error the last of them is where it ended.
 func (a *Apps) StopDatacenter(ctx context.Context, dc Datacenter, opts Options) (Result, error) {
-	return a.stop(ctx, dc, opts, a.cfg.StopTimeout)
+	return a.stop(ctx, dc, opts, a.cfg.StopTimeout, 0)
+}
+
+// StopFrom is [Apps.StopDatacenter] for the managed jobs of stage from and above, the
+// jobs with an invalid stage among them.
+func (a *Apps) StopFrom(ctx context.Context, dc Datacenter, from int, opts Options) (Result, error) {
+	return a.stop(ctx, dc, opts, a.cfg.StopTimeout, from)
 }
 
 // StopDatacenterFailover is [Apps.StopDatacenter] within apps.failover_stop_timeout,
 // for the attempt to stop the old datacenter during a failover.
 func (a *Apps) StopDatacenterFailover(ctx context.Context, dc Datacenter, opts Options) (Result, error) {
-	return a.stop(ctx, dc, opts, a.cfg.FailoverStopTimeout)
+	return a.stop(ctx, dc, opts, a.cfg.FailoverStopTimeout, 0)
 }
 
 // StartDatacenter starts the managed jobs of dc, stages from the lowest up, each stage
@@ -122,6 +129,16 @@ func (a *Apps) StopDatacenterFailover(ctx context.Context, dc Datacenter, opts O
 // for. It refuses with [nomad.ErrInvalidStage] before starting anything when a managed
 // job has an invalid stage, because there is no telling when such a job should start.
 func (a *Apps) StartDatacenter(ctx context.Context, dc Datacenter, opts Options) (Result, error) {
+	return a.start(ctx, dc, opts, math.MaxInt)
+}
+
+// StartUpTo is [Apps.StartDatacenter] for the managed jobs up to stage to. It refuses
+// as StartDatacenter does for a job with an invalid stage of any stage.
+func (a *Apps) StartUpTo(ctx context.Context, dc Datacenter, to int, opts Options) (Result, error) {
+	return a.start(ctx, dc, opts, to)
+}
+
+func (a *Apps) start(ctx context.Context, dc Datacenter, opts Options, to int) (Result, error) {
 	r, err := a.newRun(dc, opts, ActionStart)
 	if err != nil {
 		return r.result, err
@@ -148,6 +165,8 @@ func (a *Apps) StartDatacenter(ctx context.Context, dc Datacenter, opts Options)
 		return r.result, fmt.Errorf("start apps of %s: %w", dc.Name, errors.Join(invalid...))
 	}
 
+	jobs = slices.DeleteFunc(jobs, func(j nomad.Job) bool { return j.Stage > to })
+
 	for _, s := range stages(jobs, ActionStart) {
 		stageCtx, cancel := context.WithTimeoutCause(ctx, a.cfg.StageStartTimeout, ErrTimeout)
 		err := r.runStage(stageCtx, s)
@@ -162,7 +181,8 @@ func (a *Apps) StartDatacenter(ctx context.Context, dc Datacenter, opts Options)
 	return r.result, nil
 }
 
-func (a *Apps) stop(ctx context.Context, dc Datacenter, opts Options, timeout time.Duration) (Result, error) {
+// stop stops the managed jobs of stage from and above, and those with an invalid stage.
+func (a *Apps) stop(ctx context.Context, dc Datacenter, opts Options, timeout time.Duration, from int) (Result, error) {
 	r, err := a.newRun(dc, opts, ActionStop)
 	if err != nil {
 		return r.result, err
@@ -171,10 +191,14 @@ func (a *Apps) stop(ctx context.Context, dc Datacenter, opts Options, timeout ti
 	ctx, cancel := context.WithTimeoutCause(ctx, timeout, ErrTimeout)
 	defer cancel()
 
+	below := func(j nomad.Job) bool { return j.StageErr == nil && j.Stage < from }
+
 	jobs, err := r.listJobs(ctx)
 	if err != nil {
 		return r.result, err
 	}
+
+	jobs = slices.DeleteFunc(jobs, below)
 
 	for {
 		for _, s := range stages(jobs, ActionStop) {
@@ -188,7 +212,7 @@ func (a *Apps) stop(ctx context.Context, dc Datacenter, opts Options, timeout ti
 			return r.result, err
 		}
 
-		jobs = slices.DeleteFunc(all, func(j nomad.Job) bool { return j.Stop })
+		jobs = slices.DeleteFunc(all, func(j nomad.Job) bool { return j.Stop || below(j) })
 		if len(jobs) == 0 {
 			return r.result, nil
 		}
