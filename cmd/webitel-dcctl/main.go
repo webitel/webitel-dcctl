@@ -20,6 +20,7 @@ import (
 	"github.com/webitel/webitel-dcctl/internal/arbiter"
 	"github.com/webitel/webitel-dcctl/internal/auth"
 	"github.com/webitel/webitel-dcctl/internal/buildinfo"
+	dcctlcli "github.com/webitel/webitel-dcctl/internal/cli"
 	"github.com/webitel/webitel-dcctl/internal/collect"
 	"github.com/webitel/webitel-dcctl/internal/config"
 	"github.com/webitel/webitel-dcctl/internal/coord"
@@ -38,14 +39,12 @@ import (
 
 func main() {
 	if err := newApp().Run(os.Args); err != nil {
-		_, _ = fmt.Fprintln(os.Stderr, err)
-
-		os.Exit(1)
+		os.Exit(dcctlcli.Report(os.Stderr, err))
 	}
 }
 
 func newApp() *cli.App {
-	return &cli.App{
+	app := &cli.App{
 		Name:  "webitel-dcctl",
 		Usage: "Control which datacenter of a Webitel installation is active",
 		Commands: []*cli.Command{
@@ -68,6 +67,11 @@ func newApp() *cli.App {
 			},
 		},
 	}
+
+	app.Commands = append(app.Commands, dcctlcli.Commands(dcctlcli.Options{})...)
+	dcctlcli.Setup(app)
+
+	return app
 }
 
 func configFlag(path string) *cli.StringFlag {
