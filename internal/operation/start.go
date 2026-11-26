@@ -103,7 +103,7 @@ func (e *Engine) Start(ctx context.Context, p Plan) (*dcctlv1.Operation, error) 
 		return nil, err
 	}
 
-	r := &run{e: e, rec: rec, lock: lk, steps: p.Steps, given: p.Preflight.Confirmations}
+	r := &run{e: e, rec: rec, lock: lk, steps: p.Steps, given: p.Preflight.Confirmations, confirmed: v.Confirmed}
 	started = true
 
 	e.cfg.Log.InfoCtx(ctx, "operation started", logging.Str("operation", first.GetName()),
