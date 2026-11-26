@@ -16,7 +16,7 @@ import (
 // errNoCycle is the answer of a read from the status before the first
 // collection cycle finished: an empty status would look like an installation
 // with nothing wrong.
-var errNoCycle = status.Error(codes.Unavailable, "no collection cycle has finished yet")
+var errNoCycle = apierr.New(apierr.ReasonStatusNotReady, "no collection cycle has finished yet")
 
 // rpcError returns err as the API answers it. A status error in the chain is
 // answered as it is, without the text that wraps it; a context error with its

@@ -34,8 +34,6 @@ func exampleOperations(t *testing.T) []*dcctlv1.Operation {
 	return resp.GetOperations()
 }
 
-var skipFirstStepIndex = map[string]string{"steps.0.index": "a zero int32 is omitted by the gateway marshaler"}
-
 func present(name string, op *dcctlv1.Operation) coord.OpCopy {
 	return coord.OpCopy{Name: name, Status: coord.StatusPresent, Operation: op}
 }
@@ -58,15 +56,14 @@ func TestListOperations(t *testing.T) {
 	}}))
 
 	example := swaggerExample(t, "/v1/operations", "get", "200")
-	skip := prefixed("operations.*.", skipFirstStepIndex)
 
 	got, err := dcctlv1.NewOperationServiceClient(h.conn).ListOperations(callCtx(t), &dcctlv1.ListOperationsRequest{})
 	require.NoError(t, err)
-	assertExample(t, example, gatewayJSON(t, got), skip)
+	assert.JSONEq(t, example, gatewayJSON(t, got))
 
 	resp := h.get(t, "/api/v1/operations")
 	require.Equal(t, http.StatusOK, resp.code, resp.body)
-	assertExample(t, example, resp.body, skip)
+	assert.JSONEq(t, example, resp.body)
 }
 
 func TestListOperationsOneCopyPerOperation(t *testing.T) {
@@ -156,16 +153,14 @@ func TestGetOperation(t *testing.T) {
 
 	example := swaggerExample(t, "/v1/operations/{operation}", "get", "200")
 
-	skip := prefixed("", skipFirstStepIndex)
-
 	got, err := dcctlv1.NewOperationServiceClient(h.conn).GetOperation(callCtx(t),
 		&dcctlv1.GetOperationRequest{Name: op.GetName()})
 	require.NoError(t, err)
-	assertExample(t, example, gatewayJSON(t, got), skip)
+	assert.JSONEq(t, example, gatewayJSON(t, got))
 
 	resp := h.get(t, "/api/v1/"+op.GetName())
 	require.Equal(t, http.StatusOK, resp.code, resp.body)
-	assertExample(t, example, resp.body, skip)
+	assert.JSONEq(t, example, resp.body)
 }
 
 func TestGetOperationCopy(t *testing.T) {
@@ -260,6 +255,7 @@ func TestGetOperationUnavailable(t *testing.T) {
 
 			resp := h.get(t, "/api/v1/"+name)
 			assert.Equal(t, http.StatusServiceUnavailable, resp.code)
+			assert.JSONEq(t, swaggerExample(t, "/v1/operations/{operation}", "get", "503"), resp.body)
 		})
 	}
 }
@@ -282,9 +278,21 @@ func TestListOperationsUnavailable(t *testing.T) {
 
 			_, err := s.ListOperations(t.Context(), &dcctlv1.ListOperationsRequest{})
 			st := assertCode(t, codes.Unavailable, err)
+			assert.Equal(t, apierr.ReasonKVUnavailable, reasonOf(st))
 			assert.Equal(t, "no copy of dcctl/op is readable", st.Message())
 		})
 	}
+}
+
+func TestListOperationsUnavailableBody(t *testing.T) {
+	h := startAPI(t, withOperations(coord.OpView{Copies: []coord.OpCopy{
+		{Name: "dc_a", Status: coord.StatusUnreachable, Reason: source.ReasonTimeout},
+		{Name: "dc_b", Status: coord.StatusInvalid, Reason: source.ReasonInvalid},
+	}}))
+
+	resp := h.get(t, "/api/v1/operations")
+	assert.Equal(t, http.StatusServiceUnavailable, resp.code)
+	assert.JSONEq(t, swaggerExample(t, "/v1/operations", "get", "503"), resp.body)
 }
 
 func TestListOperationsSomeUnreachable(t *testing.T) {

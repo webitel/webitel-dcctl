@@ -39,7 +39,7 @@ func TestGetDatacenter(t *testing.T) {
 	h := startAPI(t, opts)
 
 	example := swaggerExample(t, "/v1/datacenters/{datacenter}", "get", "200")
-	skip := prefixed("", skipEndpoint, skipDetail)
+	skip := prefixed("", skipEndpoint)
 
 	got, err := dcctlv1.NewDatacenterServiceClient(h.conn).GetDatacenter(callCtx(t),
 		&dcctlv1.GetDatacenterRequest{Name: "datacenters/dc_b"})
@@ -69,7 +69,7 @@ func TestGetDatacenterInvalidName(t *testing.T) {
 
 	resp := h.get(t, "/api/v1/datacenters/dc.c")
 	assert.Equal(t, http.StatusBadRequest, resp.code)
-	assert.Contains(t, resp.body, "dcctl.request.invalid")
+	assert.JSONEq(t, swaggerExample(t, "/v1/datacenters/{datacenter}", "get", "400"), resp.body)
 }
 
 func TestDatacenterReadsBeforeFirstCycle(t *testing.T) {
@@ -84,6 +84,10 @@ func TestDatacenterReadsBeforeFirstCycle(t *testing.T) {
 
 	_, err = client.GetDatacenter(callCtx(t), &dcctlv1.GetDatacenterRequest{Name: "datacenters/dc_a"})
 	assertCode(t, codes.Unavailable, err)
+
+	resp := h.get(t, "/api/v1/datacenters")
+	assert.Equal(t, http.StatusServiceUnavailable, resp.code)
+	assert.JSONEq(t, swaggerExample(t, "/v1/datacenters", "get", "503"), resp.body)
 }
 
 func TestDatacenterActionsUnimplemented(t *testing.T) {

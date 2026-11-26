@@ -12,6 +12,7 @@ import (
 
 	dcctlv1 "github.com/webitel/webitel-dcctl/gen/go/dcctl/v1"
 	"github.com/webitel/webitel-dcctl/internal/apierr"
+	"github.com/webitel/webitel-dcctl/internal/coord"
 	"github.com/webitel/webitel-dcctl/internal/journal"
 )
 
@@ -124,27 +125,57 @@ func TestList_readsTheMostCompleteCopy(t *testing.T) {
 
 	j := newJournal(t, 100, kvOf("dc_a", a), kvOf("dc_b", b))
 
-	assert.Equal(t, []string{"00000004", "00000003", "00000002", "00000001"}, ids(list(t, j, 0, "", "")))
+	got := list(t, j, 0, "", "")
+	assert.Equal(t, []string{"00000004", "00000003", "00000002", "00000001"}, ids(got))
+	assert.Empty(t, got.GetUnreachable())
 }
 
 func TestList_oneDatacenterDownStillAnswers(t *testing.T) {
-	a, b := newFakeConsul(), newFakeConsul()
+	a, b, c := newFakeConsul(), newFakeConsul(), newFakeConsul()
 	mixed(t, a, b)
+	// Only dc_c holds entry 9.
+	seed(t, c, operationEntry(), "00000009", 9)
+	b.setDown(true)
+
+	j := newJournal(t, 100, kvOf("dc_a", a), kvOf("dc_b", b), kvOf("dc_c", c))
+
+	got := list(t, j, 0, "", "")
+	assert.Len(t, got.GetJournalEntries(), 9)
+	assert.Equal(t, "00000009", ids(got)[0])
+	assert.Equal(t, []string{"datacenters/dc_b"}, got.GetUnreachable())
+}
+
+func TestList_noDatacenterAnswersIsUnavailable(t *testing.T) {
+	a, b := newFakeConsul(), newFakeConsul()
+	a.setDown(true)
 	b.setDown(true)
 
 	j := newJournal(t, 100, kvOf("dc_a", a), kvOf("dc_b", b))
 
-	assert.Len(t, list(t, j, 0, "", "").GetJournalEntries(), 8)
+	_, err := j.List(t.Context(), &dcctlv1.ListJournalEntriesRequest{})
+	st := status.Convert(err)
+	require.Equal(t, codes.Unavailable, st.Code(), err)
+	require.Len(t, st.Details(), 1)
+
+	info, ok := st.Details()[0].(*errdetails.ErrorInfo)
+	require.True(t, ok)
+	assert.Equal(t, string(apierr.ReasonKVUnavailable), info.GetReason())
+	assert.Equal(t, map[string]string{"datacenters": "dc_a,dc_b"}, info.GetMetadata())
 }
 
-func TestList_noDatacenterAnswersIsUnavailable(t *testing.T) {
+func TestList_stretchConsulIsNotADatacenter(t *testing.T) {
 	a := newFakeConsul()
 	a.setDown(true)
 
-	j := newJournal(t, 100, kvOf("dc_a", a))
+	j := newJournal(t, 100, kvOf(coord.StretchName, a))
 
 	_, err := j.List(t.Context(), &dcctlv1.ListJournalEntriesRequest{})
-	assert.Equal(t, codes.Unavailable, status.Code(err))
+	st := status.Convert(err)
+	require.Equal(t, codes.Unavailable, st.Code(), err)
+
+	info, ok := st.Details()[0].(*errdetails.ErrorInfo)
+	require.True(t, ok)
+	assert.Empty(t, info.GetMetadata())
 }
 
 func TestList_skipsEntriesThatDoNotDecode(t *testing.T) {

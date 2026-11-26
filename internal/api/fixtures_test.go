@@ -41,7 +41,7 @@ func exampleDCA() status.Datacenter {
 	}
 }
 
-func exampleMember(name, host string, role status.Role) status.Member {
+func exampleMember(name, host string, role status.Role, lag *int64) status.Member {
 	return status.Member{
 		Name: name, Host: host, APIURL: "https://" + host + ":8008", Datacenter: "dc_b",
 		Reachable: true, Role: role, PatroniState: "streaming", Timeline: ptr[int64](5),
@@ -50,7 +50,7 @@ func exampleMember(name, host string, role status.Role) status.Member {
 			ReceivedLocation: ptr[int64](83886176), ReplayedLocation: ptr[int64](83886176),
 			ReplayedTimestamp: "2026-11-23 10:14:54.000000+00:00",
 		},
-		LagBytes: ptr[int64](0), Version: "4.1.0", Usable: true,
+		LagBytes: lag, Version: "4.1.0", Usable: true,
 	}
 }
 
@@ -65,8 +65,8 @@ func exampleDCB() status.Datacenter {
 			StandbyClusterHost: "10.1.0.95", UpstreamDatacenter: "dc_a", LagBytes: ptr[int64](0),
 			Divergence: status.Divergence{Known: true},
 			Members: []status.Member{
-				exampleMember("pg-b1", "10.2.0.95", status.RoleStandbyLeader),
-				exampleMember("pg-b2", "10.2.0.96", status.RoleReplica),
+				exampleMember("pg-b1", "10.2.0.95", status.RoleStandbyLeader, nil),
+				exampleMember("pg-b2", "10.2.0.96", status.RoleReplica, ptr[int64](0)),
 			},
 		},
 		Nomad: status.Nomad{
@@ -124,19 +124,11 @@ func exampleStatus() status.Status {
 }
 
 // statusExampleSkips are the paths of the GetStatus example the model does
-// not give: the lease and the alarms come from elsewhere, and the example
-// shows the unreachable arbiter with the data of its last record, which the
-// model never reports as valid.
+// not give: the lease and the alarms come from elsewhere.
 func statusExampleSkips() unproducible {
 	skip := prefixed("datacenters.*.", skipEndpoint)
 	skip["lease"] = "the lease is not part of the status model"
 	skip["alarms"] = "alarms come from the alarm provider"
-
-	for _, f := range []string{"generation", "active_datacenter", "valid", "initialized"} {
-		skip["voters.2."+f] = "an unreachable voter has no record in the model"
-	}
-
-	skip["voters.2.reachable"] = "false is omitted by the gateway marshaler"
 
 	return skip
 }

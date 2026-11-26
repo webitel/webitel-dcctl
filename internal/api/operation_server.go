@@ -10,8 +10,6 @@ import (
 	"time"
 
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
 	"github.com/webitel/webitel-go-kit/pkg/logging"
 
@@ -54,7 +52,7 @@ func (s *OperationServer) ListOperations(ctx context.Context, req *dcctlv1.ListO
 	}
 
 	if !slices.ContainsFunc(view.Copies, readable) {
-		return nil, errNoCopy
+		return nil, apierr.KVUnavailable("no copy of dcctl/op is readable", unreadable(view))
 	}
 
 	ops := operations(view)
@@ -95,13 +93,22 @@ func (s *OperationServer) GetOperation(ctx context.Context, req *dcctlv1.GetOper
 		return nil, operationNotFound(req.GetName())
 	}
 
-	return nil, errCopyUnreadable
+	return nil, apierr.KVUnavailable("the operation may be in a copy of dcctl/op that is not readable", unreadable(view))
 }
 
-var (
-	errNoCopy         = status.Error(codes.Unavailable, "no copy of dcctl/op is readable")
-	errCopyUnreadable = status.Error(codes.Unavailable, "the operation may be in a copy of dcctl/op that is not readable")
-)
+// unreadable returns the datacenters whose copy of dcctl/op was not read. The
+// global Consul of stretch is not a datacenter and is left out.
+func unreadable(view coord.OpView) []string {
+	var out []string
+
+	for _, c := range view.Copies {
+		if !readable(c) && c.Name != coord.StretchName {
+			out = append(out, c.Name)
+		}
+	}
+
+	return out
+}
 
 // readable reports whether the copy was read: it holds an operation or none.
 func readable(c coord.OpCopy) bool {
