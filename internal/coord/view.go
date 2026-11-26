@@ -117,6 +117,32 @@ type View struct {
 	Conflict []Record
 }
 
+// ActiveKnown reports whether the effective record tells the active datacenter. It
+// does not when the voters that do not answer may hold a newer committed record:
+//
+//   - a forced record may be effective below an undetermined one; when that one names
+//     another datacenter, the active datacenter is not known;
+//   - a forced record held by less than a majority tells it only when the voters that
+//     may hold any record (see [Status.Unknown]) are not a majority themselves: such a
+//     majority may have committed a newer generation that no voter that answered shows.
+func ActiveKnown(v View) bool {
+	if v.Effective == nil || slices.ContainsFunc(v.Undetermined, func(r Record) bool {
+		return r.State.ActiveDatacenter != v.Effective.State.ActiveDatacenter
+	}) {
+		return false
+	}
+
+	unknown := 0
+
+	for _, vs := range v.Voters {
+		if vs.Status.Unknown() {
+			unknown++
+		}
+	}
+
+	return len(v.Effective.Voters) >= v.Majority || unknown < v.Majority
+}
+
 // RecordKey names a record: voters with the same generation and active
 // datacenter hold one record, whatever else differs.
 type RecordKey struct {

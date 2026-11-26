@@ -5,7 +5,7 @@
 //
 // A snapshot makes it act when all of these hold:
 //
-//   - the active datacenter is known, see [status.ActiveKnown], and is not this one;
+//   - the active datacenter is known, see [coord.ActiveKnown], and is not this one;
 //   - the voters are not in conflict;
 //   - no copy of dcctl/op holds an unfinished operation or cannot be decoded;
 //   - Nomad of this datacenter answered in the snapshot, no longer ago than three times
@@ -224,7 +224,7 @@ func refusal(view coord.View, ops coord.OpView, dc string) error {
 	switch {
 	case len(view.Conflict) > 0:
 		return errConflict
-	case !status.ActiveKnown(view):
+	case !coord.ActiveKnown(view):
 		return errActiveUnknown
 	case view.Effective.State.ActiveDatacenter == dc:
 		return errActiveHere

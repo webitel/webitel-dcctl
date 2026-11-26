@@ -65,7 +65,7 @@ type Status struct {
 	// primary or leader in a known datacenter.
 	DetectedActiveDatacenter string
 	// Effective is the effective state of the voters when it tells the active
-	// datacenter, see [ActiveKnown]: nil when there is none, or when the voters that do
+	// datacenter, see [coord.ActiveKnown]: nil when there is none, or when the voters that do
 	// not answer may hold a newer committed record. View tells which.
 	Effective *kv.State
 	// View is the evaluation of the voters: the effective record and the uncommitted,
@@ -102,7 +102,7 @@ func Build(snap *collect.Snapshot, cfg Config, now time.Time) Status {
 		Operation:     operationOf(Operations(snap)),
 	}
 
-	if ActiveKnown(view) {
+	if coord.ActiveKnown(view) {
 		s := view.Effective.State
 		st.Effective = &s
 	}
@@ -115,32 +115,6 @@ func Build(snap *collect.Snapshot, cfg Config, now time.Time) Status {
 	}
 
 	return st
-}
-
-// ActiveKnown reports whether the effective record tells the active datacenter. It
-// does not when the voters that do not answer may hold a newer committed record:
-//
-//   - a forced record may be effective below an undetermined one; when that one names
-//     another datacenter, the active datacenter is not known;
-//   - a forced record held by less than a majority tells it only when the voters that
-//     may hold any record (see [coord.Status.Unknown]) are not a majority themselves: such a
-//     majority may have committed a newer generation that no voter that answered shows.
-func ActiveKnown(v coord.View) bool {
-	if v.Effective == nil || slices.ContainsFunc(v.Undetermined, func(r coord.Record) bool {
-		return r.State.ActiveDatacenter != v.Effective.State.ActiveDatacenter
-	}) {
-		return false
-	}
-
-	unknown := 0
-
-	for _, vs := range v.Voters {
-		if vs.Status.Unknown() {
-			unknown++
-		}
-	}
-
-	return len(v.Effective.Voters) >= v.Majority || unknown < v.Majority
 }
 
 // builder holds what the model of every datacenter is derived from.

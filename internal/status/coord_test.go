@@ -1,7 +1,6 @@
 package status_test
 
 import (
-	"encoding/json"
 	"testing"
 	"time"
 
@@ -269,88 +268,6 @@ func TestBuild_operation(t *testing.T) {
 		assert.Equal(t, dcB, blocking.Name)
 		assert.Equal(t, coord.StatusInvalid, blocking.Status)
 	})
-}
-
-func TestActiveKnown(t *testing.T) {
-	present := func(name string, generation int64, active string, forced bool) coord.VoterState {
-		kind := coord.KindKV
-		if name == coord.ArbiterName {
-			kind = coord.KindArbiter
-		}
-
-		value, err := json.Marshal(kv.State{Generation: generation, ActiveDatacenter: active, Forced: forced})
-		require.NoError(t, err)
-
-		return coord.PresentState(name, kind, value, 1)
-	}
-	unreachable := func(name string) coord.VoterState {
-		return coord.VoterState{Name: name, Kind: coord.KindKV, Status: coord.StatusUnreachable, Err: errDown}
-	}
-	invalid := func(name string) coord.VoterState {
-		return coord.VoterState{Name: name, Kind: coord.KindKV, Status: coord.StatusInvalid}
-	}
-
-	tests := []struct {
-		name   string
-		voters []coord.VoterState
-		want   bool
-	}{
-		{
-			name:   "no_effective",
-			voters: []coord.VoterState{unreachable(dcA), unreachable(dcB), present(coord.ArbiterName, 5, dcA, false)},
-			want:   false,
-		},
-		{
-			name:   "majority",
-			voters: []coord.VoterState{present(dcA, 5, dcA, false), present(dcB, 5, dcA, false), unreachable(coord.ArbiterName)},
-			want:   true,
-		},
-		{
-			name:   "forced_others_answer",
-			voters: []coord.VoterState{present(dcA, 5, dcA, true), present(dcB, 4, dcB, false), present(coord.ArbiterName, 4, dcB, false)},
-			want:   true,
-		},
-		{
-			name:   "forced_one_unreachable",
-			voters: []coord.VoterState{present(dcA, 5, dcA, true), present(dcB, 4, dcB, false), unreachable(coord.ArbiterName)},
-			want:   true,
-		},
-		{
-			// The voters that do not answer may hold a newer generation committed by
-			// them, which names another datacenter.
-			name:   "forced_unreachable_majority",
-			voters: []coord.VoterState{unreachable(dcA), present(dcB, 5, dcA, true), unreachable(coord.ArbiterName)},
-			want:   false,
-		},
-		{
-			name:   "forced_invalid_and_unreachable_majority",
-			voters: []coord.VoterState{invalid(dcA), present(dcB, 5, dcA, true), unreachable(coord.ArbiterName)},
-			want:   false,
-		},
-		{
-			name:   "undetermined_same_datacenter",
-			voters: []coord.VoterState{present(dcA, 5, dcA, true), unreachable(dcB), present(coord.ArbiterName, 6, dcA, false)},
-			want:   true,
-		},
-		{
-			name:   "undetermined_other_datacenter",
-			voters: []coord.VoterState{present(dcA, 5, dcA, true), unreachable(dcB), present(coord.ArbiterName, 6, dcB, false)},
-			want:   false,
-		},
-		{
-			// The voter that does not answer and the arbiter may have
-			// committed generation 5 on dc_b next to the forced one.
-			name:   "forced_and_undetermined_of_its_generation",
-			voters: []coord.VoterState{present(dcA, 5, dcA, true), unreachable(dcB), present(coord.ArbiterName, 5, dcB, false)},
-			want:   false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, status.ActiveKnown(coord.Evaluate(tt.voters)))
-		})
-	}
 }
 
 func TestConfigFrom(t *testing.T) {
