@@ -97,6 +97,10 @@ func TestRecordStep(t *testing.T) {
 	require.NoError(t, r.RecordStep(t.Context(), dcctlv1.Operation_SWITCH, &dcctlv1.Operation_Step{
 		Type: dcctlv1.Operation_Step_VERIFY, State: dcctlv1.Operation_Step_SKIPPED, EndTime: at(0),
 	}))
+	require.NoError(t, r.RecordStep(t.Context(), dcctlv1.Operation_FAILOVER, &dcctlv1.Operation_Step{
+		Type: dcctlv1.Operation_Step_PATRONI_FAILOVER, State: dcctlv1.Operation_Step_SUCCEEDED,
+		StartTime: at(0), EndTime: at(5 * time.Second),
+	}))
 
 	got := collectSeries(t, reader)
 
@@ -104,6 +108,7 @@ func TestRecordStep(t *testing.T) {
 		"webitel.dcctl.job.stage=2,webitel.dcctl.operation.type=switch,webitel.dcctl.step.state=succeeded,webitel.dcctl.step.type=apps_stop": 20,
 		"webitel.dcctl.operation.type=switch,webitel.dcctl.step.state=failed,webitel.dcctl.step.type=patroni_catchup":                        3,
 		"webitel.dcctl.operation.type=switch,webitel.dcctl.step.state=skipped,webitel.dcctl.step.type=verify":                                0,
+		"webitel.dcctl.operation.type=failover,webitel.dcctl.step.state=succeeded,webitel.dcctl.step.type=patroni_failover":                  5,
 	}}, got["webitel.dcctl.step.duration"])
 }
 
@@ -122,9 +127,6 @@ func TestRecordStep_rejected(t *testing.T) {
 	}{
 		{name: "running", opType: dcctlv1.Operation_SWITCH, modify: func(s *dcctlv1.Operation_Step) { s.State = dcctlv1.Operation_Step_RUNNING }},
 		{name: "no_operation_type", modify: func(*dcctlv1.Operation_Step) {}},
-		{name: "no_registry_value", opType: dcctlv1.Operation_FAILOVER, modify: func(s *dcctlv1.Operation_Step) {
-			s.Type = dcctlv1.Operation_Step_PATRONI_FAILOVER
-		}},
 		{name: "no_start_time", opType: dcctlv1.Operation_SWITCH, modify: func(s *dcctlv1.Operation_Step) { s.StartTime = nil }},
 		{name: "no_end_time", opType: dcctlv1.Operation_SWITCH, modify: func(s *dcctlv1.Operation_Step) { s.EndTime = nil }},
 		{name: "stage_missing", opType: dcctlv1.Operation_SWITCH, modify: func(s *dcctlv1.Operation_Step) { s.Stage = 0 }},
