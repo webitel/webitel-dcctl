@@ -35,10 +35,11 @@
       <strong>{{ $t('dcctl.journal.filterRejected') }}.</strong>
       <template v-if="violations.length">
         <div
-          v-for="violation in violations"
-          :key="violation"
+          v-for="(violation, index) in violations"
+          :key="index"
+          class="journal-page__violation"
         >
-          {{ violation }}
+          <template v-if="violation.subject">{{ violation.subject }}: </template>{{ violation.text }}
         </div>
       </template>
       <template v-else>{{ apiErrorMessage(error) }}</template>
@@ -205,6 +206,7 @@ import {
 } from '@/utils/journalFilter';
 import { journalRow } from '@/utils/journalView';
 import { toChipColor } from '@/utils/statusMapping';
+import { formatViolations } from '@/utils/violations';
 
 const { t } = useI18n();
 const enumLabel = useEnumLabel();
@@ -235,16 +237,7 @@ const datacenterNames = computed(() =>
 const noValue = computed(() => t('dcctl.journal.noValue'));
 
 const violations = computed(() =>
-	(getApiError(error.value)?.violations ?? []).flatMap((violation) =>
-		violation.description
-			? [
-					`${violation.subject ?? ''}: ${violation.description}`.replace(
-						/^: /,
-						'',
-					),
-				]
-			: [],
-	),
+	formatViolations(getApiError(error.value)?.violations),
 );
 
 const clearFilter = () => applyFilter(emptyJournalFilter);
@@ -317,6 +310,10 @@ const rows = computed(() =>
 </script>
 
 <style scoped>
+.journal-page__violation {
+  white-space: pre-wrap;
+}
+
 .journal-page {
   display: flex;
   flex-direction: column;

@@ -133,7 +133,8 @@ describe('JournalView', () => {
 					{
 						type: 'field',
 						subject: 'filter',
-						description: 'the value of operation must be a quoted string',
+						description:
+							'the value of operation must be a quoted string\n  operation = op-1\n              ^',
 					},
 				],
 			}),
@@ -146,6 +147,7 @@ describe('JournalView', () => {
 		expect(rejected.text()).toContain(
 			'the value of operation must be a quoted string',
 		);
+		expect(rejected.text()).toContain('operation = op-1');
 		expect(wrapper.find('[data-test="journal-empty"]').exists()).toBe(false);
 		expect(wrapper.find('[data-test="journal-error"]').exists()).toBe(false);
 		expect(
