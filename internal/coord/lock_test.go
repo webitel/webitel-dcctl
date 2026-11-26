@@ -416,6 +416,30 @@ func TestAcquireHolderRequired(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestLockLostCountsFromRenewalRequest(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		a := newFakeConsul()
+		lk, err := newLocker(t, coord.KV{Name: "dc_a", Client: a}).Acquire(t.Context(), lockHolder("node-a", "op-a"))
+		require.NoError(t, err)
+
+		defer lk.Release(t.Context())
+
+		// The renewal at 5s answers at 7s; the session may have been renewed
+		// at 5s, so it may expire at 20s. The renewals after it fail.
+		a.with(func(f *fakeConsul) { f.renewDelay = 2 * time.Second })
+		time.Sleep(8 * time.Second)
+		a.with(func(f *fakeConsul) { f.renewDelay, f.renewErr = 0, unreachable() })
+
+		time.Sleep(11*time.Second + 500*time.Millisecond)
+		synctest.Wait()
+		require.NoError(t, lk.Err(), "held until the TTL from the last renewal request passes")
+
+		time.Sleep(time.Second)
+		synctest.Wait()
+		require.ErrorIs(t, lk.Err(), coord.ErrLockLost)
+	})
+}
+
 func TestLockLostOnRenew(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		a, b, kvs := twoDCs()

@@ -513,13 +513,17 @@ func (lk *Lock) renew(ctx context.Context, h *held) {
 		case <-t.C:
 		}
 
+		// Consul may apply the renewal as soon as the request reaches it, so
+		// the TTL runs from the request.
+		requested := time.Now()
+
 		_, err := withTimeout(ctx, l.timeout, func(ctx context.Context) (struct{}, error) {
 			return struct{}{}, h.kv.Client.RenewSession(ctx, h.session)
 		})
 
 		switch {
 		case err == nil:
-			confirmed = time.Now()
+			confirmed = requested
 		case ctx.Err() != nil:
 			return
 		case errors.Is(err, consul.ErrSessionNotFound):
