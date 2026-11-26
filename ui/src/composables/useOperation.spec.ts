@@ -22,7 +22,9 @@ vi.mock('@/api/client/watchStream', async (importActual) => ({
 	watchOperation: watch,
 }));
 
-const { WatchHttpError } = await import('@/api/client/watchStream');
+const { WatchHttpError, WatchProtocolError } = await import(
+	'@/api/client/watchStream'
+);
 
 const NOW = Date.parse('2026-11-23T10:15:00Z');
 
@@ -421,6 +423,36 @@ describe('useOperation', () => {
 			expect(first.signal.aborted).toBe(true);
 			expect(state.operation.value).toBeUndefined();
 		});
+	});
+
+	it('takes an error line of the stream with the not-found id as not found, not as a drop', async () => {
+		getOperation.mockResolvedValue(op('RUNNING', 1));
+		const { state } = mount();
+		await settle();
+		nextStream().fail(
+			new WatchProtocolError(
+				'the stream failed: gone',
+				'dcctl.operation.not_found',
+			),
+		);
+		await settle();
+		expect(state.phase.value).toBe('notFound');
+		await vi.advanceTimersByTimeAsync(60_000);
+		expect(watch).toHaveBeenCalledTimes(1);
+	});
+
+	it('retries after an error line of the stream with another id', async () => {
+		getOperation.mockResolvedValue(op('RUNNING', 1));
+		const { state } = mount();
+		await settle();
+		nextStream().fail(
+			new WatchProtocolError(
+				'the stream failed: x',
+				'dcctl.leader.unavailable',
+			),
+		);
+		await settle();
+		expect(state.connection.value).toBe('reconnecting');
 	});
 
 	describe('401', () => {
