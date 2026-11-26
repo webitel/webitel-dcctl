@@ -41,11 +41,16 @@ const mountJournal = async () => {
 	return mounted;
 };
 
+// wt-table and routed views load lazily, which takes over a second on a busy runner.
+const LAZY_WAIT = { timeout: 5000 };
+
 const waitForTable = (mounted: Mounted) =>
-	vi.waitFor(() =>
-		expect(
-			mounted.wrapper.find('[data-test="journal-table"] tbody tr').exists(),
-		).toBe(true),
+	vi.waitFor(
+		() =>
+			expect(
+				mounted.wrapper.find('[data-test="journal-table"] tbody tr').exists(),
+			).toBe(true),
+		LAZY_WAIT,
 	);
 
 const rows = (mounted: Mounted) =>
@@ -107,8 +112,10 @@ describe('JournalView', () => {
 		await wrapper.find('[data-test="journal-retry"]').trigger('click');
 		await flushPromises();
 		expect(wrapper.find('[data-test="journal-error"]').exists()).toBe(false);
-		await vi.waitFor(() =>
-			expect(wrapper.find('[data-test="journal-table"]').exists()).toBe(true),
+		await vi.waitFor(
+			() =>
+				expect(wrapper.find('[data-test="journal-table"]').exists()).toBe(true),
+			LAZY_WAIT,
 		);
 	});
 
@@ -264,8 +271,9 @@ describe('JournalView', () => {
 		expect(links[0]?.text()).toBe('op-1');
 		expect(links[0]?.attributes('href')).toBe('/dcctl/operations/op-1');
 		await links[0]?.trigger('click');
-		await vi.waitFor(() =>
-			expect(mounted.router.currentRoute.value.name).toBe('operation'),
+		await vi.waitFor(
+			() => expect(mounted.router.currentRoute.value.name).toBe('operation'),
+			LAZY_WAIT,
 		);
 		expect(mounted.router.currentRoute.value.params.id).toBe('op-1');
 	});
