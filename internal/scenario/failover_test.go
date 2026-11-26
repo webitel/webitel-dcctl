@@ -455,9 +455,9 @@ func TestFailover_interrupts(t *testing.T) {
 	}
 }
 
-// The voters change between the plan and the write so that the generation needs
-// another mode: nothing is written and the failover fails without changing anything.
-func TestFailover_generationModeChangedFails(t *testing.T) {
+// The voters change between the plan and the write so that only the KV of dc_b
+// answers: the generation is written forced, which the confirmed isolation allows.
+func TestFailover_generationModeFollowsVoters(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		w := newWorld(t)
 		e := w.engine()
@@ -479,10 +479,43 @@ func TestFailover_generationModeChangedFails(t *testing.T) {
 		synctest.Wait()
 
 		op := w.op()
-		assert.Equal(t, dcctlv1.Operation_FAILED, op.GetState())
-		assert.Contains(t, op.GetError().GetDetail(), "write mode changed")
-		assert.Empty(t, w.infra.allCalls())
-		assert.Equal(t, kv.State{Generation: 5, ActiveDatacenter: dcA, OpID: "old", PatroniTimeline: 5}, withoutTime(w.voters[1].state(t)))
+		require.Equal(t, dcctlv1.Operation_SUCCEEDED, op.GetState(), op.GetError().GetDetail())
+		assert.True(t, w.voters[1].state(t).Forced)
+	})
+}
+
+// The record of the failover reaches the KV of dc_a only; the resume confirms the
+// isolation, as the API does, while the voters give a majority again: the generation is
+// written by the quorum, not forced.
+func TestFailover_resumeWithIsolationWritesByQuorum(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		w := newWorld(t)
+		w.voters[1].set(func(v *fakeVoter) { v.casErr = coord.ErrOutcomeUnknown })
+		w.voters[2].set(func(v *fakeVoter) { v.getErr = unreachable() })
+
+		e := w.engine()
+		stop := start(t, e)
+
+		defer stop()
+
+		synctest.Wait()
+
+		first, err := e.Start(t.Context(), w.failoverPlan(isolation))
+		require.NoError(t, err)
+
+		synctest.Wait()
+		require.Equal(t, dcctlv1.Operation_INTERRUPTED, w.op().GetState())
+
+		w.voters[1].set(func(v *fakeVoter) { v.casErr = nil })
+		w.voters[2].set(func(v *fakeVoter) { v.getErr = nil })
+
+		op := w.resume(e, operationID(first), isolated)
+
+		require.Equal(t, dcctlv1.Operation_SUCCEEDED, op.GetState(), op.GetError().GetDetail())
+
+		for _, s := range w.voterStates() {
+			assert.Equal(t, failedOver(op, false), withoutTime(s))
+		}
 	})
 }
 

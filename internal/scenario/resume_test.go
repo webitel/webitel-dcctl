@@ -344,3 +344,24 @@ func TestSwitch_resumePromoteIsolatedSourcePrimary(t *testing.T) {
 		assert.Equal(t, patroni.RoleStandbyLeader, w.infra.dc(dcB).role, "dc_b is not promoted")
 	})
 }
+
+// Two datacenters without an arbiter: the KV of dc_a is lost before the generation of a
+// switch, which would then be written forced. Without the isolation confirmed nothing is
+// written.
+func TestSwitch_generationNeedsIsolationToForce(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		w := newTwoVoterWorld(t)
+		w.infra.hook(noPrimary, func(context.Context) error {
+			w.voters[0].set(func(v *fakeVoter) { v.getErr = unreachable() })
+
+			return nil
+		})
+
+		op := w.run()
+
+		assert.NotEqual(t, dcctlv1.Operation_SUCCEEDED, op.GetState())
+		assert.Contains(t, stepOf(t, op, dcctlv1.Operation_Step_GENERATION, 0).GetDetail(), "written forced only with the isolation of dc_a confirmed")
+		assert.Equal(t, int64(5), w.voters[1].state(t).Generation)
+		assert.NotContains(t, w.infra.allCalls(), "promote dc_b")
+	})
+}
