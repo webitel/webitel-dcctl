@@ -35,6 +35,7 @@ func (m *mapper) datacenter(d *status.Datacenter, detail bool) *dcctlv1.Datacent
 		s := d.Source(sys)
 		out.Sources = append(out.Sources, &dcctlv1.Source{
 			System:               systemOf(s.System),
+			Endpoint:             s.Endpoint,
 			Reachable:            s.Reachable,
 			Error:                sourceErrorOf(s.Reason),
 			UnreachableStartTime: timestamp(s.UnreachableSince),
@@ -143,6 +144,7 @@ func replayTime(s string) *timestamppb.Timestamp {
 
 func (m *mapper) nomad(n *status.Nomad, detail bool) *dcctlv1.Datacenter_Nomad {
 	out := &dcctlv1.Datacenter_Nomad{
+		Leader:              n.Leader,
 		ReadyNodeCount:      m.i32("ready_node_count", n.ReadyNodeCount),
 		IneligibleNodeCount: m.i32("ineligible_node_count", n.IneligibleNodeCount),
 		DrainingNodeCount:   m.i32("draining_node_count", n.DrainingNodeCount),

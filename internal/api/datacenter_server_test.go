@@ -17,17 +17,16 @@ func TestListDatacenters(t *testing.T) {
 	h := startAPI(t, testOptions())
 
 	example := swaggerExample(t, "/v1/datacenters", "get", "200")
-	skip := prefixed("datacenters.*.", skipEndpoint)
 
 	got, err := dcctlv1.NewDatacenterServiceClient(h.conn).ListDatacenters(callCtx(t),
 		&dcctlv1.ListDatacentersRequest{PageSize: 1, PageToken: "ignored"})
 	require.NoError(t, err)
 	assert.Empty(t, got.GetNextPageToken())
-	assertExample(t, example, gatewayJSON(t, got), skip)
+	assertExample(t, example, gatewayJSON(t, got), nil)
 
 	resp := h.get(t, "/api/v1/datacenters")
 	require.Equal(t, http.StatusOK, resp.code, resp.body)
-	assertExample(t, example, resp.body, skip)
+	assertExample(t, example, resp.body, nil)
 }
 
 func TestGetDatacenter(t *testing.T) {
@@ -39,16 +38,15 @@ func TestGetDatacenter(t *testing.T) {
 	h := startAPI(t, opts)
 
 	example := swaggerExample(t, "/v1/datacenters/{datacenter}", "get", "200")
-	skip := prefixed("", skipEndpoint)
 
 	got, err := dcctlv1.NewDatacenterServiceClient(h.conn).GetDatacenter(callCtx(t),
 		&dcctlv1.GetDatacenterRequest{Name: "datacenters/dc_b"})
 	require.NoError(t, err)
-	assertExample(t, example, gatewayJSON(t, got), skip)
+	assertExample(t, example, gatewayJSON(t, got), nil)
 
 	resp := h.get(t, "/api/v1/datacenters/dc_b")
 	require.Equal(t, http.StatusOK, resp.code, resp.body)
-	assertExample(t, example, resp.body, skip)
+	assertExample(t, example, resp.body, nil)
 }
 
 func TestGetDatacenterNotFound(t *testing.T) {

@@ -102,23 +102,3 @@ func gatewayJSON(t *testing.T, m proto.Message) string {
 
 	return string(b)
 }
-
-// skipEndpoint are the paths of the status and datacenter examples that the
-// status model does not hold.
-var skipEndpoint = map[string]string{
-	"sources.*.endpoint": "the model does not keep the address a source was read from",
-	"nomad.leader":       "the model does not keep the Nomad leader",
-}
-
-// prefixed returns skip with every path under prefix.
-func prefixed(prefix string, skips ...map[string]string) unproducible {
-	out := unproducible{}
-
-	for _, s := range skips {
-		for p, why := range s {
-			out[prefix+p] = why
-		}
-	}
-
-	return out
-}
