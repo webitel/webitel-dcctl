@@ -182,6 +182,57 @@ func TestStopDatacenterFailover_givesUpAfterFailoverTimeout(t *testing.T) {
 	})
 }
 
+func TestStopFromFailover_givesUpAfterFailoverTimeout(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f := newFake()
+		f.addJob("opensips", "service", 3, true)
+		f.addJob("engine", "service", 2, true)
+		f.stopDelays["opensips"] = never
+
+		start := time.Now()
+
+		_, err := newApps(t).StopFromFailover(t.Context(), f.dc(), 3, apps.Options{Guard: allow})
+		require.ErrorIs(t, err, apps.ErrTimeout)
+		require.NotErrorIs(t, err, apps.ErrNotListed, "the Nomad answers")
+		assert.Equal(t, cfg.FailoverStopTimeout, time.Since(start))
+		assert.Empty(t, f.callsOf("stop", "engine"), "a stage below from is not stopped")
+	})
+}
+
+// A Nomad that does not list the jobs is told apart from a stop that takes too long.
+func TestStopFromFailover_nomadNotListed(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f := newFake()
+		f.addJob("opensips", "service", 3, true)
+		f.jobsErr = errDown
+
+		_, err := newApps(t).StopFromFailover(t.Context(), f.dc(), 3, apps.Options{Guard: allow})
+		require.ErrorIs(t, err, apps.ErrNotListed)
+		require.ErrorIs(t, err, apps.ErrTimeout)
+	})
+}
+
+// The jobs listed and stopped, a list that fails afterwards ends the stop in time but
+// does not say that Nomad does not answer.
+func TestStopFromFailover_listAfterTheStagesIsNotNotListed(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		count := newFake()
+		count.addJob("opensips", "service", 3, true)
+
+		_, err := newApps(t).StopFromFailover(t.Context(), count.dc(), 3, apps.Options{Guard: allow})
+		require.NoError(t, err)
+
+		f := newFake()
+		f.addJob("opensips", "service", 3, true)
+		f.jobsErr, f.jobsAnswered = errDown, count.jobsCalls-1
+
+		_, err = newApps(t).StopFromFailover(t.Context(), f.dc(), 3, apps.Options{Guard: allow})
+		require.ErrorIs(t, err, apps.ErrTimeout)
+		require.NotErrorIs(t, err, apps.ErrNotListed)
+		assert.Len(t, f.callsOf("stop", "opensips"), 1, "the stage ran")
+	})
+}
+
 func TestStopDatacenter_timeoutCoversEveryStage(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		f := newFake()

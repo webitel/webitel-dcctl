@@ -44,6 +44,10 @@ var (
 	ErrTimeout = errors.New("apps did not reach the condition in time")
 	// ErrGuard wraps the error of the [Guard] that ended a primitive.
 	ErrGuard = errors.New("guard refused")
+	// ErrNotListed means a stop could not list the managed jobs before its deadline, so
+	// it stopped none: the Nomad of the datacenter does not answer. The error matches
+	// [ErrTimeout] too when the deadline ended it.
+	ErrNotListed = errors.New("nomad jobs not listed")
 )
 
 // Nomad is the Nomad cluster of one datacenter. Its reads must be consistent: a
@@ -124,6 +128,12 @@ func (a *Apps) StopDatacenterFailover(ctx context.Context, dc Datacenter, opts O
 	return a.stop(ctx, dc, opts, a.cfg.FailoverStopTimeout, 0)
 }
 
+// StopFromFailover is [Apps.StopFrom] within apps.failover_stop_timeout, for a stop step
+// of a failover.
+func (a *Apps) StopFromFailover(ctx context.Context, dc Datacenter, from int, opts Options) (Result, error) {
+	return a.stop(ctx, dc, opts, a.cfg.FailoverStopTimeout, from)
+}
+
 // StartDatacenter starts the managed jobs of dc, stages from the lowest up, each stage
 // within apps.stage_start_timeout. A running job is not registered again, only waited
 // for. It refuses with [nomad.ErrInvalidStage] before starting anything when a managed
@@ -195,7 +205,7 @@ func (a *Apps) stop(ctx context.Context, dc Datacenter, opts Options, timeout ti
 
 	jobs, err := r.listJobs(ctx)
 	if err != nil {
-		return r.result, err
+		return r.result, fmt.Errorf("%w: %w", ErrNotListed, err)
 	}
 
 	jobs = slices.DeleteFunc(jobs, below)

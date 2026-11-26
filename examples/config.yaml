@@ -41,6 +41,7 @@ apps:
   # Per stop: every stage in F1 and apps sync, each stop step of a switch.
   stop_timeout: 120s
   stage_start_timeout: 180s
+  # Per stop step of a failover.
   failover_stop_timeout: 30s
   min_healthy_time: 10s
 status:
