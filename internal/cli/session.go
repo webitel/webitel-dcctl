@@ -70,8 +70,15 @@ func (o Options) run(fn func(ctx context.Context, c *cli.Context, s *session) er
 			in = os.Stdin
 		}
 
+		// JSON carries the control characters escaped: it is data, not text for
+		// the terminal, and filtering would change it.
+		out := c.App.Writer
+		if !asJSON {
+			out = safe(out)
+		}
+
 		s := &session{
-			o: o, conn: conn, out: c.App.Writer, errOut: c.App.ErrWriter, in: bufio.NewReader(in), asJSON: asJSON,
+			o: o, conn: conn, out: out, errOut: safe(c.App.ErrWriter), in: bufio.NewReader(in), asJSON: asJSON,
 			status:      dcctlv1.NewStatusServiceClient(conn),
 			datacenters: dcctlv1.NewDatacenterServiceClient(conn),
 			operations:  dcctlv1.NewOperationServiceClient(conn),

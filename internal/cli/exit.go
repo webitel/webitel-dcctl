@@ -72,6 +72,7 @@ func Report(w io.Writer, err error) int {
 		return ExitOK
 	}
 
+	w = safe(w)
 	code := ExitCode(err)
 
 	var e *Error
