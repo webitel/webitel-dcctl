@@ -202,7 +202,8 @@ func streaming(m *collect.Member) bool {
 	return m.State == "streaming"
 }
 
-func memberOf(m collect.Member) Member {
+// MemberOf returns the member m as the model shows it.
+func MemberOf(m collect.Member) Member {
 	out := Member{
 		Name:             m.Name,
 		Host:             m.Host,
@@ -241,7 +242,7 @@ func (b *builder) patroni(dc string, p dcPatroni) Patroni {
 	var out Patroni
 
 	for _, m := range p.members {
-		out.Members = append(out.Members, memberOf(m))
+		out.Members = append(out.Members, MemberOf(m))
 	}
 
 	if p.cluster == nil {

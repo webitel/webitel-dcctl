@@ -787,12 +787,23 @@ func memberStreams(m status.Member) bool {
 	return m.PatroniState == stateStreaming
 }
 
-func maximumLagOnFailover(cl *collect.Cluster) (int64, bool) {
+func clusterMaximumLag(cl *collect.Cluster) (int64, bool) {
 	if cl == nil || !cl.Patroni.Data.Config.Reachable {
 		return 0, false
 	}
 
-	v, ok := cl.Patroni.Data.Config.Data["maximum_lag_on_failover"]
+	return MaximumLagOnFailover(cl.Patroni.Data.Config.Data)
+}
+
+// MaximumLagOnFailover returns maximum_lag_on_failover of config, GET /config of
+// Patroni, or the default of Patroni when config does not set it; false when config is
+// nil or the value is not a whole number of bytes.
+func MaximumLagOnFailover(config map[string]any) (int64, bool) {
+	if config == nil {
+		return 0, false
+	}
+
+	v, ok := config["maximum_lag_on_failover"]
 	if !ok {
 		return defaultMaximumLagOnFailover, true
 	}
@@ -814,27 +825,35 @@ func (in *Input) targetCandidate() check.Check {
 		return c.skip("the leader already runs in " + b)
 	}
 
-	limit, ok := maximumLagOnFailover(s.cluster)
+	limit, ok := clusterMaximumLag(s.cluster)
 	if !ok {
 		return c.fail("maximum_lag_on_failover is not known, the config of the leader does not answer", nil)
 	}
 
-	all := Candidates(s.members, b, &limit)
-	facts := map[string]any{"maximum_lag_bytes": limit, "members": membersFacts(all)}
+	facts := map[string]any{"maximum_lag_bytes": limit, "members": membersFacts(Candidates(s.members, b, &limit))}
 
-	for _, m := range all {
-		if !memberStreams(m) {
-			continue
-		}
-
-		facts["candidate"] = m.Name
-		facts["lag_bytes"] = *m.LagBytes
-		facts["failover_priority"] = m.FailoverPriority
-
-		return c.pass("the candidate is "+m.Name, facts)
+	m, ok := SwitchCandidate(s.members, b, limit)
+	if !ok {
+		return c.fail(fmt.Sprintf("no member of %s streams within %d bytes of lag", b, limit), facts)
 	}
 
-	return c.fail(fmt.Sprintf("no member of %s streams within %d bytes of lag", b, limit), facts)
+	facts["candidate"] = m.Name
+	facts["lag_bytes"] = *m.LagBytes
+	facts["failover_priority"] = m.FailoverPriority
+
+	return c.pass("the candidate is "+m.Name, facts)
+}
+
+// SwitchCandidate returns the member of dc a switchover in stretch hands the leadership
+// to: the first of [Candidates] within maxLag that streams.
+func SwitchCandidate(members []status.Member, dc string, maxLag int64) (status.Member, bool) {
+	for _, m := range Candidates(members, dc, &maxLag) {
+		if memberStreams(m) {
+			return m, true
+		}
+	}
+
+	return status.Member{}, false
 }
 
 // targetLeader, for a failover in stretch, needs the leader in the target already, or
@@ -865,7 +884,7 @@ func (in *Input) targetLeader() check.Check {
 		return c.fail("the datacenter of the leader is not known", facts)
 	}
 
-	limit, ok := maximumLagOnFailover(s.cluster)
+	limit, ok := clusterMaximumLag(s.cluster)
 	if !ok {
 		return c.fail("maximum_lag_on_failover is not known, the config does not answer", facts)
 	}
@@ -888,7 +907,11 @@ func isLeader(m collect.Member) bool {
 // candidateLoss, for a failover in stretch without a leader, needs the operator to
 // accept the WAL the candidate lacks. A lag that is not known is covered by no bound.
 func (in *Input) candidateLoss() check.Check {
-	b := in.Params.Datacenter
+	return in.candidateLossOf(in.Params.Datacenter)
+}
+
+// candidateLossOf is [Input.candidateLoss] of a failover to b.
+func (in *Input) candidateLossOf(b string) check.Check {
 	c := confirm(check.PatroniCandidateLoss, check.ConfirmMaxDiscardBytes, b)
 	s := in.pgCluster()
 
@@ -901,7 +924,7 @@ func (in *Input) candidateLoss() check.Check {
 		return c.skip("the cluster has a leader")
 	}
 
-	limit, ok := maximumLagOnFailover(s.cluster)
+	limit, ok := clusterMaximumLag(s.cluster)
 	if !ok {
 		return c.fail("maximum_lag_on_failover is not known, the amount is not known", nil)
 	}

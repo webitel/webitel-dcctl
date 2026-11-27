@@ -57,12 +57,17 @@ func failoverRouteOf(op *dcctlv1.Operation) (failoverRoute, bool) {
 	for _, st := range op.GetSteps() {
 		dc := datacenterID(st.GetDatacenter())
 
-		if t := st.GetType(); t == dcctlv1.Operation_Step_PATRONI_DEMOTE {
+		//exhaustive:ignore // the other steps do not tell the route
+		switch st.GetType() {
+		case dcctlv1.Operation_Step_PATRONI_DEMOTE, dcctlv1.Operation_Step_APPS_STOP:
 			r.source = dc
-		} else if t == dcctlv1.Operation_Step_PATRONI_REPOINT {
+		case dcctlv1.Operation_Step_PATRONI_REPOINT:
 			r.others = append(r.others, dc)
-		} else if t == dcctlv1.Operation_Step_PATRONI_PROMOTE {
+		case dcctlv1.Operation_Step_PATRONI_PROMOTE:
 			promoted = st.GetState() == dcctlv1.Operation_Step_SUCCEEDED
+		case dcctlv1.Operation_Step_PATRONI_FAILOVER:
+			// A failover in stretch skips the step when the leader runs in the target already.
+			promoted = st.GetState() == dcctlv1.Operation_Step_SUCCEEDED || st.GetState() == dcctlv1.Operation_Step_SKIPPED
 		}
 	}
 
