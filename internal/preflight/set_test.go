@@ -167,7 +167,10 @@ func TestChecks_sets(t *testing.T) {
 		{
 			name: "mark_recovered", snap: warm, action: MarkRecovered, params: Params{Datacenter: dcB},
 			want: cat(common(), []item{
-				{check.CoordQuorum, "", b}, {check.CoordDCNeedsRecovery, dcB, b}, {check.PatroniDCRecovered, dcB, b},
+				{check.CoordQuorum, "", b},
+				{check.CoordPayloadSettled, "", b},
+				{check.CoordDCNeedsRecovery, dcB, b},
+				{check.PatroniDCRecovered, dcB, b},
 			}),
 		},
 		{
