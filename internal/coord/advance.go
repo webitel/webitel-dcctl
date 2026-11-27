@@ -119,13 +119,32 @@ func (c *Coordinator) Advance(ctx context.Context, from, to kv.State, opts Advan
 		return WriteResult{}, fmt.Errorf("%s is a %s write now, not %s: %w", recordName(to), mode, opts.Mode, ErrModeChanged)
 	}
 
-	value, err := kv.EncodeState(to, nil)
+	return c.writeSteps(ctx, "generation advanced", view, steps, to, opts.Mode)
+}
+
+// writeSteps writes to, a new generation, on the voters of view by steps in
+// mode, and judges the result; msg is what the write logs.
+func (c *Coordinator) writeSteps(ctx context.Context, msg string, view View, steps []advanceStep, to kv.State, mode WriteMode) (
+	WriteResult, error,
+) {
+	plans, forced, err := stepPlans(view, steps, to)
 	if err != nil {
 		return WriteResult{}, err
 	}
 
+	return c.judge(ctx, msg, view, to, mode, forced, c.execute(ctx, plans, func(s kv.State) bool { return holdsTarget(s, to) }))
+}
+
+// stepPlans returns what writing to by steps does on every voter of view, and whether
+// the record is forced once written: a voter that holds it forced makes it so.
+func stepPlans(view View, steps []advanceStep, to kv.State) ([]voterPlan, bool, error) {
+	value, err := kv.EncodeState(to, nil)
+	if err != nil {
+		return nil, false, err
+	}
+
 	plans := make([]voterPlan, len(steps))
-	forced := opts.Mode == WriteForced
+	forced := to.Forced
 
 	for i, step := range steps {
 		vs := view.Voters[i]
@@ -142,7 +161,7 @@ func (c *Coordinator) Advance(ctx context.Context, from, to kv.State, opts Advan
 
 			b, err := kv.EncodeState(s, vs.Raw)
 			if err != nil {
-				return WriteResult{}, fmt.Errorf("voter %s: %w", vs.Name, err)
+				return nil, false, fmt.Errorf("voter %s: %w", vs.Name, err)
 			}
 
 			plans[i] = voterPlan{value: b, version: vs.Version}
@@ -151,11 +170,18 @@ func (c *Coordinator) Advance(ctx context.Context, from, to kv.State, opts Advan
 		}
 	}
 
-	res := WriteResult{Mode: opts.Mode, Majority: view.Majority}
-	res.Voters = c.execute(ctx, plans, func(s kv.State) bool { return holdsTarget(s, to) })
+	return plans, forced, nil
+}
+
+// judge returns the result of writes of to in mode on the voters of view, logged as
+// msg, with the error of a record that is not committed.
+func (c *Coordinator) judge(ctx context.Context, msg string, view View, to kv.State, mode WriteMode, forced bool, writes []VoterWrite) (
+	WriteResult, error,
+) {
+	res := WriteResult{Mode: mode, Majority: view.Majority, Voters: writes}
 	res.Commitment = commitment(res.Voters, view, forced)
 
-	c.logWrite(ctx, "generation advanced", to, res)
+	c.logWrite(ctx, msg, to, res)
 
 	if err := ctx.Err(); err != nil {
 		return res, fmt.Errorf("write %s: %w", recordName(to), err)
