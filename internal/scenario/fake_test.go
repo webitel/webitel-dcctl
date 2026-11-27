@@ -275,6 +275,8 @@ type fakeVoter struct {
 	next    coord.Version
 	getErr  error
 	casErr  error
+	// createErr fails a create, see [fakeVoter.Create].
+	createErr error
 	// beforeCAS runs under the lock before a CAS of dcctl/state with the value sent, as
 	// another writer that gets there first.
 	beforeCAS func(v *fakeVoter, value []byte)
@@ -453,7 +455,9 @@ func (f fakePreflight) Run(ctx context.Context, req preflight.Request) (check.Ve
 		cs = append(cs, isolationCheck(), f.maxLSN(req.Params.Datacenter, others), f.sourceDiscard(dcA, req.Params.Datacenter))
 	case preflight.Resume:
 		source, target, others, unpromoted := unpromotedFailover(f.op())
-		if req.Params.ToForced || unpromoted {
+		unresolved := f.op().GetType() == dcctlv1.Operation_RESOLVE_CONFLICT && preflight.Unfinished(f.op(), dcctlv1.Operation_Step_GENERATION)
+
+		if req.Params.ToForced || unpromoted || unresolved {
 			cs = append(cs, isolationCheck())
 		}
 
@@ -481,8 +485,21 @@ func (f fakePreflight) Run(ctx context.Context, req preflight.Request) (check.Ve
 		}
 
 		cs = append(cs, more...)
-	case preflight.Abandon, preflight.Resolve,
-		preflight.Init, preflight.ArbiterInit, preflight.AppsSync, preflight.Verify:
+	case preflight.Resolve, preflight.Init, preflight.ArbiterInit, preflight.AppsSync:
+		more, err := f.installationChecks(ctx, req)
+		if err != nil {
+			return check.Verdict{}, err
+		}
+
+		cs = append(cs, more...)
+	case preflight.Abandon:
+		view, err := f.view(ctx)
+		if err != nil {
+			return check.Verdict{}, err
+		}
+
+		cs = append(cs, preflight.GenerationDetermined(f.op(), view))
+	case preflight.Verify:
 		return check.Verdict{}, fmt.Errorf("unexpected action %s", req.Action)
 	}
 
