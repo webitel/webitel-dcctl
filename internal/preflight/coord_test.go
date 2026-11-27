@@ -201,6 +201,12 @@ func TestNoUncommitted(t *testing.T) {
 	assert.Equal(t, int64(6), c.Facts["base_generation"])
 }
 
+// cutC adds dc_c to s and makes it unreachable.
+func cutC(s *collect.Snapshot) {
+	withC(s, 4900)
+	cut(s, dcC)
+}
+
 func TestNoSplit(t *testing.T) {
 	dbSplit := func(s *collect.Snapshot) {
 		editPatroni(s, dcB, func(p *collect.Patroni) {
@@ -224,7 +230,16 @@ func TestNoSplit(t *testing.T) {
 		{name: "active_unreachable_is_not_split", snap: snap(func(s *collect.Snapshot) { cut(s, dcA) }), action: Failover, want: check.Pass},
 		{name: "active_not_known", snap: snap(conflict), want: check.Fail},
 		{name: "stretch_without_db_split", snap: stretchSnap(nil), want: check.Pass},
+		{name: "failover_standby_not_known_warns", snap: snap(cutC), action: Failover, params: Params{Datacenter: dcB}, want: check.Warn},
+		{name: "switch_standby_not_known", snap: snap(cutC), action: Switch, params: Params{Datacenter: dcB}, want: check.Fail},
+		{name: "failover_target_not_known", snap: snap(func(s *collect.Snapshot) { cut(s, dcB) }), action: Failover, params: Params{Datacenter: dcB}, want: check.Fail},
 	})
+
+	failover := newInput(snap(cutC)(t), Failover, Params{Datacenter: dcB}).noSplit("")
+	v := check.Decide([]check.Check{failover}, check.Confirmations{})
+	assert.Equal(t, check.Allowed, v.Outcome, "a failover goes on with a warning")
+	assert.Len(t, v.Warnings, 1)
+	assert.Equal(t, "dc_c is not reachable; it may be primary or run apps", failover.Detail)
 
 	in := newInput(snap(dbSplit)(t), Demote, Params{Datacenter: dcB})
 	assert.Equal(t, check.Pass, in.noSplit(dcB).Result, "demote does not count the datacenter it demotes")

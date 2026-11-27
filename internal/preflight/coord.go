@@ -253,8 +253,9 @@ func (in *Input) noUncommitted() check.Check {
 // noSplit fails on an inactive datacenter in split_brain (a managed job not stopped)
 // or, in warm_standby, db_split (its Patroni leader a primary), except, for demote, the
 // one demoted. A datacenter whose source does not answer may be in either and fails it
-// too. The rules are those of the status, judged against the active datacenter of
-// [Input.reference], so a failover from a partial advance is judged too.
+// too, but for a standby other than the target of a failover, which warns. The rules
+// are those of the status, judged against the active datacenter of [Input.reference],
+// so a failover from a partial advance is judged too.
 func (in *Input) noSplit(except string) check.Check {
 	s := block(check.CoordNoSplit, "")
 
@@ -263,7 +264,13 @@ func (in *Input) noSplit(except string) check.Check {
 		return s.fail("the active datacenter is not known, so neither is which datacenters must be stopped", nil)
 	}
 
-	var split, unknown []any
+	var (
+		split, unknown []any
+		// unknownNames are the datacenters of unknown; unknownTarget is set when the
+		// target of the action is among them.
+		unknownNames  []string
+		unknownTarget bool
+	)
 
 	for i := range in.Status.Datacenters {
 		d := &in.Status.Datacenters[i]
@@ -273,6 +280,8 @@ func (in *Input) noSplit(except string) check.Check {
 
 		if n := d.Source(status.SystemNomad); !n.Reachable {
 			unknown = append(unknown, map[string]any{"datacenter": d.Name, "source": string(n.System)})
+			unknownNames = append(unknownNames, d.Name)
+			unknownTarget = unknownTarget || d.Name == in.Params.Datacenter
 		} else if d.Nomad.JobCounts.Stopped < d.Nomad.JobCounts.Total() {
 			split = append(split, map[string]any{"datacenter": d.Name, "state": string(status.StateSplitBrain)})
 		}
@@ -283,6 +292,8 @@ func (in *Input) noSplit(except string) check.Check {
 
 		if p := d.Source(status.SystemPatroni); !p.Reachable {
 			unknown = append(unknown, map[string]any{"datacenter": d.Name, "source": string(p.System)})
+			unknownNames = append(unknownNames, d.Name)
+			unknownTarget = unknownTarget || d.Name == in.Params.Datacenter
 		} else if d.Patroni.Role == status.RolePrimary {
 			split = append(split, map[string]any{"datacenter": d.Name, "state": string(status.StateDBSplit)})
 		}
@@ -293,6 +304,15 @@ func (in *Input) noSplit(except string) check.Check {
 	switch {
 	case len(split) > 0:
 		return s.fail(fmt.Sprintf("%d datacenters are split", len(split)), facts)
+	case len(unknown) > 0 && in.Action == Failover && !unknownTarget:
+		// A failover goes on without a standby that does not answer, as without the old
+		// active datacenter: it is repointed later.
+		var why []string
+		for _, dc := range slices.Compact(unknownNames) {
+			why = append(why, dc+" is not reachable; it may be primary or run apps")
+		}
+
+		return s.warn(strings.Join(why, "; "), facts)
 	case len(unknown) > 0:
 		return s.fail(fmt.Sprintf("it is not known whether %d datacenters are split", len(unknown)), facts)
 	}
