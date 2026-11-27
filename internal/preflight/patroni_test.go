@@ -395,6 +395,14 @@ func TestTargetLeader(t *testing.T) {
 			})
 		}), action: Failover, want: check.Pass},
 		{name: "leader_elsewhere", snap: stretchSnap(nil), action: Failover, want: check.Fail},
+		{name: "every_member_over_the_lag_limit", snap: stretchSnap(func(s *collect.Snapshot) {
+			noLeader(s)
+			s.Clusters[0].Patroni.Data.Config = up(map[string]any{"maximum_lag_on_failover": float64(5)})
+			editPatroni(s, dcA, func(p *collect.Patroni) {
+				memberNamed(p, "pg-3").Lag = i64(1 << 30)
+				memberNamed(p, "pg-4").Lag = i64(1 << 30)
+			})
+		}), action: Failover, want: check.Pass},
 		{name: "no_candidate", snap: stretchSnap(func(s *collect.Snapshot) {
 			noLeader(s)
 			memberDown(s, dcA, "pg-3")
@@ -417,7 +425,21 @@ func TestCandidateLoss(t *testing.T) {
 
 	runCases(t, (*Input).candidateLoss, []caseOf{
 		{name: "leader_exists", snap: stretchSnap(nil), action: Failover, want: check.Skip},
-		{name: "no_lag", snap: lag(0), action: Failover, want: check.Pass},
+		{name: "no_lag", snap: stretchSnap(func(s *collect.Snapshot) {
+			noLeader(s)
+			editPatroni(s, dcA, func(p *collect.Patroni) {
+				memberNamed(p, "pg-3").Lag = i64(0)
+				memberNamed(p, "pg-3").Probe.Xlog.ReceivedLocation = i64(5000)
+			})
+		}), action: Failover, want: check.Pass},
+		{name: "survivor_ahead", snap: lag(0), action: Failover, want: check.Fail},
+		{name: "timeline_unknown", snap: stretchSnap(func(s *collect.Snapshot) {
+			noLeader(s)
+			editPatroni(s, dcA, func(p *collect.Patroni) {
+				memberNamed(p, "pg-2").Probe.Timeline = nil
+				memberNamed(p, "pg-2").Timeline = nil
+			})
+		}), action: Failover, want: check.Fail},
 		{name: "lag", snap: lag(300), action: Failover, want: check.Fail},
 		{name: "lag_unknown", snap: stretchSnap(func(s *collect.Snapshot) {
 			noLeader(s)
@@ -434,6 +456,20 @@ func TestCandidateLoss(t *testing.T) {
 	assert.Equal(t, int64(300), *c.DiscardBytes)
 	assert.Equal(t, int64(300), c.Facts["lag_bytes"])
 	assert.Equal(t, check.ConfirmMaxDiscardBytes, c.Confirmation)
+
+	// pg-2 of dc_a holds 10 bytes more than pg-3, whose lag reads 0.
+	c = newInput(lag(0)(t), Failover, Params{Datacenter: dcB}).candidateLoss()
+	require.NotNil(t, c.DiscardBytes)
+	assert.Equal(t, int64(10), *c.DiscardBytes)
+
+	c = newInput(stretchSnap(func(s *collect.Snapshot) {
+		noLeader(s)
+		editPatroni(s, dcA, func(p *collect.Patroni) {
+			memberNamed(p, "pg-2").Probe.Timeline = nil
+			memberNamed(p, "pg-2").Timeline = nil
+		})
+	})(t), Failover, Params{Datacenter: dcB}).candidateLoss()
+	assert.Nil(t, c.DiscardBytes, "a timeline that is not known leaves the amount not known")
 
 	c = newInput(stretchSnap(func(s *collect.Snapshot) {
 		noLeader(s)
