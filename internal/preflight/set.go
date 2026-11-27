@@ -71,7 +71,7 @@ func Checks(in *Input) ([]check.Check, error) {
 			cs = append(cs, in.candidateLossOf(r.target))
 		}
 
-		return append(cs, in.recoveryResume(in.operation())...), nil
+		return append(cs, in.resumeAnew(in.operation())...), nil
 	case Abandon:
 		return []check.Check{in.opInterrupted(), in.opGenerationDetermined(), in.pointOfNoReturn()}, nil
 	case Resolve:
@@ -96,16 +96,20 @@ func Checks(in *Input) ([]check.Check, error) {
 	return nil, fmt.Errorf("%w: %q", ErrUnknownAction, in.Action)
 }
 
-// recoveryResume returns what a resumed demote, repoint or mark-recovered op decides
-// anew, on what the datacenters show now, before the step that acts on it: the WAL a
-// demotion or a repoint that did not succeed discards, and the payload split the write
-// of mark-recovered must not meet. A demotion that took already, its datacenter a
-// standby of the active one, discards nothing more.
-func (in *Input) recoveryResume(op *dcctlv1.Operation) []check.Check {
+// resumeAnew returns what a resumed op decides anew, on what the datacenters and the
+// voters show now, before the step that acts on it: the WAL a demotion or a repoint that
+// did not succeed discards, and the payload split the write of a switch, a failover or
+// mark-recovered must not meet. A demotion that took already, its datacenter a standby
+// of the active one, discards nothing more.
+func (in *Input) resumeAnew(op *dcctlv1.Operation) []check.Check {
 	target := datacenterID(op.GetTarget())
 
 	//exhaustive:ignore // the other operations decide nothing more on resume
 	switch op.GetType() {
+	case dcctlv1.Operation_SWITCH, dcctlv1.Operation_FAILOVER:
+		if Unfinished(op, dcctlv1.Operation_Step_GENERATION) {
+			return []check.Check{in.payloadSettledOnResume(op.GetType() == dcctlv1.Operation_FAILOVER)}
+		}
 	case dcctlv1.Operation_DEMOTE:
 		if !Unfinished(op, dcctlv1.Operation_Step_PATRONI_DEMOTE) {
 			return nil
@@ -124,7 +128,7 @@ func (in *Input) recoveryResume(op *dcctlv1.Operation) []check.Check {
 		}
 	case dcctlv1.Operation_MARK_RECOVERED:
 		if Unfinished(op, dcctlv1.Operation_Step_GENERATION) {
-			return []check.Check{in.payloadSettled()}
+			return []check.Check{in.payloadSettledOnResume(false)}
 		}
 	}
 
@@ -191,7 +195,7 @@ func (in *Input) apps(a, b string) []check.Check {
 func (in *Input) switchWarm(a, b string) []check.Check {
 	return concat(
 		in.common(""),
-		[]check.Check{in.quorum(check.Block), in.targetValid(), in.targetNotNeedsRecovery()},
+		[]check.Check{in.quorum(check.Block), in.payloadSettled(), in.targetValid(), in.targetNotNeedsRecovery()},
 		in.basicOf(a), in.basicOf(b),
 		[]check.Check{
 			in.singlePrimary(), in.sourcePrimary(), in.targetStandbyLeader(), in.targetFollowsSource(), in.targetLag(),
@@ -205,7 +209,7 @@ func (in *Input) switchWarm(a, b string) []check.Check {
 func (in *Input) switchStretch(a, b string) []check.Check {
 	return concat(
 		in.common(""),
-		[]check.Check{in.quorum(check.Block), in.targetValid()},
+		[]check.Check{in.quorum(check.Block), in.payloadSettled(), in.targetValid()},
 		in.basic(in.pgCluster()),
 		[]check.Check{in.targetCandidate()},
 		in.apps(a, b),
@@ -226,7 +230,9 @@ func (in *Input) failoverApps(b string) []check.Check {
 func (in *Input) failoverWarm(b string) []check.Check {
 	return concat(
 		in.common(""),
-		[]check.Check{in.quorum(check.WarnOnly), in.isolation(), in.targetValid(), in.targetNotNeedsRecovery()},
+		[]check.Check{
+			in.quorum(check.WarnOnly), in.payloadSettled(), in.isolation(), in.targetValid(), in.targetNotNeedsRecovery(),
+		},
 		in.basicOf(b),
 		[]check.Check{in.targetStandbyLeader(), in.targetNotStreaming(), in.targetMaxLSN(), in.sourceDiscard(in.activeName(), b)},
 		in.failoverApps(b),
@@ -239,7 +245,7 @@ func (in *Input) failoverStretch(b string) []check.Check {
 	return concat(
 		in.common(""),
 		[]check.Check{
-			in.quorum(check.Block), in.isolation(), in.targetValid(), in.membersFound(in.pgDatacenter(b)),
+			in.quorum(check.Block), in.payloadSettled(), in.isolation(), in.targetValid(), in.membersFound(in.pgDatacenter(b)),
 			in.targetLeader(), in.candidateLoss(),
 		},
 		in.failoverApps(b),

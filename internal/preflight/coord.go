@@ -541,9 +541,26 @@ func (in *Input) dcNeedsRecovery() check.Check {
 // two writers that raced while a voter was down leave it. Which payload is right is
 // not known, so nothing changes the record until one is chosen explicitly.
 func (in *Input) payloadSettled() check.Check {
+	return in.payloadSettledOf(in.Action == Failover)
+}
+
+// payloadSettledOnResume is [Input.payloadSettledOf] for a resumed operation: it fails on
+// a split it reads only. A record the voters do not tell, as one the operation itself
+// left undetermined, is skipped: the write of the resumed step finishes it or refuses.
+func (in *Input) payloadSettledOnResume(failover bool) check.Check {
+	if coord.Base(in.Status.View, failover) == nil {
+		return block(check.CoordPayloadSettled, "").skip("the voters do not tell the record the operation starts from")
+	}
+
+	return in.payloadSettledOf(failover)
+}
+
+// payloadSettledOf is [Input.payloadSettled] of the record a failover, by failover, or
+// any other action starts from.
+func (in *Input) payloadSettledOf(failover bool) check.Check {
 	s := block(check.CoordPayloadSettled, "")
 
-	rec := coord.Base(in.Status.View, in.Action == Failover)
+	rec := coord.Base(in.Status.View, failover)
 	if rec == nil {
 		return s.fail("the state of the voters is not known", nil)
 	}

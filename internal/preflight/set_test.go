@@ -89,7 +89,12 @@ func TestChecks_sets(t *testing.T) {
 		{
 			name: "switch_warm_standby", snap: warm, action: Switch, params: Params{Datacenter: dcB},
 			want: cat(common(),
-				[]item{{check.CoordQuorum, "", b}, {check.CoordTargetValid, dcB, b}, {check.CoordTargetNotNeedsRecovery, dcB, b}},
+				[]item{
+					{check.CoordQuorum, "", b},
+					{check.CoordPayloadSettled, "", b},
+					{check.CoordTargetValid, dcB, b},
+					{check.CoordTargetNotNeedsRecovery, dcB, b},
+				},
 				basicItems(dcA), basicItems(dcB),
 				[]item{
 					{check.PatroniSinglePrimary, "", b},
@@ -105,7 +110,7 @@ func TestChecks_sets(t *testing.T) {
 		{
 			name: "switch_stretch", snap: stretch, action: Switch, params: Params{Datacenter: dcB},
 			want: cat(common(),
-				[]item{{check.CoordQuorum, "", b}, {check.CoordTargetValid, dcB, b}},
+				[]item{{check.CoordQuorum, "", b}, {check.CoordPayloadSettled, "", b}, {check.CoordTargetValid, dcB, b}},
 				basicItems(""),
 				[]item{{check.PatroniTargetCandidate, dcB, b}},
 				appsItems(),
@@ -116,6 +121,7 @@ func TestChecks_sets(t *testing.T) {
 			want: cat(common(),
 				[]item{
 					{check.CoordQuorum, "", w},
+					{check.CoordPayloadSettled, "", b},
 					{check.CoordIsolation, "", c},
 					{check.CoordTargetValid, dcB, b},
 					{check.CoordTargetNotNeedsRecovery, dcB, b},
@@ -137,6 +143,7 @@ func TestChecks_sets(t *testing.T) {
 			name: "failover_stretch", snap: stretch, action: Failover, params: Params{Datacenter: dcB},
 			want: cat(common(), []item{
 				{check.CoordQuorum, "", b},
+				{check.CoordPayloadSettled, "", b},
 				{check.CoordIsolation, "", c},
 				{check.CoordTargetValid, dcB, b},
 				{check.PatroniMembersFound, dcB, b},
