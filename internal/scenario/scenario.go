@@ -46,6 +46,7 @@ type Patroni interface {
 	Follow(ctx context.Context, standby, primary pgctl.Cluster, opts pgctl.Options) (pgctl.Result, error)
 	Leader(ctx context.Context, cl pgctl.Cluster) (patroni.Member, error)
 	Divergence(ctx context.Context, standby, primary pgctl.Cluster) (patroni.Divergence, error)
+	DemoteLoss(ctx context.Context, primary, standby pgctl.Cluster) (int64, error)
 }
 
 // Coordinator reads and writes dcctl/state on the voters; [*coord.Coordinator] is one.

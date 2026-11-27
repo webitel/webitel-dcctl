@@ -26,9 +26,9 @@
 //   - [Controller.Failover], PATRONI_FAILOVER (pending in the proto), within promote: the
 //     candidate leads.
 //
-// [Controller.Leader] and [Controller.Divergence] read a cluster once, for the decisions
-// of a step: what the leader received, and whether a standby left the history of the
-// primary.
+// [Controller.Leader], [Controller.Divergence] and [Controller.DemoteLoss] read the
+// clusters once, for the decisions of a step: what the leader received, whether a
+// standby left the history of the primary, and what demoting a primary discards.
 //
 // The timeline is taken from GET /patroni of the member itself: GET /cluster comes from
 // the DCS, which lags by loop_wait.

@@ -261,7 +261,8 @@ func TestFailoverPlan_cannotPlan(t *testing.T) {
 		conf   *dcctlv1.Confirmation
 		change func(st *status.Status)
 	}{
-		// No check of a failover of warm_standby takes the bound: it is refused, not ignored.
+		// The preflight does not ask for the bound, dc_a demotes without a loss: it is
+		// refused, not ignored.
 		{
 			name: "max_discard_bytes", target: dcB, conf: &dcctlv1.Confirmation{Isolation: true, NotMaxLsn: true, MaxDiscardBytes: 500},
 			change: func(*status.Status) {},
