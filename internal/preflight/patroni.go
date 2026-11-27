@@ -2,6 +2,7 @@ package preflight
 
 import (
 	"cmp"
+	"errors"
 	"fmt"
 	"math"
 	"slices"
@@ -857,8 +858,8 @@ func SwitchCandidate(members []status.Member, dc string, maxLag int64) (status.M
 }
 
 // targetLeader, for a failover in stretch, needs the leader in the target already, or
-// no leader and a candidate in the target. A leader elsewhere means Patroni did not
-// lose it.
+// no leader and a candidate in the target, see [FailoverLoss]. A leader elsewhere means
+// Patroni did not lose it.
 func (in *Input) targetLeader() check.Check {
 	b := in.Params.Datacenter
 	c := block(check.PatroniTargetLeader, b)
@@ -884,20 +885,15 @@ func (in *Input) targetLeader() check.Check {
 		return c.fail("the datacenter of the leader is not known", facts)
 	}
 
-	limit, ok := clusterMaximumLag(s.cluster)
-	if !ok {
-		return c.fail("maximum_lag_on_failover is not known, the config does not answer", facts)
+	facts["candidates"] = membersFacts(Candidates(s.members, b, nil))
+
+	l, err := FailoverLoss(s.members, b)
+	if errors.Is(err, ErrNoCandidate) {
+		return c.fail("there is no leader and "+err.Error(), facts)
 	}
 
-	all := Candidates(s.members, b, &limit)
-	facts["maximum_lag_bytes"] = limit
-	facts["candidates"] = membersFacts(all)
-
-	if len(all) == 0 {
-		return c.fail(fmt.Sprintf("there is no leader and no candidate in %s within %d bytes of lag", b, limit), facts)
-	}
-
-	return c.pass("there is no leader, "+all[0].Name+" is the candidate", facts)
+	// A loss that is not known blocks in patroni.candidate_loss.
+	return c.pass("there is no leader, "+l.Candidate.Name+" is the candidate", facts)
 }
 
 func isLeader(m collect.Member) bool {
@@ -905,7 +901,8 @@ func isLeader(m collect.Member) bool {
 }
 
 // candidateLoss, for a failover in stretch without a leader, needs the operator to
-// accept the WAL the candidate lacks. A lag that is not known is covered by no bound.
+// accept the WAL the failover discards, see [FailoverLoss]. A loss that is not known is
+// covered by no bound.
 func (in *Input) candidateLoss() check.Check {
 	return in.candidateLossOf(in.Params.Datacenter)
 }
@@ -924,29 +921,140 @@ func (in *Input) candidateLossOf(b string) check.Check {
 		return c.skip("the cluster has a leader")
 	}
 
-	limit, ok := clusterMaximumLag(s.cluster)
-	if !ok {
-		return c.fail("maximum_lag_on_failover is not known, the amount is not known", nil)
+	facts := map[string]any{"candidates": membersFacts(Candidates(s.members, b, nil))}
+
+	l, err := FailoverLoss(s.members, b)
+	if len(l.NotCounted) > 0 {
+		facts["not_counted"] = l.NotCounted
 	}
 
-	all := Candidates(s.members, b, &limit)
-	facts := map[string]any{"maximum_lag_bytes": limit, "candidates": membersFacts(all)}
-
-	if len(all) == 0 {
-		return c.fail("there is no candidate in "+b+", the amount is not known", facts)
+	if err != nil {
+		return c.fail(err.Error()+", the amount is not known", facts)
 	}
 
-	m := all[0]
+	m := l.Candidate
 	facts["candidate"] = m.Name
-
 	facts["lag_bytes"] = *m.LagBytes
+	facts["discard_bytes"] = l.Bytes
 
-	if *m.LagBytes > 0 {
-		return c.discard(fmt.Sprintf("the candidate %s lags %d bytes, a failover discards them", m.Name, *m.LagBytes),
-			facts, *m.LagBytes)
+	if l.Bytes > 0 {
+		return c.discard(fmt.Sprintf("a failover to %s discards %d bytes of WAL; %s", m.Name, l.Bytes, l.Uncounted()), facts, l.Bytes)
 	}
 
-	return c.pass("the candidate "+m.Name+" does not lag", facts)
+	return c.pass(fmt.Sprintf("a failover to %s discards no WAL it counts; %s", m.Name, l.Uncounted()), facts)
+}
+
+var (
+	// ErrNoCandidate means a datacenter has no member a failover of stretch promotes.
+	ErrNoCandidate = errors.New("no candidate")
+	// ErrLossUnknown means what a failover of stretch discards is not known.
+	ErrLossUnknown = errors.New("the WAL a failover discards is not known")
+)
+
+// LossNotCounted is what [FailoverLoss] does not count, which the confirmed isolation of
+// the old leader accepts.
+const LossNotCounted = "WAL the lost leader wrote after its last report to the DCS, and WAL of members that do not " +
+	"answer or report no WAL position, is not counted"
+
+// Loss is what a failover of stretch without a leader discards, see [FailoverLoss].
+type Loss struct {
+	Candidate status.Member
+	// Bytes is the WAL the failover discards of what is counted.
+	Bytes int64
+	// NotCounted are the members that answer without a WAL position: their WAL is not
+	// counted, as that of the members that do not answer.
+	NotCounted []string
+}
+
+// Uncounted says what the loss does not count, naming the members of NotCounted.
+func (l Loss) Uncounted() string {
+	if len(l.NotCounted) == 0 {
+		return LossNotCounted
+	}
+
+	return LossNotCounted + " (no WAL position: " + strings.Join(l.NotCounted, ", ") + ")"
+}
+
+// FailoverLoss returns the member of dc a failover of stretch without a leader promotes,
+// and the bytes of WAL that failover discards. The member is the first of [Candidates],
+// without a limit of lag, on the highest timeline of the members that answer: one on a
+// lower timeline would fork the history. The loss is its lag behind the last position
+// the leader reported to the DCS, or what the member with the most WAL on that timeline
+// holds beyond it, whichever is more: WAL of a member on a lower timeline is off the
+// history already. A member that answers without a WAL position is not counted, as one
+// that does not answer; see [LossNotCounted].
+//
+// It fails with [ErrNoCandidate] when dc has no such member, and with [ErrLossUnknown],
+// with the candidate when there is one, when a member that answers with a WAL position
+// has no known timeline, or the lag or the WAL position of the candidate is not known.
+func FailoverLoss(members []status.Member, dc string) (Loss, error) {
+	var (
+		out     Loss
+		top     int64
+		counted []status.Member
+		unknown []string
+	)
+
+	for _, m := range members {
+		switch {
+		case !m.Reachable:
+		case heldWAL(m) == nil:
+			out.NotCounted = append(out.NotCounted, m.Name)
+		case m.Timeline == nil:
+			unknown = append(unknown, m.Name)
+		default:
+			counted = append(counted, m)
+			top = max(top, *m.Timeline)
+		}
+	}
+
+	all := Candidates(members, dc, nil)
+	cands := slices.DeleteFunc(slices.Clone(all), func(m status.Member) bool { return m.Timeline == nil || *m.Timeline != top })
+
+	switch {
+	case len(unknown) > 0 && len(all) > 0:
+		out.Candidate = all[0]
+
+		return out, fmt.Errorf("%w: the timeline of %s is not known", ErrLossUnknown, strings.Join(unknown, ", "))
+	case len(unknown) > 0:
+		return out, fmt.Errorf("%w in %s", ErrNoCandidate, dc)
+	case len(cands) == 0:
+		return out, fmt.Errorf("%w in %s on timeline %d", ErrNoCandidate, dc, top)
+	}
+
+	m := cands[0]
+	out.Candidate = m
+	pos := heldWAL(m)
+
+	if m.LagBytes == nil || pos == nil {
+		return out, fmt.Errorf("%w: the lag or the WAL position of %s is not known", ErrLossUnknown, m.Name)
+	}
+
+	var most int64
+
+	for _, c := range counted {
+		if *c.Timeline == top {
+			most = max(most, *heldWAL(c))
+		}
+	}
+
+	out.Bytes = max(*m.LagBytes, most-*pos)
+
+	return out, nil
+}
+
+// heldWAL is the furthest WAL a member wrote, received or replayed; nil when not known.
+func heldWAL(m status.Member) *int64 {
+	p := walPosition(m)
+
+	switch l := m.Xlog.Location; {
+	case l == nil:
+		return p
+	case p == nil || *l > *p:
+		return l
+	}
+
+	return p
 }
 
 func (in *Input) activePrimary() check.Check {

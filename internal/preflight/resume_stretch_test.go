@@ -9,6 +9,8 @@ import (
 	dcctlv1 "github.com/webitel/webitel-dcctl/gen/go/dcctl/v1"
 	"github.com/webitel/webitel-dcctl/internal/check"
 	"github.com/webitel/webitel-dcctl/internal/collect"
+	"github.com/webitel/webitel-dcctl/internal/source/patroni"
+	"github.com/webitel/webitel-dcctl/internal/status"
 )
 
 // stretchFailoverOp is an interrupted failover of stretch from dc_a to dc_b whose step
@@ -114,4 +116,103 @@ func TestMaximumLagOnFailover(t *testing.T) {
 			assert.Equal(t, tt.want, got)
 		})
 	}
+}
+
+func TestFailoverLoss(t *testing.T) {
+	members := func(fn func(p *collect.Patroni)) []status.Member {
+		s := stretch()
+		noLeader(s)
+		editPatroni(s, dcA, fn)
+
+		return newInput(s, Failover, Params{Datacenter: dcB}).pgCluster().members
+	}
+
+	tests := []struct {
+		name       string
+		edit       func(p *collect.Patroni)
+		cand       string
+		loss       int64
+		notCounted []string
+		err        error
+	}{
+		{name: "lag", edit: func(p *collect.Patroni) { memberNamed(p, "pg-3").Lag = i64(300) }, cand: "pg-3", loss: 300},
+		{name: "survivor_ahead", edit: func(*collect.Patroni) {}, cand: "pg-3", loss: 10},
+		{
+			// Beyond maximum_lag_on_failover a member is still a candidate.
+			name: "over_the_lag_limit", edit: func(p *collect.Patroni) {
+				memberNamed(p, "pg-3").Lag = i64(1 << 30)
+				memberNamed(p, "pg-4").Lag = i64(1 << 30)
+			},
+			cand: "pg-3", loss: 1 << 30,
+		},
+		{
+			// pg-3 stayed on timeline 2: it is no candidate, pg-4 on timeline 3 is.
+			name: "candidate_on_old_timeline", edit: func(p *collect.Patroni) {
+				memberNamed(p, "pg-3").Probe.Timeline = i64(2)
+			},
+			cand: "pg-4", loss: 30,
+		},
+		{
+			// What pg-2 holds on timeline 2 is off the history of timeline 3: the loss is the lag of pg-3.
+			name: "survivor_on_lower_timeline", edit: func(p *collect.Patroni) {
+				memberNamed(p, "pg-2").Probe.Timeline = i64(2)
+				memberNamed(p, "pg-2").Probe.Xlog.ReceivedLocation = i64(50000)
+			},
+			cand: "pg-3", loss: 10,
+		},
+		{
+			name: "timeline_unknown", edit: func(p *collect.Patroni) {
+				memberNamed(p, "pg-2").Probe.Timeline = nil
+				memberNamed(p, "pg-2").Timeline = nil
+			},
+			cand: "pg-3", err: ErrLossUnknown,
+		},
+		{
+			// pg-2 answers without a WAL position: it is not counted, as one that does
+			// not answer.
+			name: "position_unknown", edit: func(p *collect.Patroni) { memberNamed(p, "pg-2").Probe.Xlog = patroni.Xlog{} },
+			cand: "pg-3", loss: 10, notCounted: []string{"pg-2"},
+		},
+		{
+			name: "candidate_position_unknown", edit: func(p *collect.Patroni) {
+				memberNamed(p, "pg-3").Probe.Xlog = patroni.Xlog{}
+				memberNamed(p, "pg-4").Probe.Xlog = patroni.Xlog{}
+			},
+			cand: "pg-4", notCounted: []string{"pg-3", "pg-4"}, err: ErrLossUnknown,
+		},
+		{
+			name: "no_candidate", edit: func(p *collect.Patroni) {
+				memberNamed(p, "pg-3").NoFailover = true
+				memberNamed(p, "pg-4").FailoverPriority = 0
+			},
+			err: ErrNoCandidate,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l, err := FailoverLoss(members(tt.edit), dcB)
+			require.ErrorIs(t, err, tt.err)
+			assert.Equal(t, tt.cand, l.Candidate.Name)
+			assert.Equal(t, tt.loss, l.Bytes)
+			assert.Equal(t, tt.notCounted, l.NotCounted)
+		})
+	}
+}
+
+// A member that answers without a WAL position is named, not counted.
+func TestCandidateLossNamesWhatIsNotCounted(t *testing.T) {
+	s := stretch()
+	noLeader(s)
+	editPatroni(s, dcA, func(p *collect.Patroni) {
+		memberNamed(p, "pg-2").Probe.Xlog = patroni.Xlog{}
+		memberNamed(p, "pg-3").Lag = i64(300)
+	})
+
+	c := newInput(s, Failover, Params{Datacenter: dcB}).candidateLoss()
+	assert.Equal(t, check.Fail, c.Result)
+	require.NotNil(t, c.DiscardBytes)
+	assert.Equal(t, int64(300), *c.DiscardBytes)
+	assert.Equal(t, []string{"pg-2"}, c.Facts["not_counted"])
+	assert.Contains(t, c.Detail, "(no WAL position: pg-2)")
 }
