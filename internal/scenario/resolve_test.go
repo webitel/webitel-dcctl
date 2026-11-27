@@ -76,7 +76,7 @@ func TestResolve_succeeds(t *testing.T) {
 	})
 }
 
-// D4: resolve always needs the isolation of the other side; it must name a side of the
+// Resolve always needs the isolation of the other side; it must name a side of the
 // conflict, and there must be one.
 func TestResolve_preconditions(t *testing.T) {
 	tests := []struct {
