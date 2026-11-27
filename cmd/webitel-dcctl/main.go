@@ -401,8 +401,9 @@ func newEngine(cfg *config.Serve, d operationDeps) (*operation.Engine, *prefligh
 }
 
 // newScenarios returns the planners of the actions and the resumers of their operations.
-// The switch and the failover are those of the profile. Demote, repoint and
-// mark-recovered are scenarios of warm_standby: in stretch they plan nothing and their
+// The switch, the failover and the initialization are those of the profile; apps sync
+// is the same in both. Demote, repoint, mark-recovered, resolve and the arbiter
+// initialization are scenarios of warm_standby: in stretch they plan nothing or their
 // preflight refuses them, and no operation of theirs is resumed. The scenarios change the
 // apps through the Nomad clients of the preflight, which read consistently, and Patroni
 // through clients that find the members in the Consul of their datacenter without stale
@@ -454,7 +455,30 @@ func newScenarios(cfg *config.Serve, d operationDeps, verifier *preflight.Runner
 		return api.Planners{}, nil, fmt.Errorf("mark recovered: %w", err)
 	}
 
-	planners := api.Planners{Demote: demote, Repoint: repoint, MarkRecovered: mark}
+	sync, err := scenario.NewSyncApps(deps)
+	if err != nil {
+		return api.Planners{}, nil, fmt.Errorf("apps sync: %w", err)
+	}
+
+	resolve, err := scenario.NewResolve(deps)
+	if err != nil {
+		return api.Planners{}, nil, fmt.Errorf("resolve: %w", err)
+	}
+
+	initialize, err := scenario.NewInitialize(deps, cfg.Profile)
+	if err != nil {
+		return api.Planners{}, nil, fmt.Errorf("init: %w", err)
+	}
+
+	arbiterInit, err := scenario.NewInitializeArbiter(deps)
+	if err != nil {
+		return api.Planners{}, nil, fmt.Errorf("arbiter init: %w", err)
+	}
+
+	planners := api.Planners{
+		Demote: demote, Repoint: repoint, MarkRecovered: mark,
+		ResolveConflict: resolve, Initialize: initialize, InitializeArbiter: arbiterInit, SyncApps: sync,
+	}
 
 	if cfg.Profile == config.ProfileStretch {
 		sw, err := scenario.NewStretchSwitch(deps)
@@ -471,6 +495,7 @@ func newScenarios(cfg *config.Serve, d operationDeps, verifier *preflight.Runner
 
 		return planners, map[dcctlv1.Operation_Type]operation.Resumer{
 			dcctlv1.Operation_SWITCH: sw, dcctlv1.Operation_FAILOVER: fo,
+			dcctlv1.Operation_SYNC_APPS: sync, dcctlv1.Operation_INITIALIZE: initialize,
 		}, nil
 	}
 
@@ -489,6 +514,8 @@ func newScenarios(cfg *config.Serve, d operationDeps, verifier *preflight.Runner
 	return planners, map[dcctlv1.Operation_Type]operation.Resumer{
 		dcctlv1.Operation_SWITCH: sw, dcctlv1.Operation_FAILOVER: fo,
 		dcctlv1.Operation_DEMOTE: demote, dcctlv1.Operation_REPOINT: repoint, dcctlv1.Operation_MARK_RECOVERED: mark,
+		dcctlv1.Operation_SYNC_APPS: sync, dcctlv1.Operation_RESOLVE_CONFLICT: resolve, dcctlv1.Operation_INITIALIZE: initialize,
+		dcctlv1.Operation_INITIALIZE_ARBITER: arbiterInit,
 	}, nil
 }
 

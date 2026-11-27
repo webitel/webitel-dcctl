@@ -34,9 +34,10 @@ func (silentVoter) Get(context.Context, coord.Key) (coord.Entry, error) {
 
 func (silentVoter) CAS(context.Context, coord.Key, []byte, coord.Version) error { return nil }
 
-// Serve plans and resumes the switch and the failover of its profile. Demote, repoint
-// and mark-recovered are planned in both, for their preflight to refuse them in stretch,
-// and resumed in warm_standby only.
+// Serve plans and resumes the switch, the failover and the initialization of its
+// profile, and apps sync in both. Demote, repoint, mark-recovered, resolve and the
+// arbiter initialization are planned in both, for their preflight or plan to refuse them
+// in stretch, and resumed in warm_standby only.
 func TestNewScenariosByProfile(t *testing.T) {
 	tests := []struct {
 		profile  config.Profile
@@ -48,12 +49,15 @@ func TestNewScenariosByProfile(t *testing.T) {
 			profile: config.ProfileWarmStandby, switchOf: &scenario.Switch{}, failOf: &scenario.Failover{},
 			resumed: []dcctlv1.Operation_Type{
 				dcctlv1.Operation_SWITCH, dcctlv1.Operation_FAILOVER, dcctlv1.Operation_DEMOTE, dcctlv1.Operation_REPOINT,
-				dcctlv1.Operation_MARK_RECOVERED,
+				dcctlv1.Operation_MARK_RECOVERED, dcctlv1.Operation_SYNC_APPS, dcctlv1.Operation_RESOLVE_CONFLICT,
+				dcctlv1.Operation_INITIALIZE, dcctlv1.Operation_INITIALIZE_ARBITER,
 			},
 		},
 		{
 			profile: config.ProfileStretch, switchOf: &scenario.StretchSwitch{}, failOf: &scenario.StretchFailover{},
-			resumed: []dcctlv1.Operation_Type{dcctlv1.Operation_SWITCH, dcctlv1.Operation_FAILOVER},
+			resumed: []dcctlv1.Operation_Type{
+				dcctlv1.Operation_SWITCH, dcctlv1.Operation_FAILOVER, dcctlv1.Operation_SYNC_APPS, dcctlv1.Operation_INITIALIZE,
+			},
 		},
 	}
 
@@ -91,6 +95,10 @@ func TestNewScenariosByProfile(t *testing.T) {
 			assert.IsType(t, &scenario.Demote{}, planners.Demote)
 			assert.IsType(t, &scenario.Repoint{}, planners.Repoint)
 			assert.IsType(t, &scenario.MarkRecovered{}, planners.MarkRecovered)
+			assert.IsType(t, &scenario.SyncApps{}, planners.SyncApps)
+			assert.IsType(t, &scenario.Resolve{}, planners.ResolveConflict)
+			assert.IsType(t, &scenario.Initialize{}, planners.Initialize)
+			assert.IsType(t, &scenario.InitializeArbiter{}, planners.InitializeArbiter)
 			assert.ElementsMatch(t, tt.resumed, slices.Collect(maps.Keys(resumers)))
 			assert.Same(t, planners.Switch, resumers[dcctlv1.Operation_SWITCH])
 		})
