@@ -126,9 +126,10 @@ func (e *Engine) Start(ctx context.Context, p Plan) (*dcctlv1.Operation, error) 
 }
 
 // checkBase checks under the lock that the voters still hold the record p
-// starts from, see [coord.Base], and refuses with coord.base_unchanged
-// otherwise. The preflight ran before the lock was taken, so another
-// operation may have changed the state since.
+// starts from, see [coord.Base], or for a resolve the conflict it was
+// planned on, and refuses with coord.base_unchanged otherwise. The preflight
+// ran before the lock was taken, so another operation may have changed the
+// state since.
 func (e *Engine) checkBase(ctx context.Context, p Plan) error {
 	if p.PreviousGeneration == 0 && p.PreviousActive == "" {
 		return nil
@@ -140,6 +141,10 @@ func (e *Engine) checkBase(ctx context.Context, p Plan) error {
 	}
 
 	c := preflight.BaseUnchanged(view, p.Type == dcctlv1.Operation_FAILOVER, p.PreviousGeneration, p.PreviousActive)
+	if p.Type == dcctlv1.Operation_RESOLVE_CONFLICT {
+		c = preflight.ConflictUnchanged(view, p.PreviousGeneration, p.Target)
+	}
+
 	if refused := answer.Refusal(check.Decide([]check.Check{c}, check.Confirmations{}), p.Pending(), p.Mode); refused != nil {
 		return fmt.Errorf("%w: %w", ErrStateChanged, refused)
 	}

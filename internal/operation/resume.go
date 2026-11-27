@@ -104,7 +104,8 @@ func (e *Engine) Resume(ctx context.Context, req ResumeRequest) (*dcctlv1.Operat
 		op.Leader = e.cfg.Self.proto()
 		op.Confirmation = mergeConfirmation(op.GetConfirmation(), v.Confirmed)
 
-		if req.ToForced && !generationWritten(op) {
+		// The step of a resolve records the mode it writes in itself.
+		if req.ToForced && !generationWritten(op) && op.GetType() != dcctlv1.Operation_RESOLVE_CONFLICT {
 			op.Mode = dcctlv1.Operation_FORCED
 		}
 	})
