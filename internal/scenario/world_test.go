@@ -130,7 +130,7 @@ func (w *world) engine() *operation.Engine {
 		Locker:      locker,
 		Ops:         ops,
 		Coordinator: w.coord,
-		Preflight:   fakePreflight{w: w.infra, op: func() *dcctlv1.Operation { return storedOp(w.consuls[dcB]) }},
+		Preflight:   w.preflight(),
 		Journal:     w.journal,
 		Recorder:    fakeRecorder{},
 		Resumers: map[dcctlv1.Operation_Type]operation.Resumer{
@@ -142,6 +142,11 @@ func (w *world) engine() *operation.Engine {
 	require.NoError(w.t, err)
 
 	return e
+}
+
+// preflight decides the confirmations on w, see fakePreflight.
+func (w *world) preflight() fakePreflight {
+	return fakePreflight{w: w.infra, op: func() *dcctlv1.Operation { return storedOp(w.consuls[dcB]) }}
 }
 
 // start runs e until the returned stop, which waits for Run to return.

@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	dcctlv1 "github.com/webitel/webitel-dcctl/gen/go/dcctl/v1"
+	"github.com/webitel/webitel-dcctl/internal/apierr"
 	"github.com/webitel/webitel-dcctl/internal/apps"
 	"github.com/webitel/webitel-dcctl/internal/check"
 	"github.com/webitel/webitel-dcctl/internal/coord"
@@ -26,14 +27,14 @@ const skipped = dcctlv1.Operation_Step_SKIPPED
 // failoverForward are the calls of a failover from dc_a, which answers, to dc_b.
 var failoverForward = []string{
 	"failover stop dc_a from 3", "failover stop dc_a from 2", "failover stop dc_a from 0",
-	"no_primary dc_a", "demote dc_a", "no_primary dc_a,dc_c", "promote dc_b",
+	"demote dc_a", "no_primary dc_a,dc_c", "promote dc_b",
 	"start dc_b to 1", "start dc_b to 2", "start dc_b to all",
 	"repoint dc_c",
 }
 
 // failoverLost are the calls of a failover from dc_a, which does not answer, to dc_b.
 var failoverLost = []string{
-	"failover stop dc_a from 3", "no_primary dc_a", "no_primary dc_a,dc_c", "promote dc_b",
+	"failover stop dc_a from 3", "no_primary dc_a,dc_c", "promote dc_b",
 	"start dc_b to 1", "start dc_b to 2", "start dc_b to all",
 	"repoint dc_c",
 }
@@ -51,7 +52,15 @@ func failoverTo(dc string, c *dcctlv1.Confirmation) *dcctlv1.FailoverDatacenterR
 func (w *world) failoverPlan(c *dcctlv1.Confirmation) operation.Plan {
 	w.t.Helper()
 
-	p, err := w.fo.Plan(failoverTo(dcB, c), initiator, preflight.Result{Status: w.status()})
+	req := failoverTo(dcB, c)
+
+	v, err := w.preflight().Run(w.t.Context(), preflight.Request{
+		Action: preflight.Failover, Params: preflight.Params{Datacenter: dcB},
+		Confirmations: check.Confirmations{MaxDiscardBytes: c.GetMaxDiscardBytes()},
+	})
+	require.NoError(w.t, err)
+
+	p, err := w.fo.Plan(req, initiator, preflight.Result{Verdict: v, Status: w.status()})
 	require.NoError(w.t, err)
 
 	return p
@@ -155,8 +164,10 @@ func TestFailover_sourceLost(t *testing.T) {
 			assert.Equal(t, skipped, stepOf(t, op, dcctlv1.Operation_Step_APPS_STOP, stage).GetState(), "stage %d", stage)
 		}
 
-		assert.Equal(t, []string{"dc_a is not read, it is not demoted"},
-			stepOf(t, op, dcctlv1.Operation_Step_PATRONI_DEMOTE, 0).GetWarnings())
+		demote := stepOf(t, op, dcctlv1.Operation_Step_PATRONI_DEMOTE, 0)
+		assert.Equal(t, skipped, demote.GetState())
+		require.Len(t, demote.GetWarnings(), 1)
+		assert.Contains(t, demote.GetWarnings()[0], "dc_a is not read, it is not demoted")
 		assert.Equal(t, []string{"dc_a is not read, it is not known whether it is primary"},
 			stepOf(t, op, dcctlv1.Operation_Step_PATRONI_PROMOTE, 0).GetWarnings())
 		assert.Contains(t, stepOf(t, op, dcctlv1.Operation_Step_VERIFY, 0).GetWarnings(), unconfirmedStop)
@@ -353,6 +364,7 @@ func TestFailover_twoDatacentersCompareNoWAL(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		w := newWorld(t)
 		w.infra.do(func(dcs map[string]*dcState) {
+			dcs[dcA].unread = true
 			dcs[dcB].receivedUnknown = true
 			delete(dcs, dcC)
 		})
@@ -377,8 +389,231 @@ func TestFailover_twoDatacentersCompareNoWAL(t *testing.T) {
 
 		op := w.op()
 		require.Equal(t, dcctlv1.Operation_SUCCEEDED, op.GetState(), op.GetError().GetDetail())
-		assert.Empty(t, stepOf(t, op, dcctlv1.Operation_Step_PATRONI_PROMOTE, 0).GetWarnings())
+		assert.Equal(t, []string{"dc_a is not read, it is not known whether it is primary"},
+			stepOf(t, op, dcctlv1.Operation_Step_PATRONI_PROMOTE, 0).GetWarnings(), "no warning of discarded WAL")
 		assert.NotContains(t, w.infra.allCalls(), "repoint dc_c")
+	})
+}
+
+// dc_a is read as primary with 500 bytes of WAL dc_b did not receive: the failover
+// demotes it only within the max_discard_bytes the preflight asked for.
+func TestFailover_demoteWithinConfirmedLoss(t *testing.T) {
+	withLoss := func(w *world) {
+		w.infra.do(func(dcs map[string]*dcState) {
+			dcs[dcA].location = 1500
+			dcs[dcB].received = 1000
+			dcs[dcC].received = 1000
+		})
+	}
+	confirmed := &dcctlv1.Confirmation{Isolation: true, MaxDiscardBytes: 500}
+
+	t.Run("covered", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			w := newWorld(t)
+			withLoss(w)
+
+			op := w.runFailover(confirmed)
+
+			require.Equal(t, dcctlv1.Operation_SUCCEEDED, op.GetState(), op.GetError().GetDetail())
+			assert.Equal(t, failoverForward, w.infra.allCalls())
+			assert.Equal(t, patroni.RoleStandbyLeader, w.infra.dc(dcA).role)
+			assert.Equal(t, patroni.RolePrimary, w.infra.dc(dcB).role)
+		})
+	})
+
+	t.Run("grown_past_the_confirmation", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			w := newWorld(t)
+			withLoss(w)
+			w.infra.hook("failover stop dc_a from 0", func(context.Context) error {
+				w.infra.do(func(dcs map[string]*dcState) { dcs[dcA].location = 1800 })
+
+				return nil
+			})
+
+			op := w.runFailover(confirmed)
+
+			assert.Equal(t, dcctlv1.Operation_INTERRUPTED, op.GetState())
+			assert.Contains(t, op.GetError().GetDetail(), "max_discard_bytes of 800 demotes it")
+
+			demote := stepOf(t, op, dcctlv1.Operation_Step_PATRONI_DEMOTE, 0)
+			assert.Equal(t, skipped, demote.GetState())
+			assert.Equal(t, []string{
+				"dc_a is primary and not demoted, its demotion discards 800 bytes of WAL, 500 are confirmed: max_discard_bytes of 800 demotes it",
+			}, demote.GetWarnings())
+			assert.NotContains(t, w.infra.allCalls(), "demote dc_a")
+			assert.NotContains(t, w.infra.allCalls(), "promote dc_b")
+		})
+	})
+
+	t.Run("not_confirmed", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			w := newWorld(t)
+			withLoss(w)
+
+			e := w.engine()
+			stop := start(t, e)
+
+			defer stop()
+
+			synctest.Wait()
+
+			_, err := e.Start(t.Context(), w.failoverPlan(isolation))
+			assert.Equal(t, apierr.ReasonConfirmationRequired, apierr.ReasonOf(err))
+			assert.Empty(t, w.infra.allCalls())
+		})
+	})
+
+	// The resume before the promotion asks for the bound again, on what dc_a holds then.
+	t.Run("resumed", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			w := newWorld(t)
+			withLoss(w)
+
+			e, stop, id := w.crashFailover("failover stop dc_a from 2", confirmed)
+
+			defer stop()
+
+			_, err := e.Resume(t.Context(), operation.ResumeRequest{Operation: id, Initiator: initiator, Confirmations: check.Confirmations{Isolation: true}})
+			assert.Equal(t, apierr.ReasonConfirmationRequired, apierr.ReasonOf(err))
+
+			op := w.resume(e, id, operation.ResumeRequest{Confirmations: check.Confirmations{Isolation: true, MaxDiscardBytes: 500}})
+
+			require.Equal(t, dcctlv1.Operation_SUCCEEDED, op.GetState(), op.GetError().GetDetail())
+			assert.Equal(t, patroni.RoleStandbyLeader, w.infra.dc(dcA).role)
+		})
+	})
+}
+
+// The demotion step is skipped and the promotion interrupted; the resume does not run the
+// skipped step again, so the promotion demotes dc_a itself within the bound the resume
+// confirmed.
+func TestFailover_resumeDemotesAtPromote(t *testing.T) {
+	tests := []struct {
+		name  string
+		setup func(w *world)
+		conf  *dcctlv1.Confirmation
+		bound int64
+	}{
+		{
+			// The loss grows past the confirmation before the demotion step.
+			name: "loss_grew",
+			setup: func(w *world) {
+				w.infra.hook("failover stop dc_a from 0", func(context.Context) error {
+					w.infra.do(func(dcs map[string]*dcState) { dcs[dcA].location = 1800 })
+
+					return nil
+				})
+			},
+			conf:  &dcctlv1.Confirmation{Isolation: true, MaxDiscardBytes: 500},
+			bound: 800,
+		},
+		{
+			// dc_a is not read at the demotion step and is read as primary at the promotion.
+			name: "read_after_the_demotion_step",
+			setup: func(w *world) {
+				w.infra.do(func(dcs map[string]*dcState) { dcs[dcA].unread = true })
+				w.infra.hook("no_primary dc_a,dc_c", func(context.Context) error {
+					w.infra.do(func(dcs map[string]*dcState) { dcs[dcA].unread = false })
+
+					return nil
+				})
+			},
+			conf:  isolation,
+			bound: 500,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				w := newWorld(t)
+				w.infra.do(func(dcs map[string]*dcState) {
+					dcs[dcA].location = 1500
+					dcs[dcB].received = 1000
+					dcs[dcC].received = 1000
+				})
+				tt.setup(w)
+
+				e := w.engine()
+				stop := start(t, e)
+
+				defer stop()
+
+				synctest.Wait()
+
+				first, err := e.Start(t.Context(), w.failoverPlan(tt.conf))
+				require.NoError(t, err)
+
+				synctest.Wait()
+				require.Equal(t, dcctlv1.Operation_INTERRUPTED, w.op().GetState())
+				require.Equal(t, skipped, stepOf(t, w.op(), dcctlv1.Operation_Step_PATRONI_DEMOTE, 0).GetState())
+
+				op := w.resume(e, operationID(first), operation.ResumeRequest{
+					Confirmations: check.Confirmations{Isolation: true, MaxDiscardBytes: tt.bound},
+				})
+
+				require.Equal(t, dcctlv1.Operation_SUCCEEDED, op.GetState(), op.GetError().GetDetail())
+				assert.Equal(t, skipped, stepOf(t, op, dcctlv1.Operation_Step_PATRONI_DEMOTE, 0).GetState(), "the step is not run again")
+				assert.Equal(t, patroni.RoleStandbyLeader, w.infra.dc(dcA).role)
+				assert.Equal(t, patroni.RolePrimary, w.infra.dc(dcB).role)
+			})
+		})
+	}
+}
+
+// dc_a left timeline 5 at 1000 and wrote up to 1100 on timeline 6; dc_b stayed on
+// timeline 5 with 1200 received: the demotion discards 100 bytes, not none.
+func TestFailover_demoteLossAcrossTimelines(t *testing.T) {
+	onTimeline6 := func(w *world, leftAt int64) {
+		w.infra.do(func(dcs map[string]*dcState) {
+			dcs[dcA].timeline, dcs[dcA].leftAt, dcs[dcA].location = 6, leftAt, 1100
+			dcs[dcB].received = 1200
+			dcs[dcC].received = 1200
+		})
+	}
+
+	t.Run("confirmed", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			w := newWorld(t)
+			onTimeline6(w, 1000)
+
+			e := w.engine()
+			stop := start(t, e)
+
+			defer stop()
+
+			synctest.Wait()
+
+			_, err := e.Start(t.Context(), w.failoverPlan(isolation))
+			assert.Equal(t, apierr.ReasonConfirmationRequired, apierr.ReasonOf(err))
+
+			_, err = e.Start(t.Context(), w.failoverPlan(&dcctlv1.Confirmation{Isolation: true, MaxDiscardBytes: 100}))
+			require.NoError(t, err)
+
+			synctest.Wait()
+
+			require.Equal(t, dcctlv1.Operation_SUCCEEDED, w.op().GetState(), w.op().GetError().GetDetail())
+			assert.Equal(t, patroni.RoleStandbyLeader, w.infra.dc(dcA).role)
+		})
+	})
+
+	t.Run("history_unknown", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			w := newWorld(t)
+			onTimeline6(w, 0)
+
+			e := w.engine()
+			stop := start(t, e)
+
+			defer stop()
+
+			synctest.Wait()
+
+			_, err := e.Start(t.Context(), w.failoverPlan(isolation))
+			assert.Equal(t, apierr.ReasonPreflightFailed, apierr.ReasonOf(err), "an amount that is not known has no bound")
+			assert.Empty(t, w.infra.allCalls())
+		})
 	})
 }
 
@@ -414,11 +649,22 @@ func TestFailover_interrupts(t *testing.T) {
 	}{
 		{
 			// The demotion fails and leaves dc_a primary: dc_b is not promoted next to it.
+			// Every demotion fails and leaves dc_a primary: dc_b is not promoted next to it.
 			name: "source_stays_primary", conf: isolation,
-			setup:  func(w *world) { w.infra.fail("demote dc_a", pgctl.ErrTimeout) },
+			setup: func(w *world) {
+				var fail func(context.Context) error
+
+				fail = func(context.Context) error {
+					w.infra.hook("demote dc_a", fail)
+
+					return pgctl.ErrTimeout
+				}
+
+				w.infra.hook("demote dc_a", fail)
+			},
 			step:   dcctlv1.Operation_Step_PATRONI_PROMOTE,
-			detail: "leader dc_a1 of dc_a is primary",
-			calls:  failoverForward[:slices.Index(failoverForward, "no_primary dc_a,dc_c")+1],
+			detail: "dc_a is not demoted",
+			calls:  slices.Concat(failoverForward[:slices.Index(failoverForward, "demote dc_a")+1], []string{"demote dc_a"}),
 		},
 		{
 			name: "standby_primary", conf: isolation,

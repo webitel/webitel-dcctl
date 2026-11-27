@@ -434,15 +434,15 @@ func (f fakePreflight) Run(_ context.Context, req preflight.Request) (check.Verd
 			}
 		}
 
-		cs = append(cs, isolationCheck(), f.maxLSN(req.Params.Datacenter, others))
+		cs = append(cs, isolationCheck(), f.maxLSN(req.Params.Datacenter, others), f.sourceDiscard(dcA, req.Params.Datacenter))
 	case preflight.Resume:
-		target, others, unpromoted := unpromotedFailover(f.op())
+		source, target, others, unpromoted := unpromotedFailover(f.op())
 		if req.Params.ToForced || unpromoted {
 			cs = append(cs, isolationCheck())
 		}
 
 		if unpromoted {
-			cs = append(cs, f.maxLSN(target, others))
+			cs = append(cs, f.maxLSN(target, others), f.sourceDiscard(source, target))
 		}
 	case preflight.Demote, preflight.Repoint, preflight.MarkRecovered, preflight.Abandon, preflight.Resolve,
 		preflight.Init, preflight.ArbiterInit, preflight.AppsSync, preflight.Verify:
@@ -452,11 +452,11 @@ func (f fakePreflight) Run(_ context.Context, req preflight.Request) (check.Verd
 	return check.Decide(cs, req.Confirmations), nil
 }
 
-// unpromotedFailover returns the target of op and the standbys it repoints when op is a
-// failover whose promotion did not succeed.
-func unpromotedFailover(op *dcctlv1.Operation) (target string, others []string, ok bool) {
+// unpromotedFailover returns the source and the target of op and the standbys it
+// repoints when op is a failover whose promotion did not succeed.
+func unpromotedFailover(op *dcctlv1.Operation) (source, target string, others []string, ok bool) {
 	if op.GetType() != dcctlv1.Operation_FAILOVER {
-		return "", nil, false
+		return "", "", nil, false
 	}
 
 	ok = true
@@ -466,12 +466,42 @@ func unpromotedFailover(op *dcctlv1.Operation) (target string, others []string, 
 			others = append(others, strings.TrimPrefix(st.GetDatacenter(), "datacenters/"))
 		}
 
+		if st.GetType() == dcctlv1.Operation_Step_PATRONI_DEMOTE {
+			source = strings.TrimPrefix(st.GetDatacenter(), "datacenters/")
+		}
+
 		if st.GetType() == dcctlv1.Operation_Step_PATRONI_PROMOTE {
 			ok = st.GetState() != dcctlv1.Operation_Step_SUCCEEDED
 		}
 	}
 
-	return strings.TrimPrefix(op.GetTarget(), "datacenters/"), others, ok
+	return source, strings.TrimPrefix(op.GetTarget(), "datacenters/"), others, ok
+}
+
+// sourceDiscard is patroni.source_discard of a failover from a to b: while a is read as
+// primary, the WAL it wrote beyond what b received needs max_discard_bytes.
+func (f fakePreflight) sourceDiscard(a, b string) check.Check {
+	c := check.Check{
+		ID: check.PatroniSourceDiscard, Result: check.Skip, Effect: check.Confirm, Confirmation: check.ConfirmMaxDiscardBytes,
+		Datacenter: a,
+	}
+
+	if da := f.w.dc(a); da.unread || da.role != patroni.RolePrimary {
+		return c
+	}
+
+	n, err := fakePatroni{f.w}.DemoteLoss(context.Background(), pgctl.Cluster{Datacenter: a}, pgctl.Cluster{Datacenter: b})
+
+	switch {
+	case err != nil:
+		c.Result = check.Fail
+	case n > 0:
+		c.Result, c.DiscardBytes = check.Fail, &n
+	default:
+		c.Result = check.Pass
+	}
+
+	return c
 }
 
 func isolationCheck() check.Check {
@@ -560,6 +590,10 @@ type dcState struct {
 	received        int64
 	receivedUnknown bool
 	streaming       bool
+	// location is the WAL its leader wrote, when primary; leftAt is where it left the
+	// timeline of a standby on another timeline, 0 when its history does not tell.
+	location int64
+	leftAt   int64
 	// diverged is how many bytes the cluster holds past its divergence from the primary.
 	diverged int64
 }
@@ -892,6 +926,11 @@ func (f fakePatroni) Leader(_ context.Context, cl pgctl.Cluster) (patroni.Member
 		st.ReplicationState = patroni.ReplicationStreaming
 	}
 
+	if d.role == patroni.RolePrimary {
+		location := d.location
+		st.Xlog.Location = &location
+	}
+
 	return patroni.Member{Name: cl.Datacenter + "1", Probe: st}, nil
 }
 
@@ -907,6 +946,24 @@ func (f fakePatroni) Divergence(_ context.Context, standby, _ pgctl.Cluster) (pa
 	}
 
 	return patroni.Divergence{}, nil
+}
+
+// DemoteLoss is what demoting primary to follow standby discards; it records no call.
+func (f fakePatroni) DemoteLoss(_ context.Context, primary, standby pgctl.Cluster) (int64, error) {
+	dp, ds := f.w.dc(primary.Datacenter), f.w.dc(standby.Datacenter)
+
+	switch {
+	case dp.unread || ds.unread:
+		return 0, fmt.Errorf("patroni cluster of %s or %s not read", primary.Datacenter, standby.Datacenter)
+	case ds.receivedUnknown:
+		return 0, fmt.Errorf("the WAL %s received is not known", standby.Datacenter)
+	case dp.timeline != ds.timeline && dp.leftAt == 0:
+		return 0, fmt.Errorf("where %s left timeline %d is not known", primary.Datacenter, ds.timeline)
+	case dp.timeline != ds.timeline:
+		return max(0, dp.location-min(ds.received, dp.leftAt)), nil
+	}
+
+	return max(0, dp.location-ds.received), nil
 }
 
 // nomadStub and patroniStub fill the datacenters of the deps; the fake primitives do not

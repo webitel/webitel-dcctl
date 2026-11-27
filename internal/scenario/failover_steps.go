@@ -79,46 +79,115 @@ func (f *Failover) stopOld(r route, from int) operation.StepFunc {
 	}
 }
 
-// demoteOld makes the cluster of a a standby of b when a is read as primary. a not
-// read, or a demotion that fails, is a warning: the promotion of b checks again that a
-// is not primary. a read as not primary needs nothing.
+// notDemotedError is why demoteSource did not demote the old primary.
+type notDemotedError struct{ reason string }
+
+func (e *notDemotedError) Error() string { return e.reason }
+
+// demoteSource makes the cluster of a, read as primary, a standby of b when the run of
+// the step confirmed as max_discard_bytes the WAL its demotion discards, measured now,
+// see [patroni.DemoteLoss]. It returns *notDemotedError when it does not demote a or the
+// demotion fails; any other error ends the step.
+func (f *Failover) demoteSource(ctx context.Context, x *operation.Exec, r route) error {
+	n, err := f.d.Patroni.DemoteLoss(ctx, f.d.cluster(r.a), f.d.cluster(r.b))
+
+	switch confirmed := x.Confirmed().MaxDiscardBytes; {
+	case err != nil && ctx.Err() != nil:
+		return err
+	case err != nil:
+		return &notDemotedError{fmt.Sprintf("%s is primary and not demoted, the WAL its demotion discards is not known: %v", r.a, err)}
+	case n > confirmed:
+		return &notDemotedError{fmt.Sprintf("%s is primary and not demoted, its demotion discards %d bytes of WAL, %d are confirmed: "+
+			"max_discard_bytes of %d demotes it", r.a, n, confirmed, n)}
+	}
+
+	_, err = f.d.Patroni.Demote(ctx, f.d.cluster(r.a), f.d.cluster(r.b), patroniOptions(x, f.guard(x, r, afterGeneration)))
+
+	switch {
+	case err == nil:
+		return nil
+	case stopping(ctx, err):
+		return err
+	}
+
+	return &notDemotedError{fmt.Sprintf("%s is not demoted: %v", r.a, err)}
+}
+
+// demoteOld demotes a while it is read as primary, see [Failover.demoteSource]. A
+// demotion it does not make is skipped with a warning: the promotion of b tries it
+// again. a read as not primary needs nothing.
 func (f *Failover) demoteOld(r route) operation.StepFunc {
 	return func(ctx context.Context, x *operation.Exec) error {
-		res, err := f.d.Patroni.NoPrimary(ctx, nil, f.d.clusters(r.a), patroniOptions(x, nil))
-
-		var pe *pgctl.PrimaryError
+		la, err := f.d.Patroni.Leader(ctx, f.d.cluster(r.a))
 
 		switch {
-		case errors.As(err, &pe):
 		case err != nil && ctx.Err() != nil:
 			return err
 		case err != nil:
-			x.Warn(fmt.Sprintf("%s is not demoted, it is not known whether it is primary: %v", r.a, err))
+			x.Warn(fmt.Sprintf("%s is not read, it is not demoted: %v", r.a, err))
+			x.Skip(r.a + " is not read")
 
 			return nil
-		case slices.Contains(res.Unread, r.a):
-			x.Warn(fmt.Sprintf("%s is not read, it is not demoted", r.a))
-
-			return nil
-		default:
-			x.Skip(r.a + " is not primary")
+		case la.Probe.Role != patroni.RolePrimary:
+			x.Skip(fmt.Sprintf("%s is not primary, it is %s", r.a, la.Probe.Role))
 
 			return nil
 		}
 
-		_, err = f.d.Patroni.Demote(ctx, f.d.cluster(r.a), f.d.cluster(r.b), patroniOptions(x, f.guard(x, r, afterGeneration)))
-		if err == nil || stopping(ctx, err) {
-			return err
+		err = f.demoteSource(ctx, x, r)
+
+		var nd *notDemotedError
+		if errors.As(err, &nd) {
+			x.Warn(nd.reason)
+			x.Skip(r.a + " is not demoted")
+
+			return nil
 		}
 
-		x.Warn(fmt.Sprintf("%s is not demoted: %v", r.a, err))
-
-		return nil
+		return err
 	}
 }
 
+// demoteBeforePromote demotes a when the promotion of b reads it as primary, as after a
+// demotion step that was skipped, and checks that a is no longer primary. A demotion it
+// does not make interrupts the operation, telling the bound to confirm. a not read is
+// left to the check for a primary.
+func (f *Failover) demoteBeforePromote(ctx context.Context, x *operation.Exec, r route) error {
+	la, err := f.d.Patroni.Leader(ctx, f.d.cluster(r.a))
+
+	switch {
+	case err != nil && ctx.Err() != nil:
+		return err
+	case err != nil, la.Probe.Role != patroni.RolePrimary:
+		return nil
+	}
+
+	if err := f.demoteSource(ctx, x, r); err != nil {
+		return interrupt(err)
+	}
+
+	la, err = f.d.Patroni.Leader(ctx, f.d.cluster(r.a))
+
+	switch {
+	case err != nil:
+		return interrupt(fmt.Errorf("%s is not read after its demotion: %w", r.a, err))
+	case la.Probe.Role == patroni.RolePrimary:
+		return interrupt(fmt.Errorf("%s is still primary after its demotion", r.a))
+	}
+
+	x.Warn(fmt.Sprintf("%s is demoted at the promotion of %s", r.a, r.b))
+
+	return nil
+}
+
+// unreachableStandby is the warning of a standby that is not read before the promotion.
+func unreachableStandby(dc string) string {
+	return dc + " is not reachable; it may be primary or run apps"
+}
+
 // promoteOver promotes the cluster of b over a lost or isolated a, as the switch does
-// once no other cluster is primary: a must be read unless the run of the step confirmed
+// once no other cluster is primary. a read as primary is demoted first, see
+// [Failover.demoteBeforePromote]. Then a must be read unless the run of the step confirmed
 // its isolation, and a primary read anywhere interrupts. While b is not promoted and a
 // is not read, b or another standby that still streams from its upstream shows a alive,
 // which interrupts too; so does WAL the promotion would discard on another standby
@@ -132,7 +201,17 @@ func (f *Failover) promoteOver(r route) operation.StepFunc {
 			need, others = nil, slices.Concat([]string{r.a}, r.c)
 		}
 
-		unread, err := f.checkNoPrimary(ctx, x, need, others)
+		if err := f.demoteBeforePromote(ctx, x, r); err != nil {
+			return err
+		}
+
+		unread, err := f.checkNoPrimary(ctx, x, need, others, func(dc string) string {
+			if dc == r.a {
+				return notKnownPrimary(dc)
+			}
+
+			return unreachableStandby(dc)
+		})
 		if err != nil {
 			return err
 		}

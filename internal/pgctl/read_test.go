@@ -135,3 +135,40 @@ func TestDivergence_fails(t *testing.T) {
 		})
 	}
 }
+
+func TestDemoteLoss(t *testing.T) {
+	tests := []struct {
+		name string
+		// timeline is the timeline of the primary dc_a, which left timeline 5 at 1000.
+		timeline   int64
+		historyErr error
+		want       int64
+		fails      bool
+	}{
+		{name: "same_timeline", timeline: 5, want: 300},
+		{name: "newer_timeline", timeline: 6, want: 500},
+		{name: "history_not_read", timeline: 6, historyErr: errDown, fails: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := newWorld(t)
+			a := w.cluster(dcA, member("a1", "10.0.1.1", patroni.RolePrimary, tt.timeline, 1))
+			a.history, a.historyErr = []patroni.HistoryEntry{{Timeline: 5, LSN: 1000}}, tt.historyErr
+			a.do(func(f *fakeCluster) { f.m("a1").Probe.Xlog.Location = i64(1500) })
+
+			b := w.cluster(dcB, member("b1", "10.0.2.1", patroni.RoleStandbyLeader, 5, 1))
+			b.do(func(f *fakeCluster) { f.m("b1").Probe.Xlog.ReceivedLocation = i64(1200) })
+
+			n, err := w.ctl.DemoteLoss(t.Context(), pgctl.Cluster{Datacenter: dcA, Patroni: a}, pgctl.Cluster{Datacenter: dcB, Patroni: b})
+			if tt.fails {
+				require.ErrorIs(t, err, tt.historyErr)
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, n)
+		})
+	}
+}

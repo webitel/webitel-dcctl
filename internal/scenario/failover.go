@@ -41,8 +41,9 @@ func NewFailover(d Deps) (*Failover, error) {
 // generation in the mode the voters of that state allow. It fails with
 // [ErrCannotPlan] when that state gives no record to start from or no mode to write
 // in, when the target is the datacenter it starts from or is not configured, for a
-// profile other than warm_standby, and for a request with max_discard_bytes, which no
-// check of a failover of warm_standby takes.
+// profile other than warm_standby, and for a request with max_discard_bytes that the
+// verdict of pre does not ask for: it bounds only the WAL the demotion of an old active
+// datacenter read as primary discards.
 func (f *Failover) Plan(req *dcctlv1.FailoverDatacenterRequest, initiator *dcctlv1.Initiator, pre preflight.Result) (operation.Plan, error) {
 	st := pre.Status
 
@@ -51,9 +52,9 @@ func (f *Failover) Plan(req *dcctlv1.FailoverDatacenterRequest, initiator *dcctl
 	}
 
 	c := req.GetConfirmation()
-	if c.GetMaxDiscardBytes() > 0 {
-		return operation.Plan{}, fmt.Errorf("%w: max_discard_bytes is not used by a failover of %s, not_max_lsn confirms the loss",
-			ErrCannotPlan, config.ProfileWarmStandby)
+	if c.GetMaxDiscardBytes() > 0 && !discardAsked(pre.Verdict) {
+		return operation.Plan{}, fmt.Errorf("%w: max_discard_bytes confirms only the WAL the demotion of the old primary discards, "+
+			"and the preflight does not read it as primary", ErrCannotPlan)
 	}
 
 	base := coord.Base(st.View, true)
@@ -87,9 +88,11 @@ func (f *Failover) Plan(req *dcctlv1.FailoverDatacenterRequest, initiator *dcctl
 		RequestID: req.GetRequestId(),
 		Initiator: initiator,
 		Preflight: preflight.Request{
-			Action:        preflight.Failover,
-			Params:        preflight.Params{Datacenter: r.b},
-			Confirmations: check.Confirmations{Isolation: c.GetIsolation(), NotMaxLSN: c.GetNotMaxLsn()},
+			Action: preflight.Failover,
+			Params: preflight.Params{Datacenter: r.b},
+			Confirmations: check.Confirmations{
+				Isolation: c.GetIsolation(), NotMaxLSN: c.GetNotMaxLsn(), MaxDiscardBytes: c.GetMaxDiscardBytes(),
+			},
 		},
 		Mode:               mode,
 		PreviousGeneration: base.State.Generation,
@@ -97,6 +100,14 @@ func (f *Failover) Plan(req *dcctlv1.FailoverDatacenterRequest, initiator *dcctl
 		PreviousActive:     r.a,
 		Steps:              f.steps(r),
 	}, nil
+}
+
+// discardAsked reports whether v asks for max_discard_bytes: the old active datacenter
+// is read as primary and its demotion discards a known amount.
+func discardAsked(v check.Verdict) bool {
+	return slices.ContainsFunc(v.Checks, func(c check.Check) bool {
+		return c.ID == check.PatroniSourceDiscard && c.Result == check.Fail && c.DiscardBytes != nil
+	})
 }
 
 // Resume rebuilds the steps of the interrupted failover op from its recorded steps, see

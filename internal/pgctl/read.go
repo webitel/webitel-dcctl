@@ -67,6 +67,52 @@ func (c *Controller) Divergence(ctx context.Context, standby, primary Cluster) (
 	return d, nil
 }
 
+// DemoteLoss reads how many bytes of WAL the primary cluster of primary holds beyond what
+// the standby cluster of standby received, see [patroni.DemoteLoss]: demoting primary to
+// follow standby discards them. It fails when what it reads does not tell. It sends
+// nothing and takes no guard.
+func (c *Controller) DemoteLoss(ctx context.Context, primary, standby Cluster) (int64, error) {
+	ctx, cancel := context.WithTimeout(ctx, readTimeout)
+	defer cancel()
+
+	pl, err := readLeader(ctx, primary)
+	if err != nil {
+		return 0, err
+	}
+
+	sl, err := readLeader(ctx, standby)
+	if err != nil {
+		return 0, err
+	}
+
+	loc, recv := pl.Probe.Xlog.Location, sl.Probe.Xlog.ReceivedLocation
+
+	switch {
+	case loc == nil:
+		return 0, fmt.Errorf("the WAL location of %s is not known", pl.Name)
+	case recv == nil:
+		return 0, fmt.Errorf("the WAL %s received is not known", sl.Name)
+	case pl.Probe.Timeline == nil || sl.Probe.Timeline == nil:
+		return 0, fmt.Errorf("timeline of %s or %s unknown", pl.Name, sl.Name)
+	}
+
+	var history []patroni.HistoryEntry
+
+	if *pl.Probe.Timeline != *sl.Probe.Timeline {
+		history, err = primary.Patroni.History(ctx, pl.Endpoint)
+		if err != nil {
+			return 0, fmt.Errorf("history of %s not read: %w", primary.Datacenter, err)
+		}
+	}
+
+	n, ok := patroni.DemoteLoss(*pl.Probe.Timeline, history, *loc, *sl.Probe.Timeline, *recv)
+	if !ok {
+		return 0, fmt.Errorf("where %s left timeline %d of %s is not known", primary.Datacenter, *sl.Probe.Timeline, standby.Datacenter)
+	}
+
+	return n, nil
+}
+
 // readLeader returns the leader of cl with its GET /patroni.
 func readLeader(ctx context.Context, cl Cluster) (patroni.Member, error) {
 	members, err := cl.Patroni.Members(ctx)

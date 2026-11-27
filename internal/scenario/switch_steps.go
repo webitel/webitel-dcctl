@@ -145,10 +145,18 @@ func (s *core) demote(r route) operation.StepFunc {
 	}
 }
 
+// notKnownPrimary is the warning of a cluster that is not read where none may be
+// primary.
+func notKnownPrimary(dc string) string {
+	return dc + " is not read, it is not known whether it is primary"
+}
+
 // checkNoPrimary checks that no cluster of need and others is primary: the clusters of
-// need must be read, one of others that is not read is a warning, and unread names it.
-// A primary found interrupts the operation.
-func (s *core) checkNoPrimary(ctx context.Context, x *operation.Exec, need, others []string) (unread []string, err error) {
+// need must be read, one of others that is not read is the warning unreadWarning gives,
+// and unread names it. A primary found interrupts the operation.
+func (s *core) checkNoPrimary(ctx context.Context, x *operation.Exec, need, others []string, unreadWarning func(dc string) string) (
+	unread []string, err error,
+) {
 	res, err := s.d.Patroni.NoPrimary(ctx, s.d.clusters(need...), s.d.clusters(others...), patroniOptions(x, nil))
 
 	var pe *pgctl.PrimaryError
@@ -157,7 +165,7 @@ func (s *core) checkNoPrimary(ctx context.Context, x *operation.Exec, need, othe
 	}
 
 	for _, dc := range res.Unread {
-		x.Warn(fmt.Sprintf("%s is not read, it is not known whether it is primary", dc))
+		x.Warn(unreadWarning(dc))
 	}
 
 	return res.Unread, err
@@ -168,7 +176,7 @@ func (s *core) checkNoPrimary(ctx context.Context, x *operation.Exec, need, othe
 // generation still names a and the switch did not promote b.
 func (s *core) promoteBack(r route) operation.StepFunc {
 	return func(ctx context.Context, x *operation.Exec) error {
-		if _, err := s.checkNoPrimary(ctx, x, nil, slices.Concat([]string{r.b}, r.c)); err != nil {
+		if _, err := s.checkNoPrimary(ctx, x, nil, slices.Concat([]string{r.b}, r.c), notKnownPrimary); err != nil {
 			return err
 		}
 
@@ -195,7 +203,7 @@ func (s *core) noPrimary(r route) operation.StepFunc {
 		res, err := s.d.Patroni.NoPrimary(ctx, s.d.clusters(r.a, r.b), s.d.clusters(r.c...), patroniOptions(x, nil))
 
 		for _, dc := range res.Unread {
-			x.Warn(fmt.Sprintf("%s is not read, it is not known whether it is primary", dc))
+			x.Warn(notKnownPrimary(dc))
 		}
 
 		return primaryElsewhere(err, r.a)
@@ -384,7 +392,7 @@ func (s *core) promote(r route) operation.StepFunc {
 			need, others = nil, slices.Concat([]string{r.a}, r.c)
 		}
 
-		if _, err := s.checkNoPrimary(ctx, x, need, others); err != nil {
+		if _, err := s.checkNoPrimary(ctx, x, need, others, notKnownPrimary); err != nil {
 			return err
 		}
 
