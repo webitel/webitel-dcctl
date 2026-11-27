@@ -668,6 +668,64 @@ func (in *Input) maxLSN(b string, cs []string) check.Check {
 	return c.pass(b+" received the most WAL of the standbys that answer", facts)
 }
 
+// sourceDiscard needs the operator to accept, as max_discard_bytes, the WAL the old
+// primary a holds beyond what b received while a is read as primary, see
+// [patroni.DemoteLoss]: the failover to b demotes a, and its rewind discards that WAL. It is skipped while a is not read or not
+// primary, as the failover then demotes nothing. An amount that is not known has no
+// bound.
+func (in *Input) sourceDiscard(a, b string) check.Check {
+	c := confirm(check.PatroniSourceDiscard, check.ConfirmMaxDiscardBytes, a)
+
+	if a == "" {
+		return c.skip("the datacenter failed over from is not known")
+	}
+
+	sa := in.pgDatacenter(a)
+
+	switch {
+	case !sa.src.Reachable || sa.leader == nil || !sa.leader.Reachable:
+		return c.skip(a + " is not read, the failover does not demote it")
+	case sa.leader.Role != status.RolePrimary:
+		return c.skip(a + " is not primary, the failover does not demote it")
+	}
+
+	sb := in.pgDatacenter(b)
+	loc, ta := sa.leader.Xlog.Location, sa.leader.Timeline
+	rb, fb := received(sb)
+	facts := map[string]any{"target": fb}
+
+	if loc != nil {
+		facts["xlog_location"] = formatLSN(*loc)
+	}
+
+	var tb *int64
+	if sb.leader != nil {
+		tb = sb.leader.Timeline
+	}
+
+	var history []patroni.HistoryEntry
+	if sa.cluster != nil && sa.cluster.Patroni.Data.History.Reachable {
+		history = sa.cluster.Patroni.Data.History.Data
+	}
+
+	if loc == nil || rb == nil || ta == nil || tb == nil {
+		return c.fail(fmt.Sprintf("the WAL %s holds beyond %s is not known, the amount is not known", a, b), facts)
+	}
+
+	n, ok := patroni.DemoteLoss(*ta, history, *loc, *tb, *rb)
+	if !ok {
+		return c.fail(fmt.Sprintf("where %s left timeline %d of %s is not known, the amount is not known", a, *tb, b), facts)
+	}
+
+	facts["divergence_bytes"] = n
+
+	if n == 0 {
+		return c.pass(b+" received all the WAL of "+a, facts)
+	}
+
+	return c.discard(fmt.Sprintf("%s holds %d bytes of WAL that %s did not receive, demoting %s discards them", a, n, b, a), facts, n)
+}
+
 // Candidates returns the members of dc that Patroni may promote, best first, in the
 // order Patroni itself picks: the most WAL first, the highest failover_priority among
 // those with equal WAL. A candidate answers over verified TLS with a supported version,

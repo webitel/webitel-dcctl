@@ -62,7 +62,7 @@ func Checks(in *Input) ([]check.Check, error) {
 		}
 
 		if unpromoted {
-			cs = append(cs, in.maxLSN(r.target, r.others))
+			cs = append(cs, in.maxLSN(r.target, r.others), in.sourceDiscard(r.source, r.target))
 		}
 
 		return cs, nil
@@ -171,7 +171,7 @@ func (in *Input) failoverWarm(b string) []check.Check {
 		in.common(""),
 		[]check.Check{in.quorum(check.WarnOnly), in.isolation(), in.targetValid(), in.targetNotNeedsRecovery()},
 		in.basicOf(b),
-		[]check.Check{in.targetStandbyLeader(), in.targetNotStreaming(), in.targetMaxLSN()},
+		[]check.Check{in.targetStandbyLeader(), in.targetNotStreaming(), in.targetMaxLSN(), in.sourceDiscard(in.activeName(), b)},
 		in.failoverApps(b),
 	)
 }

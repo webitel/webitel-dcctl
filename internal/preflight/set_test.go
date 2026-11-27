@@ -125,6 +125,7 @@ func TestChecks_sets(t *testing.T) {
 					{check.PatroniTargetStandbyLeader, dcB, b},
 					{check.PatroniTargetNotStreaming, dcB, b},
 					{check.PatroniTargetMaxLSN, dcB, c},
+					{check.PatroniSourceDiscard, dcA, c},
 					{check.NomadReachable, dcB, b},
 					{check.NomadStagesValid, dcB, b},
 					{check.NomadTargetPlan, dcB, b},
