@@ -115,6 +115,11 @@ func (f *follow) observe(ctx context.Context) (Observation, bool, error) {
 		return readFailed(f.standby.Datacenter, err)
 	}
 
+	return f.streams(ctx, members)
+}
+
+// streams is observe on members, the standby cluster as just read.
+func (f *follow) streams(ctx context.Context, members []patroni.Member) (Observation, bool, error) {
 	obs := describe(members)
 
 	sl, ok := leaderOf(members)
