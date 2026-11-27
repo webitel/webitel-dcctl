@@ -330,8 +330,8 @@ type operationDeps struct {
 
 // newEngine returns the operation engine, the preflight of the actions and their
 // planners. The preflight collects with consistent reads and plans the managed jobs on
-// the Nomad leaders, as an action acts on what it reads. In warm_standby the switch and
-// the failover plan their actions and resume their interrupted operations.
+// the Nomad leaders, as an action acts on what it reads. The switch and the failover of
+// the profile plan their actions and resume their interrupted operations.
 func newEngine(cfg *config.Serve, d operationDeps) (*operation.Engine, *preflight.Runner, api.Planners, error) {
 	locker, err := coord.NewLocker(d.kvs, coord.LockOptions{
 		TTL:       cfg.Coordination.SessionTTL,
@@ -379,15 +379,13 @@ func newEngine(cfg *config.Serve, d operationDeps) (*operation.Engine, *prefligh
 
 	var actions api.Planners
 
-	if cfg.Profile == config.ProfileWarmStandby {
-		sw, fo, err := newScenarios(cfg, d, runner, nomads)
-		if err != nil {
-			return nil, nil, api.Planners{}, err
-		}
-
-		resumers[dcctlv1.Operation_SWITCH], actions.Switch = sw, sw
-		resumers[dcctlv1.Operation_FAILOVER], actions.Failover = fo, fo
+	sw, fo, err := newScenarios(cfg, d, runner, nomads)
+	if err != nil {
+		return nil, nil, api.Planners{}, err
 	}
+
+	resumers[dcctlv1.Operation_SWITCH], actions.Switch = sw, sw
+	resumers[dcctlv1.Operation_FAILOVER], actions.Failover = fo, fo
 
 	e, err := operation.New(operation.Config{
 		Self:        operation.Instance{Node: d.self.Node, Datacenter: d.self.Datacenter, Address: cfg.Listen.Peer},
@@ -408,11 +406,25 @@ func newEngine(cfg *config.Serve, d operationDeps) (*operation.Engine, *prefligh
 	return e, runner, actions, nil
 }
 
-// newScenarios returns the switch and the failover of warm_standby. They change the apps
+// switchScenario plans a switch and resumes it.
+type switchScenario interface {
+	api.Planner[*dcctlv1.SwitchDatacenterRequest]
+	operation.Resumer
+}
+
+// failoverScenario plans a failover and resumes it.
+type failoverScenario interface {
+	api.Planner[*dcctlv1.FailoverDatacenterRequest]
+	operation.Resumer
+}
+
+// newScenarios returns the switch and the failover of the profile. They change the apps
 // through the Nomad clients of the preflight, which read consistently, and Patroni
 // through clients that find the members in the Consul of their datacenter without stale
 // reads.
-func newScenarios(cfg *config.Serve, d operationDeps, verifier *preflight.Runner, nomads map[string]*nomad.Client) (*scenario.Switch, *scenario.Failover, error) {
+func newScenarios(cfg *config.Serve, d operationDeps, verifier *preflight.Runner, nomads map[string]*nomad.Client) (
+	switchScenario, failoverScenario, error,
+) {
 	a, err := apps.New(cfg.Apps, logging.New(logging.WithComponent("dcctl.apps")))
 	if err != nil {
 		return nil, nil, fmt.Errorf("apps: %w", err)
@@ -440,6 +452,20 @@ func newScenarios(cfg *config.Serve, d operationDeps, verifier *preflight.Runner
 		Coordinator: d.coordinator,
 		Verifier:    verifier,
 		Datacenters: dcs,
+	}
+
+	if cfg.Profile == config.ProfileStretch {
+		sw, err := scenario.NewStretchSwitch(deps)
+		if err != nil {
+			return nil, nil, fmt.Errorf("switch: %w", err)
+		}
+
+		fo, err := scenario.NewStretchFailover(deps)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failover: %w", err)
+		}
+
+		return sw, fo, nil
 	}
 
 	sw, err := scenario.NewSwitch(deps)
