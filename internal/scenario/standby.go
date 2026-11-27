@@ -290,3 +290,90 @@ func (s *core) startedFrom(view coord.View, generation int64, dc string) (string
 func (s *core) guardOn(x *operation.Exec, active string) func(context.Context) error {
 	return s.guard(x, route{a: active}, beforeGeneration)
 }
+
+// writeRecovery writes the record of generation, the one the operation started from,
+// with dc added to needs_recovery when add is set and removed otherwise, on a majority of
+// voters, also when the record is forced. A record a majority holds so already needs
+// nothing and the step is skipped: a resumed step finds the write of an earlier run so.
+// before, when set, runs right before the write and refuses it with its error. A payload
+// split is refused, and so is a record the voters no longer hold; a write that does not
+// reach a majority interrupts the operation, to be finished by a resume.
+func (s *core) writeRecovery(ctx context.Context, x *operation.Exec, generation int64, dc string, add bool,
+	before func(active string) error,
+) error {
+	view, err := s.d.Coordinator.Read(ctx)
+	if err != nil {
+		return err
+	}
+
+	active, err := s.startedFrom(view, generation, dc)
+	if err != nil {
+		return err
+	}
+
+	// startedFrom found the effective record the operation started from.
+	eff := *view.Effective
+	state := "without"
+
+	if add {
+		state = "with"
+	}
+
+	switch {
+	case !eff.Settled:
+		return payloadSplit(eff.State.Generation, eff.State.Revision, active)
+	case recoveryOn(view, eff, dc, add) >= view.Majority:
+		x.Skip(fmt.Sprintf("a majority of voters holds needs_recovery %s %s already", state, dc))
+
+		return nil
+	}
+
+	if before != nil {
+		if err := before(active); err != nil {
+			return err
+		}
+	}
+
+	rec := coord.RecordKey{Generation: generation, ActiveDatacenter: active}
+	write, action := s.d.Coordinator.RemoveNeedsRecovery, "remove "+dc+" from needs_recovery"
+
+	if add {
+		write, action = s.d.Coordinator.AddNeedsRecovery, "add "+dc+" to needs_recovery"
+	}
+
+	res, err := x.Write(ctx, action, func(ctx context.Context) (coord.WriteResult, error) { return write(ctx, rec, dc) })
+
+	switch {
+	case errors.Is(err, coord.ErrUnsettled):
+		return fmt.Errorf("%w: %w", payloadSplit(eff.State.Generation, eff.State.Revision, active), err)
+	case err != nil:
+		return err
+	case len(res.Accepted()) < res.Majority:
+		return interrupt(fmt.Errorf("needs_recovery %s %s is on %d voters, a majority of %d is needed: %w",
+			state, dc, len(res.Accepted()), res.Majority, coord.ErrUncommitted))
+	}
+
+	return nil
+}
+
+// recoveryOn counts the voters that hold rec at its revision with dc in needs_recovery
+// when needs is set, without it otherwise.
+func recoveryOn(view coord.View, rec coord.Record, dc string, needs bool) int {
+	n := 0
+
+	for _, vs := range view.Voters {
+		if vs.Status == coord.StatusPresent && coord.KeyOf(vs.State) == coord.KeyOf(rec.State) &&
+			vs.State.Revision == rec.State.Revision && slices.Contains(vs.State.NeedsRecovery, dc) == needs {
+			n++
+		}
+	}
+
+	return n
+}
+
+// payloadSplit is the refusal of a change of generation of active, whose voters hold
+// different payloads of revision and none of them on a majority.
+func payloadSplit(generation, revision int64, active string) error {
+	return fmt.Errorf("payload split: the voters hold different payloads of revision %d of generation %d of %s and none is "+
+		"on a majority; needs_recovery changes only once one payload is chosen explicitly", revision, generation, active)
+}

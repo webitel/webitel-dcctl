@@ -35,7 +35,7 @@ func Checks(in *Input) ([]check.Check, error) {
 		return concat(
 			[]check.Check{in.profileSupported()},
 			in.common(dc),
-			[]check.Check{in.dcNotActive()},
+			[]check.Check{in.quorum(check.Block), in.payloadSettled(), in.dcNotActive()},
 			in.basicOf(dc), in.basicOf(a),
 			[]check.Check{in.activePrimary(), in.dcPrimary(), in.divergence(), in.dcAppsStopped()},
 		), nil
@@ -98,8 +98,8 @@ func Checks(in *Input) ([]check.Check, error) {
 
 // resumeAnew returns what a resumed op decides anew, on what the datacenters and the
 // voters show now, before the step that acts on it: the WAL a demotion or a repoint that
-// did not succeed discards, and the payload split the write of a switch, a failover or
-// mark-recovered must not meet. A demotion that took already, its datacenter a standby
+// did not succeed discards, and the payload split the write of a switch, a failover, a
+// demote or mark-recovered must not meet. A demotion that took already, its datacenter a standby
 // of the active one, discards nothing more.
 func (in *Input) resumeAnew(op *dcctlv1.Operation) []check.Check {
 	target := datacenterID(op.GetTarget())
@@ -111,17 +111,22 @@ func (in *Input) resumeAnew(op *dcctlv1.Operation) []check.Check {
 			return []check.Check{in.payloadSettledOnResume(op.GetType() == dcctlv1.Operation_FAILOVER)}
 		}
 	case dcctlv1.Operation_DEMOTE:
-		if !Unfinished(op, dcctlv1.Operation_Step_PATRONI_DEMOTE) {
-			return nil
+		var cs []check.Check
+
+		if Unfinished(op, dcctlv1.Operation_Step_GENERATION) {
+			cs = append(cs, in.payloadSettledOnResume(false))
 		}
 
-		if a := in.activeName(); a != "" && in.standbyOf(target, a) {
-			return []check.Check{
-				confirm(check.PatroniDivergence, check.ConfirmMaxDiscardBytes, target).skip(target + " is a standby of " + a + " already"),
-			}
+		switch a := in.activeName(); {
+		case !Unfinished(op, dcctlv1.Operation_Step_PATRONI_DEMOTE):
+		case a != "" && in.standbyOf(target, a):
+			cs = append(cs,
+				confirm(check.PatroniDivergence, check.ConfirmMaxDiscardBytes, target).skip(target+" is a standby of "+a+" already"))
+		default:
+			cs = append(cs, in.divergenceOf(target))
 		}
 
-		return []check.Check{in.divergenceOf(target)}
+		return cs
 	case dcctlv1.Operation_REPOINT:
 		if Unfinished(op, dcctlv1.Operation_Step_PATRONI_REPOINT) {
 			return []check.Check{in.divergenceOf(target)}

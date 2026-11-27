@@ -158,7 +158,9 @@ func TestChecks_sets(t *testing.T) {
 		},
 		{
 			name: "demote", snap: warm, action: Demote, params: Params{Datacenter: dcB},
-			want: cat([]item{{check.CoordProfile, "", b}}, common(), []item{{check.CoordDCNotActive, dcB, b}}, basicItems(dcB), basicItems(dcA), []item{
+			want: cat([]item{{check.CoordProfile, "", b}}, common(), []item{
+				{check.CoordQuorum, "", b}, {check.CoordPayloadSettled, "", b}, {check.CoordDCNotActive, dcB, b},
+			}, basicItems(dcB), basicItems(dcA), []item{
 				{check.PatroniActivePrimary, dcA, b},
 				{check.PatroniDCPrimary, dcB, b},
 				{check.PatroniDivergence, dcB, c},

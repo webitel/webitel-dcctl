@@ -109,8 +109,22 @@ func TestResumeRecoveryDiscard(t *testing.T) {
 	}
 }
 
-// A resumed mark-recovered whose write did not succeed refuses a payload split.
+// A resumed demote or mark-recovered whose write did not succeed refuses a payload split.
 func TestResumeMarkRecoveredPayloadSplit(t *testing.T) {
+	demote := recoveryOp(dcctlv1.Operation_DEMOTE,
+		stepIn(dcctlv1.Operation_Step_GENERATION, dcctlv1.Operation_Step_FAILED),
+		stepIn(dcctlv1.Operation_Step_PATRONI_DEMOTE, dcctlv1.Operation_Step_SUCCEEDED),
+		stepIn(dcctlv1.Operation_Step_PATRONI_FOLLOW, dcctlv1.Operation_Step_PENDING),
+	)
+
+	splitSnap := warm()
+	payloadSplit(splitSnap)
+	setOp(t, splitSnap, demote)
+
+	demoteChecks, err := Checks(newInput(splitSnap, Resume, Params{Operation: "op-2"}))
+	require.NoError(t, err)
+	assert.Equal(t, check.Fail, find(t, demoteChecks, check.CoordPayloadSettled, "").Result)
+
 	op := recoveryOp(dcctlv1.Operation_MARK_RECOVERED,
 		stepIn(dcctlv1.Operation_Step_PATRONI_FOLLOW, dcctlv1.Operation_Step_SUCCEEDED),
 		stepIn(dcctlv1.Operation_Step_GENERATION, dcctlv1.Operation_Step_FAILED),
