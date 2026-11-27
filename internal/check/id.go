@@ -25,6 +25,10 @@ const (
 	// CoordBaseUnchanged fails when the voters no longer hold the record an operation
 	// was planned from. The engine decides it under the lock, after the preflight.
 	CoordBaseUnchanged ID = "coord.base_unchanged"
+	// CoordPayloadSettled fails on a payload split: the voters of the record an action
+	// starts from hold different payloads of its revision, none of them on a majority.
+	// Nothing settles it but an explicit choice of one payload.
+	CoordPayloadSettled ID = "coord.payload_settled"
 )
 
 // Patroni checks. A check about one datacenter has a result for each datacenter the

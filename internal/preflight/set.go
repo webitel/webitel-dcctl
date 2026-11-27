@@ -47,7 +47,9 @@ func Checks(in *Input) ([]check.Check, error) {
 			[]check.Check{in.activePrimary(), in.dcStandby(), in.divergence()},
 		), nil
 	case MarkRecovered:
-		return concat(in.common(""), []check.Check{in.quorum(check.Block), in.dcNeedsRecovery(), in.dcRecovered()}), nil
+		return concat(in.common(""), []check.Check{
+			in.quorum(check.Block), in.payloadSettled(), in.dcNeedsRecovery(), in.dcRecovered(),
+		}), nil
 	case Resume:
 		cs := []check.Check{
 			in.opInterrupted(), in.opStepsKnown(), in.opNotRolledBack(), in.lockFree(), in.leaderReachable(),

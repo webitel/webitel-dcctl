@@ -442,3 +442,49 @@ func TestNoKVAnswers_unreachableFacts(t *testing.T) {
 		assert.Equal(t, false, c.Facts["reachable"], "%s: a KV that does not answer is not a busy one", c.ID)
 	}
 }
+
+// payloadSplit is generation 5 of dc_a at revision 1 with dc_b in needs_recovery on the
+// KV of dc_a and without it on the arbiter, while the KV of dc_b does not answer: the
+// record is on a majority, neither payload is.
+func payloadSplit(s *collect.Snapshot) {
+	x, y := state(5, dcA, dcB), state(5, dcA)
+	x.Revision, y.Revision = 1, 1
+
+	s.Voters[0] = kvVoter(dcA, x)
+	s.Voters[1].KV = down[collect.KV]()
+	s.Arbiter = arbiterWith(y)
+}
+
+func TestPayloadSettled(t *testing.T) {
+	runCases(t, (*Input).payloadSettled, []caseOf{
+		{name: "settled", snap: snap(nil), action: MarkRecovered, want: check.Pass},
+		{name: "revision_ahead_on_one_voter", snap: snap(func(s *collect.Snapshot) {
+			st := state(5, dcA)
+			st.Revision = 1
+			s.Voters[0] = kvVoter(dcA, st)
+		}), action: MarkRecovered, want: check.Pass},
+		{name: "split", snap: snap(payloadSplit), action: MarkRecovered, want: check.Fail},
+		{name: "state_not_known", snap: snap(conflict), action: MarkRecovered, want: check.Fail},
+	})
+}
+
+// The split names itself and shows each payload with the voters that hold it.
+func TestPayloadSettled_splitFacts(t *testing.T) {
+	c := newInput(snap(payloadSplit)(t), MarkRecovered, Params{Datacenter: dcB}).payloadSettled()
+
+	require.Equal(t, check.Fail, c.Result)
+	assert.Contains(t, c.Detail, "payload split")
+	assert.Equal(t, []any{
+		map[string]any{
+			"voters": []any{dcA}, "op_id": "op-1", "forced": false, "patroni_timeline": int64(3), "needs_recovery": []any{dcB},
+		},
+		map[string]any{
+			"voters": []any{"arbiter"}, "op_id": "op-1", "forced": false, "patroni_timeline": int64(3), "needs_recovery": []any{},
+		},
+	}, c.Facts["payloads"])
+	requireStruct(t, c)
+
+	cs, err := Checks(newInput(snap(payloadSplit)(t), MarkRecovered, Params{Datacenter: dcB}))
+	require.NoError(t, err)
+	assert.Equal(t, check.Fail, find(t, cs, check.CoordPayloadSettled, "").Result)
+}

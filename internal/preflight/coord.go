@@ -535,6 +535,64 @@ func (in *Input) dcNeedsRecovery() check.Check {
 	return s.pass(dc+" needs recovery", facts)
 }
 
+// payloadSettled fails on a payload split of the record the action starts from: its
+// voters hold different payloads of its revision and none of them is on a majority, as
+// two writers that raced while a voter was down leave it. Which payload is right is
+// not known, so nothing changes the record until one is chosen explicitly.
+func (in *Input) payloadSettled() check.Check {
+	s := block(check.CoordPayloadSettled, "")
+
+	rec := coord.Base(in.Status.View, in.Action == Failover)
+	if rec == nil {
+		return s.fail("the state of the voters is not known", nil)
+	}
+
+	st := rec.State
+	facts := map[string]any{"generation": st.Generation, "revision": st.Revision, "active_datacenter": st.ActiveDatacenter}
+
+	if rec.Settled {
+		return s.pass(fmt.Sprintf("the voters agree on revision %d of generation %d", st.Revision, st.Generation), facts)
+	}
+
+	facts["payloads"] = in.payloads(*rec)
+
+	return s.fail(fmt.Sprintf("payload split: the voters hold different payloads of revision %d of generation %d of %s and none "+
+		"is on a majority; one payload must be chosen explicitly before the record changes", st.Revision, st.Generation,
+		st.ActiveDatacenter), facts)
+}
+
+// payloads returns the payloads of the revision of rec that its voters hold, with the
+// voters that hold each.
+func (in *Input) payloads(rec coord.Record) []any {
+	type payload struct {
+		state  kv.State
+		voters []string
+	}
+
+	var out []payload
+
+	for _, v := range in.Status.View.Voters {
+		if v.Status != coord.StatusPresent || coord.KeyOf(v.State) != coord.KeyOf(rec.State) || v.State.Revision != rec.State.Revision {
+			continue
+		}
+
+		i := slices.IndexFunc(out, func(p payload) bool { return samePayload(p.state, v.State) })
+		if i < 0 {
+			out = append(out, payload{state: v.State})
+			i = len(out) - 1
+		}
+
+		out[i].voters = append(out[i].voters, v.Name)
+	}
+
+	return list(out, func(p payload) any {
+		return map[string]any{
+			"voters": strs(p.voters), "op_id": p.state.OpID, "forced": p.state.Forced,
+			"patroni_timeline": p.state.PatroniTimeline, "needs_recovery": strs(p.state.NeedsRecovery),
+		}
+	})
+}
+
 // BaseUnchanged is coord.base_unchanged: it fails unless the record an action starts
 // from on view, see [coord.Base], has generation and active datacenter active. A zero
 // generation or an empty active is not compared.
