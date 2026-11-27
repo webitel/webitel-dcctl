@@ -338,9 +338,10 @@ func advanceRecords(view coord.View, op *dcctlv1.Operation, r route) (from, to k
 }
 
 // needsRecovery returns the datacenters of base that need recovery after the generation
-// of r: a failover adds the old active datacenter.
+// of r: a failover of warm_standby adds the old active datacenter. In stretch Patroni
+// rewinds the old leader itself.
 func needsRecovery(base []string, r route) []string {
-	if !r.failover || slices.Contains(base, r.a) {
+	if !r.failover || r.stretch || slices.Contains(base, r.a) {
 		return base
 	}
 
@@ -425,6 +426,12 @@ func (s *core) promoteTarget(ctx context.Context, x *operation.Exec, r route) er
 		return fmt.Errorf("timeline of %s unknown after the promotion", r.b)
 	}
 
+	return s.writeTimeline(ctx, x, r, *res.Timeline)
+}
+
+// writeTimeline writes timeline, the one of the new primary, into the generation of the
+// operation, unless the voters hold it already.
+func (s *core) writeTimeline(ctx context.Context, x *operation.Exec, r route, timeline int64) error {
 	_, next := records(x.Operation(), r)
 
 	view, err := s.d.Coordinator.Read(ctx)
@@ -432,12 +439,12 @@ func (s *core) promoteTarget(ctx context.Context, x *operation.Exec, r route) er
 		return err
 	}
 
-	if eff := view.Effective; eff != nil && coord.KeyOf(eff.State) == next && eff.State.PatroniTimeline == *res.Timeline {
+	if eff := view.Effective; eff != nil && coord.KeyOf(eff.State) == next && eff.State.PatroniTimeline == timeline {
 		return nil
 	}
 
 	_, err = x.Write(ctx, "set patroni timeline", func(ctx context.Context) (coord.WriteResult, error) {
-		return s.d.Coordinator.SetTimeline(ctx, next, *res.Timeline)
+		return s.d.Coordinator.SetTimeline(ctx, next, timeline)
 	})
 
 	return err
