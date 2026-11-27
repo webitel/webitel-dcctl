@@ -671,3 +671,48 @@ func TestResumeToForcedKeepsWrittenMode(t *testing.T) {
 		})
 	}
 }
+
+// A resumed step that had run before, at the point of no return, is refused by its
+// recheck: its effect may have happened, so the operation is interrupted, not rolled
+// back and failed.
+func TestResumedRecheckRefusalInterruptsPastPointOfNoReturn(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		w := newWorld(t)
+
+		op := interruptedOp("op1", 4)
+		op.Steps[1].State, op.Steps[2].State = succeeded, failed
+
+		for _, dc := range []string{"dc_a", "dc_b"} {
+			w.consuls[dc].setOp(t, op)
+		}
+
+		var tr trace
+
+		w.resumers[dcctlv1.Operation_SWITCH] = resumerFunc(func(context.Context, *dcctlv1.Operation) ([]operation.Step, error) {
+			steps := switchSteps(&tr, map[string]bool{})
+			steps[2].Recheck = func(context.Context) ([]check.Check, error) {
+				return []check.Check{{ID: "patroni.divergence", Result: check.Fail, Effect: check.Confirm, Confirmation: check.ConfirmMaxDiscardBytes}}, nil
+			}
+
+			return steps, nil
+		})
+
+		e := w.engine(self)
+		stop := start(t, e)
+
+		defer stop()
+
+		synctest.Wait()
+
+		_, err := e.Resume(t.Context(), operation.ResumeRequest{Operation: "op1", Initiator: &dcctlv1.Initiator{User: "admin"}})
+		require.NoError(t, err)
+
+		synctest.Wait()
+
+		got := w.op("dc_b")
+		assert.Equal(t, dcctlv1.Operation_INTERRUPTED, got.GetState())
+		assert.Equal(t, failed, got.GetSteps()[2].GetState())
+		assert.Empty(t, tr.all(), "nothing runs and nothing is rolled back")
+		assert.True(t, w.lockFree())
+	})
+}

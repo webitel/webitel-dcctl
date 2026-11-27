@@ -588,6 +588,38 @@ func TestDemote_divergenceMeasuredAtTheStep(t *testing.T) {
 	}
 }
 
+// The demotion of a first run had an unknown outcome; on the resume the recheck cannot
+// read dc_c, mid-demotion. The step ran before, past the point of no return, so the
+// refusal interrupts the operation again instead of failing it.
+func TestDemote_resumedRecheckRefusalInterrupts(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		w := newWorld(t)
+		w.oldPrimary(400)
+
+		e := w.engine()
+		stop := start(t, e)
+
+		defer stop()
+
+		synctest.Wait()
+
+		w.infra.fail("demote dc_c", fmt.Errorf("demote: %w", pgctl.ErrOutcomeUnknown))
+
+		first, err := e.Start(t.Context(), w.standbyPlan(preflight.Demote, 400))
+		require.NoError(t, err)
+
+		synctest.Wait()
+		require.Equal(t, dcctlv1.Operation_INTERRUPTED, w.op().GetState())
+
+		w.infra.hook("divergence dc_c", func(context.Context) error { return errors.New("leader dc_c1 is demoting, not read") })
+
+		op := w.resume(e, operationID(first), operation.ResumeRequest{Confirmations: check.Confirmations{MaxDiscardBytes: 400}})
+
+		require.Equal(t, dcctlv1.Operation_INTERRUPTED, op.GetState())
+		assert.Equal(t, failed, stepOf(t, op, dcctlv1.Operation_Step_PATRONI_DEMOTE, 0).GetState())
+	})
+}
+
 // Every failure at or after the demotion leaves the decision to the operator; the
 // active datacenter must be primary when the step demotes.
 func TestDemote_interrupts(t *testing.T) {
