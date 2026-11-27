@@ -27,10 +27,12 @@
 //   - [Controller.Rejoin], PATRONI_FOLLOW in stretch, within rewind: the members of a
 //     datacenter stream as replicas on the timeline of the leader.
 //
-// [Controller.Leader], [Controller.Divergence], [Controller.DemoteLoss] and
-// [Controller.Place] read the clusters once, for the decisions of a step: what the
-// leader received, whether a standby left the history of the primary, what demoting a
-// primary discards, and where the members of the cluster of stretch run.
+// [Controller.Leader], [Controller.Divergence], [Controller.DivergenceOf],
+// [Controller.Demoted], [Controller.DemoteLoss] and [Controller.Place] read the clusters
+// once, for the decisions of a step: what the leader received, whether a standby or an
+// old primary left the history of the primary, whether a cluster is a standby of another
+// already, what demoting a primary discards, and where the members of the cluster of
+// stretch run.
 //
 // The timeline is taken from GET /patroni of the member itself: GET /cluster comes from
 // the DCS, which lags by loop_wait.
