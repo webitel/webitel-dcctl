@@ -874,3 +874,41 @@ func TestStartJournalsLossEstimate(t *testing.T) {
 		assert.NotContains(t, started[0].GetParams().AsMap(), "confirmations", "a check that passed needs no confirmation")
 	})
 }
+
+// A step records the mode it writes the generation in: the copies hold it at a new
+// revision.
+func TestExecSetMode(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		w := newWorld(t)
+		e := w.engine(self)
+		stop := start(t, e)
+
+		defer stop()
+
+		synctest.Wait()
+
+		var before int64
+
+		_, err := e.Start(t.Context(), switchPlan(operation.Step{
+			Type: dcctlv1.Operation_Step_GENERATION, Run: func(ctx context.Context, x *operation.Exec) error {
+				before = x.Operation().GetRevision()
+
+				if err := x.SetMode(ctx, dcctlv1.Operation_QUORUM); err != nil {
+					return err
+				}
+
+				require.Equal(t, before, x.Operation().GetRevision(), "the same mode saves nothing")
+
+				return x.SetMode(ctx, dcctlv1.Operation_FORCED)
+			},
+		}))
+		require.NoError(t, err)
+
+		synctest.Wait()
+
+		op := w.op("dc_b")
+		assert.Equal(t, dcctlv1.Operation_SUCCEEDED, op.GetState())
+		assert.Equal(t, dcctlv1.Operation_FORCED, op.GetMode())
+		assert.Greater(t, op.GetRevision(), before+1)
+	})
+}

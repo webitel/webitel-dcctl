@@ -67,6 +67,22 @@ func (x *Exec) Operation() *dcctlv1.Operation { return x.r.rec.snapshot() }
 // [Step.Recheck], whose refusal would roll the operation back.
 func (x *Exec) Confirmed() check.Confirmations { return x.r.confirmed }
 
+// SetMode records mode as the mode of the operation, as the step that writes the
+// generation does once it knows the mode it writes in. Nothing is saved when the
+// operation has that mode already.
+func (x *Exec) SetMode(ctx context.Context, mode dcctlv1.Operation_Mode) error {
+	if x.Operation().GetMode() == mode {
+		return nil
+	}
+
+	_, _, err := x.r.save(ctx, func(op *dcctlv1.Operation) { op.Mode = mode })
+	if err != nil {
+		return fmt.Errorf("record mode %s: %w", mode, err)
+	}
+
+	return nil
+}
+
 // Resumed reports whether the step had started before the operation was
 // interrupted: what it does may already be done, in part or in full.
 func (x *Exec) Resumed() bool { return x.resumed }
