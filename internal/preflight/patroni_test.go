@@ -601,6 +601,10 @@ func TestDCRecovered(t *testing.T) {
 		}), action: MarkRecovered, want: check.Fail},
 		{name: "unreachable", snap: snap(func(s *collect.Snapshot) { cutPatroni(s, dcB) }), action: MarkRecovered, want: check.Fail},
 		{name: "active_unreachable", snap: snap(func(s *collect.Snapshot) { cutPatroni(s, dcA) }), action: MarkRecovered, want: check.Fail},
+		{name: "leader_not_standby_leader", snap: snap(func(s *collect.Snapshot) {
+			editProbe(s, dcB, "pg-dc_b-1", func(p *patroni.State) { p.Role = patroni.RoleReplica })
+		}), action: MarkRecovered, want: check.Fail},
+		{name: "stretch", snap: stretchSnap(nil), action: MarkRecovered, want: check.Skip},
 	})
 }
 
