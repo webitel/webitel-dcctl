@@ -199,6 +199,16 @@ func printOperations(w io.Writer, ops []*dcctlv1.Operation) {
 
 // printOperation writes the details of an operation: what it is, how it
 // ended, its checks and its steps.
+// generationText is the generation op starts from and the one it writes; an operation
+// that writes none, as demote, shows the one it acts under.
+func generationText(op *dcctlv1.Operation) string {
+	if op.GetNewGeneration() == 0 {
+		return fmt.Sprint(op.GetPreviousGeneration())
+	}
+
+	return fmt.Sprintf("%d -> %d", op.GetPreviousGeneration(), op.GetNewGeneration())
+}
+
 func printOperation(w io.Writer, op *dcctlv1.Operation) {
 	if op.GetName() != "" {
 		kv(w, "Operation", op.GetName())
@@ -218,7 +228,7 @@ func printOperation(w io.Writer, op *dcctlv1.Operation) {
 	if op.GetName() != "" {
 		kv(w, "Initiator", initiatorText(op.GetInitiator()))
 		kv(w, "Leader", instanceText(op.GetLeader()))
-		kv(w, "Generation", fmt.Sprintf("%d -> %d", op.GetPreviousGeneration(), op.GetNewGeneration()))
+		kv(w, "Generation", generationText(op))
 		kv(w, "Started", timeOf(op.GetCreateTime()))
 		kv(w, "Ended", timeOf(op.GetEndTime()))
 	}

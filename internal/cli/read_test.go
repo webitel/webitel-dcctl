@@ -172,6 +172,22 @@ func TestOperationsGet(t *testing.T) {
 	assert.Equal(t, "operations/op7", reqs[0].(*dcctlv1.GetOperationRequest).GetName())
 }
 
+// An operation that writes no generation shows the one it acts under, not "7 -> 0".
+func TestOperationsGet_noNewGeneration(t *testing.T) {
+	e := newEnv(t)
+	e.api.getOperation = func(r *dcctlv1.GetOperationRequest) (*dcctlv1.Operation, error) {
+		op := testOperation(shortName(r.GetName()), dcctlv1.Operation_SUCCEEDED)
+		op.Type, op.NewGeneration = dcctlv1.Operation_DEMOTE, 0
+
+		return op, nil
+	}
+
+	res := e.run("ops", "get", "op7")
+	require.Equal(t, ExitOK, res.code, res.stderr)
+	assert.Contains(t, res.stdout, "Generation:      7\n")
+	assert.NotContains(t, res.stdout, "7 -> 0")
+}
+
 func TestJournal(t *testing.T) {
 	e := newEnv(t)
 
