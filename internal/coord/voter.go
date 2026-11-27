@@ -76,6 +76,15 @@ type Voter interface {
 	CAS(ctx context.Context, key Key, value []byte, version Version) error
 }
 
+// Creator is a voter whose records only its initialization creates: the arbiter,
+// see [Coordinator.InitializeArbiter].
+type Creator interface {
+	Voter
+	// Create writes value as the record of key only when the voter holds none; one
+	// that exists fails with [ErrVersionMismatch].
+	Create(ctx context.Context, key Key, value []byte) error
+}
+
 // NewVoters returns the voters of profile: the KV of every datacenter and
 // the arbiter, if arb is not nil, in warm_standby; the one global Consul in
 // stretch. The Consul clients must not allow stale reads: what a voter
@@ -222,6 +231,21 @@ func (v *arbiterVoter) CAS(ctx context.Context, key Key, value []byte, version V
 	}
 
 	if _, err := v.client.CAS(ctx, name, uint64(version), value, false); err != nil {
+		return arbiterError(key, err)
+	}
+
+	return nil
+}
+
+// Create writes value as the record of key only when the arbiter holds none, as its
+// initialization does; see [Creator].
+func (v *arbiterVoter) Create(ctx context.Context, key Key, value []byte) error {
+	name, err := arbiterRecord(key)
+	if err != nil {
+		return err
+	}
+
+	if _, err := v.client.CAS(ctx, name, 0, value, true); err != nil {
 		return arbiterError(key, err)
 	}
 
