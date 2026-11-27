@@ -47,6 +47,13 @@ type world struct {
 	coord    *coord.Coordinator
 	sw       *scenario.Switch
 	fo       *scenario.Failover
+	ssw      *scenario.StretchSwitch
+	sfo      *scenario.StretchFailover
+	// kvs are the Consul KVs that take dcctl/lock and dcctl/op; opKV is the one op reads.
+	kvs  []string
+	opKV string
+	// stretch makes the world one of stretch: its scenarios, status and preflight.
+	stretch bool
 }
 
 func newWorld(t *testing.T) *world {
@@ -72,6 +79,8 @@ func newWorld(t *testing.T) *world {
 		},
 		journal:  &fakeJournal{},
 		verifier: &fakeVerifier{},
+		kvs:      []string{dcA, dcB},
+		opKV:     dcB,
 	}
 
 	voters := make([]coord.Voter, 0, len(w.voters))
@@ -111,13 +120,31 @@ func (w *world) useVoters(voters ...coord.Voter) {
 
 	w.fo, err = scenario.NewFailover(d)
 	require.NoError(w.t, err)
+
+	w.ssw, err = scenario.NewStretchSwitch(d)
+	require.NoError(w.t, err)
+
+	w.sfo, err = scenario.NewStretchFailover(d)
+	require.NoError(w.t, err)
 }
 
 // engine returns an engine of this instance on w that resumes switches and failovers.
 func (w *world) engine() *operation.Engine {
 	w.t.Helper()
 
-	kvs := []coord.KV{{Name: dcA, Client: w.consuls[dcA]}, {Name: dcB, Client: w.consuls[dcB]}}
+	kvs := make([]coord.KV, 0, len(w.kvs))
+	for _, name := range w.kvs {
+		kvs = append(kvs, coord.KV{Name: name, Client: w.consuls[name]})
+	}
+
+	resumers := map[dcctlv1.Operation_Type]operation.Resumer{
+		dcctlv1.Operation_SWITCH: w.sw, dcctlv1.Operation_FAILOVER: w.fo,
+	}
+	if w.stretch {
+		resumers = map[dcctlv1.Operation_Type]operation.Resumer{
+			dcctlv1.Operation_SWITCH: w.ssw, dcctlv1.Operation_FAILOVER: w.sfo,
+		}
+	}
 
 	locker, err := coord.NewLocker(kvs, coord.LockOptions{TTL: 15 * time.Second, LockDelay: 15 * time.Second, Timeout: 3 * time.Second}, quietLog())
 	require.NoError(w.t, err)
@@ -133,11 +160,9 @@ func (w *world) engine() *operation.Engine {
 		Preflight:   w.preflight(),
 		Journal:     w.journal,
 		Recorder:    fakeRecorder{},
-		Resumers: map[dcctlv1.Operation_Type]operation.Resumer{
-			dcctlv1.Operation_SWITCH: w.sw, dcctlv1.Operation_FAILOVER: w.fo,
-		},
-		Interval: 15 * time.Second,
-		Log:      quietLog(),
+		Resumers:    resumers,
+		Interval:    15 * time.Second,
+		Log:         quietLog(),
 	})
 	require.NoError(w.t, err)
 
@@ -146,7 +171,7 @@ func (w *world) engine() *operation.Engine {
 
 // preflight decides the confirmations on w, see fakePreflight.
 func (w *world) preflight() fakePreflight {
-	return fakePreflight{w: w.infra, op: func() *dcctlv1.Operation { return storedOp(w.consuls[dcB]) }}
+	return fakePreflight{w: w.infra, stretch: w.stretch, op: func() *dcctlv1.Operation { return storedOp(w.consuls[w.opKV]) }}
 }
 
 // start runs e until the returned stop, which waits for Run to return.
@@ -175,8 +200,13 @@ func (w *world) status() status.Status {
 	view, err := w.coord.Read(w.t.Context())
 	require.NoError(w.t, err)
 
+	profile := config.ProfileWarmStandby
+	if w.stretch {
+		profile = config.ProfileStretch
+	}
+
 	return status.Status{
-		Profile: config.ProfileWarmStandby,
+		Profile: profile,
 		View:    view,
 		Datacenters: []status.Datacenter{
 			{Name: dcA, Nomad: threeStages()},
@@ -193,17 +223,22 @@ func switchTo(dc string) *dcctlv1.SwitchDatacenterRequest {
 func (w *world) plan() operation.Plan {
 	w.t.Helper()
 
-	p, err := w.sw.Plan(switchTo(dcB), initiator, preflight.Result{Status: w.status()})
+	plan := w.sw.Plan
+	if w.stretch {
+		plan = w.ssw.Plan
+	}
+
+	p, err := plan(switchTo(dcB), initiator, preflight.Result{Status: w.status()})
 	require.NoError(w.t, err)
 
 	return p
 }
 
-// op returns the operation in the KV of dc_b.
+// op returns the operation in the KV of dc_b, or the global one of stretch.
 func (w *world) op() *dcctlv1.Operation {
 	w.t.Helper()
 
-	return w.consuls[dcB].op(w.t)
+	return w.consuls[w.opKV].op(w.t)
 }
 
 func (w *world) lockFree() bool {

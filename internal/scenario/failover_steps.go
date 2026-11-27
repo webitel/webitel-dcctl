@@ -48,7 +48,7 @@ func stopWarned(op *dcctlv1.Operation, a, warning string) bool {
 // next stop step goes on. A Nomad that does not list the jobs is a warning too, and the
 // later stop steps are skipped: they would wait for it as long. A guard refusal stops
 // the operation.
-func (f *Failover) stopOld(r route, from int) operation.StepFunc {
+func (f *core) stopOld(r route, from int) operation.StepFunc {
 	return func(ctx context.Context, x *operation.Exec) error {
 		if stopWarned(x.Operation(), r.a, appsNomadSilent) {
 			x.Skip(fmt.Sprintf("the Nomad of %s did not answer an earlier stop", r.a))
@@ -379,7 +379,7 @@ func (f *Failover) repointUnlessDiverged(r route, c string) operation.StepFunc {
 
 // verifyFailover verifies the failover as the switch does, and warns again when the stop
 // of the apps of a is not confirmed.
-func (f *Failover) verifyFailover(r route) operation.StepFunc {
+func (f *core) verifyFailover(r route) operation.StepFunc {
 	verify := f.verify()
 
 	return func(ctx context.Context, x *operation.Exec) error {

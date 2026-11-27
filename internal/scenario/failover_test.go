@@ -60,7 +60,12 @@ func (w *world) failoverPlan(c *dcctlv1.Confirmation) operation.Plan {
 	})
 	require.NoError(w.t, err)
 
-	p, err := w.fo.Plan(req, initiator, preflight.Result{Verdict: v, Status: w.status()})
+	plan := w.fo.Plan
+	if w.stretch {
+		plan = w.sfo.Plan
+	}
+
+	p, err := plan(req, initiator, preflight.Result{Verdict: v, Status: w.status()})
 	require.NoError(w.t, err)
 
 	return p
