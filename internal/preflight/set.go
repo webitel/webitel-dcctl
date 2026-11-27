@@ -98,9 +98,10 @@ func Checks(in *Input) ([]check.Check, error) {
 
 // resumeAnew returns what a resumed op decides anew, on what the datacenters and the
 // voters show now, before the step that acts on it: the WAL a demotion or a repoint that
-// did not succeed discards, and the payload split the write of a switch, a failover, a
-// demote or mark-recovered must not meet. A demotion that took already, its datacenter a standby
-// of the active one, discards nothing more.
+// did not succeed discards, the payload split the write of a switch, a failover, a
+// demote or mark-recovered must not meet, and the isolation a resolve writes under. A
+// demotion that took already, its datacenter a standby of the active one, discards
+// nothing more.
 func (in *Input) resumeAnew(op *dcctlv1.Operation) []check.Check {
 	target := datacenterID(op.GetTarget())
 
@@ -134,6 +135,12 @@ func (in *Input) resumeAnew(op *dcctlv1.Operation) []check.Check {
 	case dcctlv1.Operation_MARK_RECOVERED:
 		if Unfinished(op, dcctlv1.Operation_Step_GENERATION) {
 			return []check.Check{in.payloadSettledOnResume(false)}
+		}
+	case dcctlv1.Operation_RESOLVE_CONFLICT:
+		// The record over the conflict may be written still: the isolation is confirmed
+		// anew, as at the start.
+		if Unfinished(op, dcctlv1.Operation_Step_GENERATION) && !in.Params.ToForced {
+			return []check.Check{in.isolation()}
 		}
 	}
 

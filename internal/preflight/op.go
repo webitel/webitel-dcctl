@@ -415,6 +415,9 @@ func NotRolledBack(op *dcctlv1.Operation) check.Check {
 // GenerationDetermined is op.generation_determined of op on view: abandoning op
 // reverts its new generation, which needs [check.ConfirmIsolation] when voters that
 // do not answer may hold it. The revert decides it again under the lock.
+//
+// The record of a resolve or of an initialization is never reverted, see
+// [Abandonable].
 func GenerationDetermined(op *dcctlv1.Operation, view coord.View) check.Check {
 	c := confirm(check.OpGenerationDetermined, check.ConfirmIsolation, "")
 
@@ -422,11 +425,11 @@ func GenerationDetermined(op *dcctlv1.Operation, view coord.View) check.Check {
 		return c.skip("the operation writes no generation")
 	}
 
-	to := kv.State{
-		Generation:       op.GetNewGeneration(),
-		ActiveDatacenter: datacenterID(op.GetTarget()),
-		OpID:             strings.TrimPrefix(op.GetName(), "operations/"),
+	if t := op.GetType(); t == dcctlv1.Operation_RESOLVE_CONFLICT || t == dcctlv1.Operation_INITIALIZE {
+		return Abandonable(op, view)
 	}
+
+	to := writtenBy(op)
 	facts := map[string]any{"generation": to.Generation, "active_datacenter": to.ActiveDatacenter}
 
 	if coord.RevertNeedsConfirmation(view, to) {
@@ -435,6 +438,73 @@ func GenerationDetermined(op *dcctlv1.Operation, view coord.View) check.Check {
 	}
 
 	return c.pass(fmt.Sprintf("generation %d of %s can be reverted without a confirmation", to.Generation, to.ActiveDatacenter), facts)
+}
+
+// writtenBy returns the key and the operation of the new generation op writes.
+func writtenBy(op *dcctlv1.Operation) kv.State {
+	return kv.State{
+		Generation:       op.GetNewGeneration(),
+		ActiveDatacenter: datacenterID(op.GetTarget()),
+		OpID:             strings.TrimPrefix(op.GetName(), "operations/"),
+	}
+}
+
+// Abandonable is op.generation_determined of a resolve or an initialization op on
+// view, whose record an abandon never reverts.
+//
+// A resolve reverted on some voters would give the conflict back with the record of
+// the other side on them, which may then be the only valid one: it is abandoned only
+// while no voter holds its record, and resumed otherwise, as a resume always writes
+// forward. An initialization has no record to go back to: one committed stays; one
+// held without a majority is resumed or deleted by hand.
+//
+// A voter that does not answer, or whose record cannot be read, may hold the record
+// and bring it back later; for a resolve, so may a KV without the key, which may have
+// taken it and lost it since. While there is one, the operation is resumed, or
+// abandoned once every voter answers.
+func Abandonable(op *dcctlv1.Operation, view coord.View) check.Check {
+	c := block(check.OpGenerationDetermined, "")
+	to := writtenBy(op)
+	facts := map[string]any{"generation": to.Generation, "active_datacenter": to.ActiveDatacenter}
+	resolve := op.GetType() == dcctlv1.Operation_RESOLVE_CONFLICT
+
+	var (
+		holders, unknown []string
+		indexes          = make(map[string]any)
+	)
+
+	for _, vs := range view.Voters {
+		switch {
+		case vs.Status == coord.StatusPresent && coord.KeyOf(vs.State) == coord.KeyOf(to) && vs.State.OpID == to.OpID:
+			holders = append(holders, vs.Name)
+			indexes[vs.Name] = uint64(vs.Version)
+		case vs.Status.Unknown(), resolve && vs.Status == coord.StatusAbsent && vs.Kind == coord.KindKV:
+			unknown = append(unknown, vs.Name)
+		}
+	}
+
+	facts["held_by"], facts["unknown"] = strs(holders), strs(unknown)
+
+	switch {
+	case len(holders) == 0 && len(unknown) > 0:
+		return c.fail(fmt.Sprintf("no voter that answers holds generation %d of %s, but %s may hold it and bring it back: "+
+			"resume, or abandon once every voter answers", to.Generation, to.ActiveDatacenter, strings.Join(unknown, ", ")), facts)
+	case len(holders) == 0:
+		return c.pass(fmt.Sprintf("no voter holds generation %d of %s; nothing is reverted", to.Generation,
+			to.ActiveDatacenter), facts)
+	case resolve:
+		return c.fail(fmt.Sprintf("generation %d of %s is held by %s; a resolve is never reverted, as that may leave the side "+
+			"the operator rejected the only valid record: resume the operation", to.Generation, to.ActiveDatacenter,
+			strings.Join(holders, ", ")), facts)
+	case view.Effective != nil && coord.KeyOf(view.Effective.State) == coord.KeyOf(to):
+		return c.pass(fmt.Sprintf("generation %d of %s is committed and stays", to.Generation, to.ActiveDatacenter), facts)
+	}
+
+	facts["modify_index"] = indexes
+
+	return c.fail(fmt.Sprintf("generation %d of %s is held by %s without a majority and there is no record to revert to: "+
+		"resume the operation, or delete the key by hand on each of them with consul kv delete -cas -modify-index=<index> "+
+		"dcctl/state, the index as facts show it", to.Generation, to.ActiveDatacenter, strings.Join(holders, ", ")), facts)
 }
 
 func (in *Input) opStepsKnown() check.Check {

@@ -205,6 +205,10 @@ func (in *Input) noConflict() check.Check {
 		return s.fail("no voter answers", map[string]any{"voters": in.votersFacts()})
 	}
 
+	if in.Action == Resume && in.operation().GetType() == dcctlv1.Operation_RESOLVE_CONFLICT {
+		return s.skip("a resolve writes over the conflict")
+	}
+
 	if c := in.Status.View.Conflict; len(c) > 0 {
 		return s.fail(fmt.Sprintf("generation %d has %d conflicting records", c[0].State.Generation, len(c)),
 			map[string]any{"records": recordFacts(c)})
@@ -631,4 +635,19 @@ func BaseUnchanged(view coord.View, failover bool, generation int64, active stri
 	}
 
 	return c.pass(fmt.Sprintf("the voters still hold generation %d of %s", base.State.Generation, base.State.ActiveDatacenter), facts)
+}
+
+// ConflictUnchanged is coord.base_unchanged of a resolve: it fails unless a record of the
+// conflict of view, of generation, names winner active.
+func ConflictUnchanged(view coord.View, generation int64, winner string) check.Check {
+	c := block(check.CoordBaseUnchanged, "")
+	facts := map[string]any{"planned_generation": generation, "winner": winner, "records": recordFacts(view.Conflict)}
+
+	if !slices.ContainsFunc(view.Conflict, func(r coord.Record) bool {
+		return r.State.Generation == generation && r.State.ActiveDatacenter == winner
+	}) {
+		return c.fail(fmt.Sprintf("the voters hold no conflict of generation %d with a record of %s; plan it again", generation, winner), facts)
+	}
+
+	return c.pass(fmt.Sprintf("the voters still hold the conflict of generation %d", generation), facts)
 }
