@@ -212,8 +212,9 @@ func (s *core) noPrimary(r route) operation.StepFunc {
 
 // generation writes the new generation with b active and takes the lease of b. The
 // record is built from what the voters hold now: a resumed step finishes the record an
-// earlier run wrote. The mode is the one those voters allow, see [coord.AdvanceMode]; a
-// forced write needs the isolation of a confirmed by the run of the step. A failure
+// earlier run wrote. The mode is the one those voters allow, see [coord.AdvanceMode], and
+// the operation records it; a forced write needs the isolation of a confirmed by the run
+// of the step. A failure
 // that leaves a still active, with nothing written, rolls back; one that finds a record
 // of another writer, or that comes after the record is committed, interrupts.
 func (s *core) generation(r route) operation.StepFunc {
@@ -231,6 +232,9 @@ func (s *core) generation(r route) operation.StepFunc {
 			return err
 		}
 
+		// forced is how the record is written, which the operation records as its mode.
+		forced := done && view.Effective.State.Forced
+
 		if !done {
 			mode, err := coord.AdvanceMode(view, from, to)
 			if err == nil && mode == coord.WriteForced && !x.Confirmed().Isolation {
@@ -239,7 +243,7 @@ func (s *core) generation(r route) operation.StepFunc {
 			}
 
 			if err == nil {
-				to.Forced = mode == coord.WriteForced
+				to.Forced, forced = mode == coord.WriteForced, mode == coord.WriteForced
 
 				x.Progress(fmt.Sprintf("writing generation %d with %s active, %s", next.Generation, r.b, mode))
 
@@ -256,6 +260,15 @@ func (s *core) generation(r route) operation.StepFunc {
 			default:
 				return err
 			}
+		}
+
+		mode := dcctlv1.Operation_QUORUM
+		if forced {
+			mode = dcctlv1.Operation_FORCED
+		}
+
+		if err := x.SetMode(ctx, mode); err != nil {
+			x.Warn(fmt.Sprintf("the generation is written %s, the operation does not record it yet: %v", mode, err))
 		}
 
 		err = x.AcquireLease(ctx, coord.LeaseHolder{Datacenter: r.b, Generation: next.Generation})

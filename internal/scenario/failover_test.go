@@ -763,6 +763,7 @@ func TestFailover_generationModeFollowsVoters(t *testing.T) {
 		op := w.op()
 		require.Equal(t, dcctlv1.Operation_SUCCEEDED, op.GetState(), op.GetError().GetDetail())
 		assert.True(t, w.voters[1].state(t).Forced)
+		assert.Equal(t, dcctlv1.Operation_FORCED, op.GetMode(), "the operation records the mode it wrote in")
 	})
 }
 
@@ -794,6 +795,7 @@ func TestFailover_resumeWithIsolationWritesByQuorum(t *testing.T) {
 		op := w.resume(e, operationID(first), isolated)
 
 		require.Equal(t, dcctlv1.Operation_SUCCEEDED, op.GetState(), op.GetError().GetDetail())
+		assert.Equal(t, dcctlv1.Operation_QUORUM, op.GetMode(), "the resume asked for forced, the record is written by the quorum")
 
 		for _, s := range w.voterStates() {
 			assert.Equal(t, failedOver(op, false), withoutTime(s))
