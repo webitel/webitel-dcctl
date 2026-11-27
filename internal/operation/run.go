@@ -131,7 +131,13 @@ func (r *run) runSteps(ctx context.Context, from int) outcome {
 				return r.interrupted(ctx, rerr)
 			}
 
-			return r.failure(ctx, i, err, false)
+			// A step that had started before the operation was interrupted may have taken
+			// effect: for the point of no return it ran. Before that point this rolls the
+			// step back as well, although this run did not run it, which is right only for
+			// a Rollback that undoes what an earlier run may have done. The steps with a
+			// Recheck are at the point of no return, which interrupts and rolls nothing back;
+			// a step with a Recheck and a Rollback before it has to keep to that.
+			return r.failure(ctx, i, err, r.resumed[i])
 		}
 
 		ran, err, rerr := r.runStep(ctx, i)
