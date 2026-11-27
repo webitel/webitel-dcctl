@@ -66,6 +66,9 @@ type Coordinator interface {
 	SetTimeline(ctx context.Context, rec coord.RecordKey, timeline int64) (coord.WriteResult, error)
 	AddNeedsRecovery(ctx context.Context, rec coord.RecordKey, dc string) (coord.WriteResult, error)
 	RemoveNeedsRecovery(ctx context.Context, rec coord.RecordKey, dc string) (coord.WriteResult, error)
+	Resolve(ctx context.Context, winner, to kv.State, opts coord.AdvanceOptions) (coord.WriteResult, error)
+	Initialize(ctx context.Context, s kv.State) (coord.WriteResult, error)
+	InitializeArbiter(ctx context.Context) (coord.ArbiterInit, error)
 }
 
 // Verifier runs the checks of an action anew; [*preflight.Runner] is one.

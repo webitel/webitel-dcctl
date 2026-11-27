@@ -365,8 +365,15 @@ func (f fakePreflight) stretchChecks(ctx context.Context, req preflight.Request)
 		if pending {
 			cs = append(cs, f.candidateLoss(ctx, target))
 		}
+	case preflight.Init, preflight.AppsSync:
+		more, err := f.installationChecks(ctx, req)
+		if err != nil {
+			return check.Verdict{}, err
+		}
+
+		cs = append(cs, more...)
 	case preflight.Demote, preflight.Repoint, preflight.MarkRecovered, preflight.Abandon, preflight.Resolve,
-		preflight.Init, preflight.ArbiterInit, preflight.AppsSync, preflight.Verify:
+		preflight.ArbiterInit, preflight.Verify:
 		return check.Verdict{}, fmt.Errorf("unexpected action %s", req.Action)
 	}
 
