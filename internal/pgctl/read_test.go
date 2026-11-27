@@ -136,6 +136,128 @@ func TestDivergence_fails(t *testing.T) {
 	}
 }
 
+// An old primary on timeline 5 that wrote past the point dc_b left it diverged; one
+// that did not follows dc_b without a rewind.
+func TestDivergenceOf(t *testing.T) {
+	tests := []struct {
+		name     string
+		location int64
+		want     patroni.Divergence
+	}{
+		{name: "behind_the_switch", location: 1000},
+		{name: "past_the_switch", location: 1800, want: patroni.Divergence{Diverged: true, LSN: 1000, Bytes: 800}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := newWorld(t)
+			b, c := promotedB(w, 0)
+			c.do(func(f *fakeCluster) {
+				f.setRole("c1", patroni.RolePrimary)
+				f.m("c1").Probe.Xlog.ReceivedLocation = nil
+				f.m("c1").Probe.Xlog.Location = i64(tt.location)
+			})
+
+			d, err := w.ctl.DivergenceOf(t.Context(), pgctl.Cluster{Datacenter: dcC, Patroni: c}, pgctl.Cluster{Datacenter: dcB, Patroni: b})
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, d)
+		})
+	}
+}
+
+func TestDivergenceOf_fails(t *testing.T) {
+	tests := []struct {
+		name   string
+		setup  func(b, c *fakeCluster)
+		is     error
+		detail string
+	}{
+		{
+			name:  "primary_side_standby",
+			setup: func(b, _ *fakeCluster) { b.do(func(f *fakeCluster) { f.setRole("b1", patroni.RoleStandbyLeader) }) },
+			is:    pgctl.ErrPrecondition,
+		},
+		{
+			name:  "history_not_read",
+			setup: func(b, _ *fakeCluster) { b.do(func(f *fakeCluster) { f.historyErr = errDown }) },
+			is:    errDown,
+		},
+		{
+			name: "primary_on_the_same_timeline",
+			setup: func(_, c *fakeCluster) {
+				c.do(func(f *fakeCluster) { f.setTimeline("c1", 6) })
+			},
+			detail: "same timeline 6",
+		},
+		{
+			name:  "location_not_known",
+			setup: func(_, c *fakeCluster) { c.do(func(f *fakeCluster) { f.m("c1").Probe.Xlog = patroni.Xlog{} }) },
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := newWorld(t)
+			b, c := promotedB(w, 0)
+			c.do(func(f *fakeCluster) {
+				f.setRole("c1", patroni.RolePrimary)
+				f.m("c1").Probe.Xlog.Location = i64(1800)
+			})
+			tt.setup(b, c)
+
+			_, err := w.ctl.DivergenceOf(t.Context(), pgctl.Cluster{Datacenter: dcC, Patroni: c}, pgctl.Cluster{Datacenter: dcB, Patroni: b})
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.detail)
+
+			if tt.is != nil {
+				require.ErrorIs(t, err, tt.is)
+			}
+		})
+	}
+}
+
+func TestDemoted(t *testing.T) {
+	tests := []struct {
+		name  string
+		setup func(c *fakeCluster)
+		want  bool
+	}{
+		{
+			name: "standby_of_the_target",
+			setup: func(c *fakeCluster) {
+				c.config["standby_cluster"] = map[string]any{"host": "10.0.2.1", "port": float64(5432)}
+			},
+			want: true,
+		},
+		{
+			name: "standby_of_another_datacenter",
+			setup: func(c *fakeCluster) {
+				c.config["standby_cluster"] = map[string]any{"host": "10.0.2.1,10.0.9.9", "port": float64(5432)}
+			},
+		},
+		{name: "no_standby_cluster", setup: func(*fakeCluster) {}},
+		{
+			name: "primary",
+			setup: func(c *fakeCluster) {
+				c.setRole("c1", patroni.RolePrimary)
+				c.config["standby_cluster"] = map[string]any{"host": "10.0.2.1", "port": float64(5432)}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := newWorld(t)
+			b, c := promotedB(w, 900)
+			c.do(tt.setup)
+
+			got, err := w.ctl.Demoted(t.Context(), pgctl.Cluster{Datacenter: dcC, Patroni: c}, pgctl.Cluster{Datacenter: dcB, Patroni: b})
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
 func TestDemoteLoss(t *testing.T) {
 	tests := []struct {
 		name string
