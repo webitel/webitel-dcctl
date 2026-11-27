@@ -61,14 +61,29 @@ func (f fakePreflight) standbyChecks(ctx context.Context, action preflight.Actio
 	return []check.Check{role, f.divergence(dc, active)}, nil
 }
 
-// divergence is patroni.divergence of dc from active.
+// divergence is patroni.divergence of dc from active, as the status tells it: a standby
+// by the line of its upstream, or by the history of active alone below the timeline
+// active took on promotion, as the effective record holds it.
 func (f fakePreflight) divergence(dc, active string) check.Check {
 	c := check.Check{
 		ID: check.PatroniDivergence, Result: check.Pass, Effect: check.Confirm, Confirmation: check.ConfirmMaxDiscardBytes,
 		Datacenter: dc,
 	}
 
-	d, err := fakePatroni{f.w}.divergence(dc, active)
+	var others []string
+
+	for _, name := range f.w.names() {
+		if name != dc && name != active {
+			others = append(others, name)
+		}
+	}
+
+	var shared int64
+	if view, err := f.view(context.Background()); err == nil && view.Effective != nil {
+		shared = view.Effective.State.PatroniTimeline
+	}
+
+	d, err := fakePatroni{f.w}.divergence(dc, active, shared, others...)
 
 	switch {
 	case err != nil:
@@ -614,12 +629,16 @@ func TestDemote_resumeAfterTheDemotionTook(t *testing.T) {
 	})
 }
 
-// detachedC makes dc_c a standby leader on timeline 4 that follows no datacenter, and
-// received diverged bytes past the point dc_a left that timeline.
+// unverified is the warning of a divergence of dc_c the history of dc_a alone told.
+const unverified = "the cluster dc_c streams from is not read, the history of dc_a alone tells whether it diverged"
+
+// detachedC makes dc_c a standby leader on timeline 4 that follows no datacenter that
+// is read, as after a failover from the old active datacenter it followed, and received
+// diverged bytes past the point dc_a left that timeline. As a standby it has no history.
 func (w *world) detachedC(diverged int64) {
 	w.infra.do(func(dcs map[string]*dcState) {
 		d := dcs[dcC]
-		d.upstream, d.timeline, d.history, d.received = "", 4, ancestry(4), 400+diverged
+		d.upstream, d.timeline, d.history, d.received = "", 4, nil, 400+diverged
 	})
 }
 
@@ -636,7 +655,7 @@ func TestRepoint_notDiverged(t *testing.T) {
 
 		repoint := stepOf(t, op, dcctlv1.Operation_Step_PATRONI_REPOINT, 0)
 		assert.Equal(t, succeeded, repoint.GetState())
-		assert.Empty(t, repoint.GetWarnings())
+		assert.Equal(t, []string{unverified}, repoint.GetWarnings(), "dc_c follows no datacenter that is read")
 		assert.Equal(t, []string{"repoint dc_c"}, w.infra.allCalls())
 		assert.Equal(t, dcA, w.infra.dc(dcC).upstream)
 		w.assertUntouched()
@@ -681,8 +700,9 @@ func TestRepoint_divergence(t *testing.T) {
 				require.Equal(t, dcctlv1.Operation_SUCCEEDED, op.GetState(), op.GetError().GetDetail())
 
 				repoint := stepOf(t, op, dcctlv1.Operation_Step_PATRONI_REPOINT, 0)
-				require.Len(t, repoint.GetWarnings(), 1)
-				assert.Contains(t, repoint.GetWarnings()[0], "discards 400 bytes")
+				require.Len(t, repoint.GetWarnings(), 2)
+				assert.Equal(t, unverified, repoint.GetWarnings()[0])
+				assert.Contains(t, repoint.GetWarnings()[1], "discards 400 bytes")
 				assert.Equal(t, dcA, w.infra.dc(dcC).upstream)
 			})
 		})
@@ -779,8 +799,8 @@ func TestRepoint_failure(t *testing.T) {
 
 				if tt.warned {
 					require.Equal(t, dcctlv1.Operation_SUCCEEDED, op.GetState(), op.GetError().GetDetail())
-					require.Len(t, repoint.GetWarnings(), 1)
-					assert.Contains(t, repoint.GetWarnings()[0], "dc_c is not repointed to dc_a")
+					require.Len(t, repoint.GetWarnings(), 2)
+					assert.Contains(t, repoint.GetWarnings()[1], "dc_c is not repointed to dc_a")
 				} else {
 					require.Equal(t, dcctlv1.Operation_INTERRUPTED, op.GetState())
 					assert.Equal(t, failed, repoint.GetState())
@@ -790,6 +810,78 @@ func TestRepoint_failure(t *testing.T) {
 			})
 		})
 	}
+}
+
+// onLostTimeline makes dc_c a standby on timeline 6 that followed a local failover of
+// dc_a, lost now, and received 2500 there; dc_a lost it at 1000 on timeline 5, was
+// promoted to timeline 6, recorded so, and failed over locally to 7 at 3000. Timeline 6
+// of dc_c is not the one of the active datacenter.
+func (w *world) onLostTimeline(promoted int64) {
+	w.setVoters(kv.State{Generation: 5, ActiveDatacenter: dcA, OpID: "old", PatroniTimeline: promoted})
+	w.infra.do(func(dcs map[string]*dcState) {
+		a := dcs[dcA]
+
+		a.timeline, a.history = 7, append(ancestry(5), patroni.HistoryEntry{Timeline: 5, LSN: 1000}, patroni.HistoryEntry{Timeline: 6, LSN: 3000})
+
+		c := dcs[dcC]
+		c.upstream, c.timeline, c.history, c.received = "", 6, nil, 2500
+	})
+}
+
+// A standby the history of the active datacenter alone cannot tell, on the timeline it
+// took on promotion or newer, or with that timeline not recorded, is refused: its
+// divergence is not known, and it needs a rebuild by hand.
+func TestRepoint_unverifiedOnTheLostTimeline(t *testing.T) {
+	tests := []struct {
+		name  string
+		setup func(w *world)
+	}{
+		{name: "timeline_only_the_upstream_had", setup: func(w *world) { w.onLostTimeline(6) }},
+		{
+			name: "promoted_timeline_not_recorded",
+			setup: func(w *world) {
+				w.detachedC(0)
+				w.setVoters(kv.State{Generation: 5, ActiveDatacenter: dcA, OpID: "old"})
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				w := newWorld(t)
+				tt.setup(w)
+
+				_, err := w.startPlan(w.standbyPlan(preflight.Repoint, 1<<40))
+				require.Error(t, err)
+				assert.Equal(t, apierr.ReasonPreflightFailed, apierr.ReasonOf(err), "no bound covers an amount that is not known")
+				assert.Empty(t, w.infra.allCalls())
+			})
+		})
+	}
+}
+
+// The step reads the same anew: a standby that turned to such a timeline after the
+// preflight interrupts the repoint, telling to rebuild it.
+func TestRepoint_unverifiedOnTheLostTimelineAtTheStep(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		w := newWorld(t)
+		w.detachedC(0)
+
+		p := w.standbyPlan(preflight.Repoint, 0)
+
+		w.onLostTimeline(6)
+		w.infra.do(func(dcs map[string]*dcState) { dcs[dcC].timeline, dcs[dcC].received = 4, 400 })
+		w.atSecondRead(dcC, func(d *dcState) { d.timeline, d.received = 6, 2500 })
+
+		op, err := w.startPlan(p)
+		require.NoError(t, err)
+
+		require.Equal(t, dcctlv1.Operation_INTERRUPTED, op.GetState())
+		repoint := stepOf(t, op, dcctlv1.Operation_Step_PATRONI_REPOINT, 0)
+		assert.Contains(t, repoint.GetDetail(), "rebuild dc_c by hand")
+		assert.Empty(t, w.infra.allCalls())
+	})
 }
 
 func TestRepoint_crashResumes(t *testing.T) {

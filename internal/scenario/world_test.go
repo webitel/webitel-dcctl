@@ -69,14 +69,8 @@ func newWorld(t *testing.T) *world {
 		infra: &infra{
 			dcs: map[string]*dcState{
 				dcA: {running: map[int]bool{1: true, 2: true, 3: true}, role: patroni.RolePrimary, timeline: 5, history: ancestry(5)},
-				dcB: {
-					running: map[int]bool{1: false, 2: false, 3: false}, role: patroni.RoleStandbyLeader, timeline: 5, upstream: dcA,
-					history: ancestry(5),
-				},
-				dcC: {
-					running: map[int]bool{1: false, 2: false, 3: false}, role: patroni.RoleStandbyLeader, timeline: 5, upstream: dcA,
-					history: ancestry(5),
-				},
+				dcB: {running: map[int]bool{1: false, 2: false, 3: false}, role: patroni.RoleStandbyLeader, timeline: 5, upstream: dcA},
+				dcC: {running: map[int]bool{1: false, 2: false, 3: false}, role: patroni.RoleStandbyLeader, timeline: 5, upstream: dcA},
 			},
 			hooks: map[string]func(context.Context) error{},
 		},

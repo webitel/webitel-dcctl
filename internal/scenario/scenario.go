@@ -47,7 +47,7 @@ type Patroni interface {
 	Repoint(ctx context.Context, standby, primary pgctl.Cluster, opts pgctl.Options) (pgctl.Result, error)
 	Follow(ctx context.Context, standby, primary pgctl.Cluster, opts pgctl.Options) (pgctl.Result, error)
 	Leader(ctx context.Context, cl pgctl.Cluster) (patroni.Member, error)
-	Divergence(ctx context.Context, standby, primary pgctl.Cluster) (patroni.Divergence, error)
+	Divergence(ctx context.Context, standby, primary pgctl.Cluster, others []pgctl.Cluster, shared int64) (patroni.Divergence, error)
 	DivergenceOf(ctx context.Context, cl, primary pgctl.Cluster) (patroni.Divergence, error)
 	Demoted(ctx context.Context, cl, target pgctl.Cluster) (bool, error)
 	Recover(ctx context.Context, standby, primary pgctl.Cluster, opts pgctl.Options) (pgctl.Result, error)
@@ -123,6 +123,19 @@ func (d Deps) clusters(dcs ...string) []pgctl.Cluster {
 	out := make([]pgctl.Cluster, 0, len(dcs))
 	for _, dc := range dcs {
 		out = append(out, d.cluster(dc))
+	}
+
+	return out
+}
+
+// others returns the clusters of the configured datacenters but except.
+func (d Deps) others(except ...string) []pgctl.Cluster {
+	var out []pgctl.Cluster
+
+	for _, dc := range d.names() {
+		if !slices.Contains(except, dc) {
+			out = append(out, d.cluster(dc))
+		}
 	}
 
 	return out

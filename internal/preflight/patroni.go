@@ -100,6 +100,15 @@ func (in *Input) pgCluster() pgScope {
 	return s
 }
 
+// history is GET /history of the cluster of s; nil when it was not read.
+func (s pgScope) history() []patroni.HistoryEntry {
+	if s.cluster == nil || !s.cluster.Patroni.Data.History.Reachable {
+		return nil
+	}
+
+	return s.cluster.Patroni.Data.History.Data
+}
+
 func memberOf(ms []status.Member, name string) *status.Member {
 	if name == "" {
 		return nil
@@ -704,16 +713,11 @@ func (in *Input) sourceDiscard(a, b string) check.Check {
 		tb = sb.leader.Timeline
 	}
 
-	var history []patroni.HistoryEntry
-	if sa.cluster != nil && sa.cluster.Patroni.Data.History.Reachable {
-		history = sa.cluster.Patroni.Data.History.Data
-	}
-
 	if loc == nil || rb == nil || ta == nil || tb == nil {
 		return c.fail(fmt.Sprintf("the WAL %s holds beyond %s is not known, the amount is not known", a, b), facts)
 	}
 
-	n, ok := patroni.DemoteLoss(*ta, history, *loc, *tb, *rb)
+	n, ok := patroni.DemoteLoss(*ta, sa.history(), *loc, *tb, *rb)
 	if !ok {
 		return c.fail(fmt.Sprintf("where %s left timeline %d of %s is not known, the amount is not known", a, *tb, b), facts)
 	}
@@ -1100,6 +1104,10 @@ func (in *Input) activePrimary() check.Check {
 	return c.pass("the leader runs in "+a, facts)
 }
 
+// unverifiedLine is the warning of a divergence the history of the active datacenter
+// alone told.
+const unverifiedLine = "; the datacenter it streams from is not read, the history of the active datacenter alone tells"
+
 // divergence needs the operator to accept the WAL of the datacenter of the action that
 // left the history of the active one, see [Input.divergenceOf].
 func (in *Input) divergence() check.Check {
@@ -1131,16 +1139,31 @@ func (in *Input) divergenceOf(dc string) check.Check {
 	}
 
 	switch {
+	case !div.Known && div.Rebuild:
+		facts["rebuild"] = true
+
+		return c.fail("the datacenter "+dc+" streams from is not read and it is on the timeline the active datacenter took on "+
+			"promotion or newer: it may follow a line only that datacenter had, the amount is not known; rebuild "+dc+" by hand", facts)
 	case !div.Known:
 		return c.fail("whether "+dc+" diverged from the active datacenter is not known, the amount is not known", facts)
+	case !div.Diverged && div.Unverified:
+		facts["unverified"] = true
+
+		return c.pass(dc+" did not diverge from the active datacenter"+unverifiedLine, facts)
 	case !div.Diverged:
 		return c.pass(dc+" did not diverge from the active datacenter", facts)
 	}
 
 	facts["divergence_lsn"] = formatLSN(div.LSN)
 	facts["divergence_bytes"] = div.Bytes
+	detail := fmt.Sprintf("%s diverged, a rewind discards %d bytes", dc, div.Bytes)
 
-	return c.discard(fmt.Sprintf("%s diverged, a rewind discards %d bytes", dc, div.Bytes), facts, div.Bytes)
+	if div.Unverified {
+		facts["unverified"] = true
+		detail += unverifiedLine
+	}
+
+	return c.discard(detail, facts, div.Bytes)
 }
 
 // dcRecovered needs every member of the datacenter to stream on the timeline of the

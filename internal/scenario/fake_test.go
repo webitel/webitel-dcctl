@@ -1,6 +1,7 @@
 package scenario_test
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -630,8 +631,9 @@ type dcState struct {
 	// timeline of a standby on another timeline, 0 when its history does not tell.
 	location int64
 	leftAt   int64
-	// history is GET /history of its leader, every timeline before its own; a promotion
-	// adds the one it leaves.
+	// history is GET /history of its leader, every timeline before its own while it is
+	// primary: Patroni writes it on a primary only, so a standby that never was primary
+	// has none. A promotion adds the timeline it leaves.
 	history []patroni.HistoryEntry
 	// lagging makes a member of the cluster not stream once its leader follows.
 	lagging bool
@@ -917,7 +919,13 @@ func (f fakePatroni) Promote(ctx context.Context, cl pgctl.Cluster, opts pgctl.O
 	f.w.do(func(dcs map[string]*dcState) {
 		d := dcs[cl.Datacenter]
 		if fromPrimary = d.role == patroni.RolePrimary; !fromPrimary {
-			d.history = append(slices.Clone(d.history), patroni.HistoryEntry{Timeline: d.timeline, LSN: d.received})
+			// A standby takes the line of the cluster it streamed from.
+			line := d.history
+			if u, ok := dcs[d.upstream]; ok {
+				line = u.history
+			}
+
+			d.history = append(slices.Clone(line), patroni.HistoryEntry{Timeline: d.timeline, LSN: d.received})
 			d.role = patroni.RolePrimary
 			d.timeline++
 		}
@@ -993,7 +1001,9 @@ func (f fakePatroni) Leader(_ context.Context, cl pgctl.Cluster) (patroni.Member
 
 // Divergence reads the divergence of standby; it records no call, but runs the hook of
 // "divergence <standby>" first.
-func (f fakePatroni) Divergence(ctx context.Context, standby, primary pgctl.Cluster) (patroni.Divergence, error) {
+func (f fakePatroni) Divergence(ctx context.Context, standby, primary pgctl.Cluster, others []pgctl.Cluster, shared int64) (
+	patroni.Divergence, error,
+) {
 	if err := f.w.react(ctx, "divergence "+standby.Datacenter); err != nil {
 		return patroni.Divergence{}, err
 	}
@@ -1002,7 +1012,12 @@ func (f fakePatroni) Divergence(ctx context.Context, standby, primary pgctl.Clus
 		return patroni.Divergence{}, &pgctl.PrimaryError{Datacenter: standby.Datacenter, Where: "leader " + standby.Datacenter + "1"}
 	}
 
-	return f.divergence(standby.Datacenter, primary.Datacenter)
+	names := make([]string, 0, len(others))
+	for _, cl := range others {
+		names = append(names, cl.Datacenter)
+	}
+
+	return f.divergence(standby.Datacenter, primary.Datacenter, shared, names...)
 }
 
 // Demoted reads whether cl is a standby leader pointed at target; it records no call.
@@ -1022,11 +1037,14 @@ func (f fakePatroni) DivergenceOf(ctx context.Context, cl, primary pgctl.Cluster
 		return patroni.Divergence{}, err
 	}
 
-	return f.divergence(cl.Datacenter, primary.Datacenter)
+	return f.divergence(cl.Datacenter, primary.Datacenter, 0)
 }
 
-// divergence is the divergence of dc from primary, whose leader must be primary.
-func (f fakePatroni) divergence(dc, primary string) (patroni.Divergence, error) {
+// divergence is the divergence of dc from primary, whose leader must be primary, as
+// pgctl reads it: a primary by its own history, a standby by the history of the cluster
+// it streams from, primary or one of others led by a primary, and by the history of
+// primary alone, unverified, when that one is not read.
+func (f fakePatroni) divergence(dc, primary string, shared int64, others ...string) (patroni.Divergence, error) {
 	d, p := f.w.dc(dc), f.w.dc(primary)
 
 	switch {
@@ -1047,8 +1065,29 @@ func (f fakePatroni) divergence(dc, primary string) (patroni.Divergence, error) 
 		pos = &d.received
 	}
 
-	div, ok := patroni.Diverge(p.timeline, p.history, d.timeline, d.history, pos)
-	if !ok {
+	line, read := d.history, d.role == patroni.RolePrimary
+
+	if u := f.w.dc(cmp.Or(d.upstream, dc)); !read && (d.upstream == primary || slices.Contains(others, d.upstream)) &&
+		!u.unread && u.role == patroni.RolePrimary {
+		line, read = u.history, true
+	}
+
+	var (
+		div patroni.Divergence
+		ok  bool
+	)
+
+	if read {
+		div, ok = patroni.Diverge(p.timeline, p.history, d.timeline, line, pos)
+	} else {
+		div, ok = patroni.DivergeByPrimary(p.timeline, p.history, d.timeline, pos, shared)
+	}
+
+	switch {
+	case !ok && !read && d.timeline >= shared && d.timeline < p.timeline:
+		return patroni.Divergence{}, fmt.Errorf("%s is on timeline %d, not below %d, the one %s took on promotion: rebuild %s by hand",
+			dc, d.timeline, shared, primary, dc)
+	case !ok:
 		return patroni.Divergence{}, fmt.Errorf("the histories of %s and %s do not tell whether %s diverged", primary, dc, dc)
 	}
 

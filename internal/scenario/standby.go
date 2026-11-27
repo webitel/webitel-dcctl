@@ -58,12 +58,12 @@ func (r *Repoint) steps(dc string, generation int64) []operation.Step {
 // discardBeforeRepoint is patroni.divergence of dc, read before its repoint runs.
 func (r *Repoint) discardBeforeRepoint(dc string, generation int64) func(context.Context) ([]check.Check, error) {
 	return func(ctx context.Context) ([]check.Check, error) {
-		active, err := r.activeAt(ctx, generation, dc)
+		active, timeline, err := r.promotedAt(ctx, generation, dc)
 		if err != nil {
 			return nil, err
 		}
 
-		div, err := r.d.Patroni.Divergence(ctx, r.d.cluster(dc), r.d.cluster(active))
+		div, err := r.d.Patroni.Divergence(ctx, r.d.cluster(dc), r.d.cluster(active), r.d.others(dc, active), timeline)
 
 		return []check.Check{discardCheck(dc, active, div, err)}, nil
 	}
@@ -75,12 +75,15 @@ func (r *Repoint) discardBeforeRepoint(dc string, generation int64) func(context
 // operation; a repoint that does not complete in time is a warning.
 func (r *Repoint) repointDiverged(dc string, generation int64) operation.StepFunc {
 	return func(ctx context.Context, x *operation.Exec) error {
-		active, err := r.activeAt(ctx, generation, dc)
+		active, timeline, err := r.promotedAt(ctx, generation, dc)
 		if err != nil {
 			return err
 		}
 
-		div, err := r.d.Patroni.Divergence(ctx, r.d.cluster(dc), r.d.cluster(active))
+		div, err := r.d.Patroni.Divergence(ctx, r.d.cluster(dc), r.d.cluster(active), r.d.others(dc, active), timeline)
+		if err == nil && div.Unverified {
+			x.Warn(unverifiedLine(dc, active))
+		}
 
 		var pe *pgctl.PrimaryError
 		if errors.As(err, &pe) {
@@ -240,12 +243,24 @@ func (s *core) resumeStandby(op *dcctlv1.Operation, typ dcctlv1.Operation_Type, 
 // operation started from, as the voters hold it now. Another generation, or a record
 // that does not tell the active datacenter, fails, and so does dc being active.
 func (s *core) activeAt(ctx context.Context, generation int64, dc string) (string, error) {
+	active, _, err := s.promotedAt(ctx, generation, dc)
+
+	return active, err
+}
+
+// promotedAt is [core.activeAt] with the timeline the active datacenter took on its
+// promotion, patroni_timeline of the record; 0 when it is not written.
+func (s *core) promotedAt(ctx context.Context, generation int64, dc string) (active string, timeline int64, err error) {
 	view, err := s.d.Coordinator.Read(ctx)
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 
-	return s.startedFrom(view, generation, dc)
+	if active, err = s.startedFrom(view, generation, dc); err != nil {
+		return "", 0, err
+	}
+
+	return active, view.Effective.State.PatroniTimeline, nil
 }
 
 // startedFrom is [core.activeAt] on view.

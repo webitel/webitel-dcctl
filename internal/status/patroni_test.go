@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/webitel/webitel-dcctl/internal/collect"
+	"github.com/webitel/webitel-dcctl/internal/kv"
 	"github.com/webitel/webitel-dcctl/internal/source"
 	"github.com/webitel/webitel-dcctl/internal/source/patroni"
 	"github.com/webitel/webitel-dcctl/internal/status"
@@ -88,6 +89,18 @@ func TestBuild_patroniLag(t *testing.T) {
 	})
 }
 
+// setPatroniTimeline makes every voter hold generation 5 of dc_a with patroni_timeline
+// tl, the timeline dc_a took on promotion.
+func setPatroniTimeline(s *collect.Snapshot, tl int64) {
+	st := kv.State{Generation: 5, ActiveDatacenter: dcA, OpID: "op-1", PatroniTimeline: tl, UpdatedAt: lost}
+
+	for i := range s.Voters {
+		s.Voters[i] = kvVoter(s.Voters[i].Datacenter, entry(kv.StateKey, st))
+	}
+
+	s.Arbiter = new(up(collect.Arbiter{Initialized: true, State: arbiterRecord(st), Lease: arbiterRecord(kv.Lease{Holder: dcA, Generation: 5, Counter: 6})}))
+}
+
 func TestBuild_divergence(t *testing.T) {
 	tests := []struct {
 		name string
@@ -111,7 +124,9 @@ func TestBuild_divergence(t *testing.T) {
 			want: status.Divergence{Known: true},
 		},
 		{
-			name: "same_timeline_switched_at_another_point",
+			// A standby answers GET /history with what it last wrote as a primary, if ever:
+			// its line is the history of dc_a, which it streams from.
+			name: "standby_by_the_line_of_its_upstream",
 			edit: func(s *collect.Snapshot) {
 				editPatroni(s, dcB, func(p *collect.Patroni) {
 					p.History = history(
@@ -120,13 +135,58 @@ func TestBuild_divergence(t *testing.T) {
 					)
 				})
 			},
-			want: status.Divergence{Known: true, Diverged: true, LSN: 2800, Bytes: 4900 - 2800},
+			want: status.Divergence{Known: true},
 		},
 		{
-			name: "same_timeline_without_a_history",
+			name: "standby_without_a_history",
 			edit: func(s *collect.Snapshot) {
 				editPatroni(s, dcB, func(p *collect.Patroni) { p.History = unreachable(p.History) })
 			},
+			want: status.Divergence{Known: true},
+		},
+		{
+			// The standby points at no known datacenter: the history of dc_a alone tells.
+			name: "standby_upstream_not_known",
+			edit: all(
+				editProbe("pg-b1", func(p *patroni.State) {
+					p.Timeline = i64(2)
+					p.Xlog.ReceivedLocation = i64(3500)
+				}),
+				func(s *collect.Snapshot) {
+					editPatroni(s, dcB, func(p *collect.Patroni) {
+						p.Config = collect.Source[map[string]any]{Reachable: true, Data: map[string]any{
+							"standby_cluster": map[string]any{"host": "10.9.9.9", "port": float64(5432)},
+						}}
+					})
+				},
+			),
+			want: status.Divergence{Known: true, Diverged: true, LSN: 3000, Bytes: 500, Unverified: true},
+		},
+		{
+			// On the timeline below the active one, at or above the one it took on
+			// promotion, as recorded: it may follow a line only its lost upstream had.
+			name: "standby_upstream_not_known_on_the_promoted_timeline",
+			edit: all(
+				editProbe("pg-b1", func(p *patroni.State) {
+					p.Timeline = i64(2)
+					p.Xlog.ReceivedLocation = i64(3500)
+				}),
+				func(s *collect.Snapshot) {
+					editPatroni(s, dcB, func(p *collect.Patroni) {
+						p.Config = collect.Source[map[string]any]{Reachable: true, Data: map[string]any{
+							"standby_cluster": map[string]any{"host": "10.9.9.9", "port": float64(5432)},
+						}}
+					})
+					setPatroniTimeline(s, 2)
+				},
+			),
+			want: status.Divergence{Rebuild: true},
+		},
+		{
+			// An old primary on the timeline of the active one: two promotions apart are
+			// not told from each other.
+			name: "primary_on_the_active_timeline",
+			edit: func(s *collect.Snapshot) { promote(s, dcB, "pg-b1") },
 			want: status.Divergence{},
 		},
 		{
@@ -140,6 +200,7 @@ func TestBuild_divergence(t *testing.T) {
 				func(s *collect.Snapshot) {
 					editPatroni(s, dcB, func(p *collect.Patroni) {
 						p.History = history(
+							patroni.HistoryEntry{Timeline: 1, LSN: 1000},
 							patroni.HistoryEntry{Timeline: 2, LSN: 3000},
 							patroni.HistoryEntry{Timeline: 3, LSN: 4000},
 						)

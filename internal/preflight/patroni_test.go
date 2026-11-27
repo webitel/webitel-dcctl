@@ -512,6 +512,54 @@ func diverged(s *collect.Snapshot) {
 	cl.Patroni.Data.History = up([]patroni.HistoryEntry{{Timeline: 1, LSN: 1000}, {Timeline: 2, LSN: 3000}, {Timeline: 3, LSN: 4500}})
 }
 
+// A standby that points at no datacenter dcctl reads is judged by the history of the
+// active datacenter alone: the check tells so. Its own GET /history is not read.
+func TestDivergence_unverified(t *testing.T) {
+	s := warm()
+	editProbe(s, dcB, "pg-dc_b-1", func(p *patroni.State) {
+		p.Timeline = i64(2)
+		p.Xlog = patroni.Xlog{ReceivedLocation: i64(3500)}
+	})
+	editPatroni(s, dcB, func(p *collect.Patroni) {
+		p.Config = up(map[string]any{"standby_cluster": map[string]any{"host": "10.9.9.9", "port": float64(5432)}})
+		p.History = up([]patroni.HistoryEntry{})
+	})
+
+	c := newInput(s, Repoint, Params{Datacenter: dcB}).divergence()
+
+	assert.Equal(t, check.Fail, c.Result)
+	require.NotNil(t, c.DiscardBytes)
+	assert.Equal(t, int64(500), *c.DiscardBytes)
+	assert.Equal(t, true, c.Facts["unverified"])
+	assert.Contains(t, c.Detail, "alone tells")
+	requireStruct(t, c)
+}
+
+// The same standby on timeline 3, the one dc_a took on promotion: the history of dc_a
+// does not tell its line, so the divergence is not known and the check blocks.
+func TestDivergence_unverifiedOnThePromotedTimeline(t *testing.T) {
+	s := warm()
+	editProbe(s, dcB, "pg-dc_b-1", func(p *patroni.State) {
+		p.Timeline = i64(3)
+		p.Xlog = patroni.Xlog{ReceivedLocation: i64(3500)}
+	})
+	editProbe(s, dcA, "pg-a1", func(p *patroni.State) { p.Timeline = i64(4) })
+	editPatroni(s, dcA, func(p *collect.Patroni) {
+		p.History = up([]patroni.HistoryEntry{{Timeline: 1, LSN: 1000}, {Timeline: 2, LSN: 3000}, {Timeline: 3, LSN: 4000}})
+	})
+	editPatroni(s, dcB, func(p *collect.Patroni) {
+		p.Config = up(map[string]any{"standby_cluster": map[string]any{"host": "10.9.9.9", "port": float64(5432)}})
+	})
+
+	c := newInput(s, Repoint, Params{Datacenter: dcB}).divergence()
+
+	assert.Equal(t, check.Fail, c.Result)
+	assert.Nil(t, c.DiscardBytes, "no bound covers it")
+	assert.Equal(t, true, c.Facts["rebuild"])
+	assert.Contains(t, c.Detail, "rebuild dc_b by hand")
+	requireStruct(t, c)
+}
+
 func TestDivergence(t *testing.T) {
 	runCases(t, (*Input).divergence, []caseOf{
 		{name: "not_diverged", snap: snap(nil), action: Demote, want: check.Pass},
