@@ -12,6 +12,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/webitel/webitel-dcctl/internal/apps"
@@ -47,6 +49,10 @@ type Patroni interface {
 	Leader(ctx context.Context, cl pgctl.Cluster) (patroni.Member, error)
 	Divergence(ctx context.Context, standby, primary pgctl.Cluster) (patroni.Divergence, error)
 	DemoteLoss(ctx context.Context, primary, standby pgctl.Cluster) (int64, error)
+	Switchover(ctx context.Context, cl pgctl.Cluster, leader, candidate string, opts pgctl.Options) (pgctl.Result, error)
+	Failover(ctx context.Context, cl pgctl.Cluster, candidate string, opts pgctl.Options) (pgctl.Result, error)
+	Rejoin(ctx context.Context, cl pgctl.Cluster, opts pgctl.Options) (pgctl.Result, error)
+	Place(ctx context.Context, cl pgctl.Cluster, dcs []string) (pgctl.Placement, error)
 }
 
 // Coordinator reads and writes dcctl/state on the voters; [*coord.Coordinator] is one.
@@ -104,6 +110,9 @@ func (d Deps) apps(dc string) apps.Datacenter {
 func (d Deps) cluster(dc string) pgctl.Cluster {
 	return pgctl.Cluster{Datacenter: dc, Patroni: d.Datacenters[dc].Patroni}
 }
+
+// names returns the configured datacenters, sorted.
+func (d Deps) names() []string { return slices.Sorted(maps.Keys(d.Datacenters)) }
 
 func (d Deps) clusters(dcs ...string) []pgctl.Cluster {
 	out := make([]pgctl.Cluster, 0, len(dcs))

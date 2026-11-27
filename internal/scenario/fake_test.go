@@ -277,6 +277,9 @@ type fakeVoter struct {
 	// beforeCAS runs under the lock before a CAS of dcctl/state with the value sent, as
 	// another writer that gets there first.
 	beforeCAS func(v *fakeVoter, value []byte)
+	// onGet runs under the lock before a read of dcctl/state, as another writer between
+	// two reads.
+	onGet func(v *fakeVoter)
 }
 
 func newVoter(t *testing.T, name string, kind coord.Kind, s kv.State) *fakeVoter {
@@ -302,6 +305,10 @@ func (v *fakeVoter) Get(ctx context.Context, key coord.Key) (coord.Entry, error)
 
 	if v.getErr != nil {
 		return coord.Entry{}, v.getErr
+	}
+
+	if key == coord.KeyState && v.onGet != nil {
+		v.onGet(v)
 	}
 
 	e := v.entries[key]
@@ -418,9 +425,15 @@ func (f *fakeJournal) Append(_ context.Context, e *dcctlv1.JournalEntry) (journa
 type fakePreflight struct {
 	w  *infra
 	op func() *dcctlv1.Operation
+	// stretch decides as the sets of stretch do, see stretchChecks.
+	stretch bool
 }
 
-func (f fakePreflight) Run(_ context.Context, req preflight.Request) (check.Verdict, error) {
+func (f fakePreflight) Run(ctx context.Context, req preflight.Request) (check.Verdict, error) {
+	if f.stretch {
+		return f.stretchChecks(ctx, req)
+	}
+
 	var cs []check.Check
 
 	switch req.Action {
@@ -606,6 +619,8 @@ type infra struct {
 	dcs   map[string]*dcState
 	calls []string
 	hooks map[string]func(ctx context.Context) error
+	// cluster is the one Patroni cluster of stretch; nil in warm_standby.
+	cluster *stretchCluster
 }
 
 func (w *infra) hook(key string, fn func(ctx context.Context) error) {
