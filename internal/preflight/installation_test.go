@@ -34,9 +34,9 @@ func lockHeld(s *collect.Snapshot) { s.Voters[1].KV.Data.Lock = lockEntry("s-1")
 
 func emptyArbiter(s *collect.Snapshot) { s.Arbiter = new(up(collect.Arbiter{})) }
 
-// Every precondition of apps sync, resolve, init and the arbiter initialization (T6
-// §5.3) refuses the action on its own, through the set of the action and the decision
-// on it; the healthy installation is allowed.
+// Every precondition of apps sync, resolve, init and the arbiter initialization refuses
+// the action on its own, through the set of the action and the decision on it; the
+// healthy installation is allowed.
 func TestPreconditions_installation(t *testing.T) {
 	tests := []struct {
 		name    string

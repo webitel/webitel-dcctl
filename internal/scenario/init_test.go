@@ -136,7 +136,7 @@ func TestInitialize_refusesPrimaryElsewhere(t *testing.T) {
 	}
 }
 
-// R15: the state is created only where no voter has it and every KV answers, and only
+// The state is created only where no voter has it and every KV answers, and only
 // with the primary in the datacenter made active.
 func TestInitialize_preconditions(t *testing.T) {
 	tests := []struct {
