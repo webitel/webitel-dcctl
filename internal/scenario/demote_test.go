@@ -36,6 +36,7 @@ func activeOf(view coord.View) (string, error) {
 // standbyChecks decides demote and repoint of dc as their sets do: the role of the leader
 // of dc, primary or standby leader, and patroni.divergence against the active
 // datacenter, which needs max_discard_bytes with a known amount and blocks without one.
+// A demote, which writes needs_recovery, needs a majority of voters and no payload split.
 func (f fakePreflight) standbyChecks(ctx context.Context, action preflight.Action, dc string) ([]check.Check, error) {
 	view, err := f.view(ctx)
 	if err != nil {
@@ -58,7 +59,18 @@ func (f fakePreflight) standbyChecks(ctx context.Context, action preflight.Actio
 		return []check.Check{role, {ID: check.CoordDCNotActive, Result: check.Fail, Effect: check.Block, Datacenter: dc}}, nil
 	}
 
-	return []check.Check{role, f.divergence(dc, active)}, nil
+	cs := []check.Check{role, f.divergence(dc, active)}
+
+	if action == preflight.Demote {
+		quorum := check.Check{ID: check.CoordQuorum, Result: check.Pass, Effect: check.Block}
+		if !view.Quorum {
+			quorum.Result = check.Fail
+		}
+
+		cs = append(cs, quorum, payloadSettled(view))
+	}
+
+	return cs, nil
 }
 
 // divergence is patroni.divergence of dc from active, as the status tells it: a standby
@@ -95,17 +107,20 @@ func (f fakePreflight) divergence(dc, active string) check.Check {
 	return c
 }
 
-// resumeStandby is what a resume of op decides anew: patroni.divergence of the target of
-// a demote or repoint whose Patroni step did not succeed, coord.payload_settled for a
-// mark-recovered whose write did not.
+// resumeStandby is what a resume of op decides anew: coord.payload_settled for a demote
+// or mark-recovered whose write did not succeed, patroni.divergence of the target of a
+// demote or repoint whose Patroni step did not, unless the demotion took.
 func (f fakePreflight) resumeStandby(ctx context.Context, op *dcctlv1.Operation) ([]check.Check, error) {
-	step := map[dcctlv1.Operation_Type]dcctlv1.Operation_Step_Type{
-		dcctlv1.Operation_DEMOTE:         dcctlv1.Operation_Step_PATRONI_DEMOTE,
-		dcctlv1.Operation_REPOINT:        dcctlv1.Operation_Step_PATRONI_REPOINT,
-		dcctlv1.Operation_MARK_RECOVERED: dcctlv1.Operation_Step_GENERATION,
-	}[op.GetType()]
+	typ := op.GetType()
+	write := (typ == dcctlv1.Operation_DEMOTE || typ == dcctlv1.Operation_MARK_RECOVERED) &&
+		preflight.Unfinished(op, dcctlv1.Operation_Step_GENERATION)
+	patroniStep := map[dcctlv1.Operation_Type]dcctlv1.Operation_Step_Type{
+		dcctlv1.Operation_DEMOTE:  dcctlv1.Operation_Step_PATRONI_DEMOTE,
+		dcctlv1.Operation_REPOINT: dcctlv1.Operation_Step_PATRONI_REPOINT,
+	}[typ]
+	discard := patroniStep != dcctlv1.Operation_Step_TYPE_UNSPECIFIED && preflight.Unfinished(op, patroniStep)
 
-	if step == dcctlv1.Operation_Step_TYPE_UNSPECIFIED || !preflight.Unfinished(op, step) {
+	if !write && !discard {
 		return nil, nil
 	}
 
@@ -114,8 +129,14 @@ func (f fakePreflight) resumeStandby(ctx context.Context, op *dcctlv1.Operation)
 		return nil, err
 	}
 
-	if op.GetType() == dcctlv1.Operation_MARK_RECOVERED {
-		return []check.Check{payloadSettled(view)}, nil
+	var cs []check.Check
+
+	if write {
+		cs = append(cs, payloadSettled(view))
+	}
+
+	if !discard {
+		return cs, nil
 	}
 
 	active, err := activeOf(view)
@@ -126,11 +147,11 @@ func (f fakePreflight) resumeStandby(ctx context.Context, op *dcctlv1.Operation)
 	target := strings.TrimPrefix(op.GetTarget(), "datacenters/")
 
 	// A demotion that took discards nothing more.
-	if d := f.w.dc(target); op.GetType() == dcctlv1.Operation_DEMOTE && d.role == patroni.RoleStandbyLeader && d.upstream == active {
-		return nil, nil
+	if d := f.w.dc(target); typ == dcctlv1.Operation_DEMOTE && d.role == patroni.RoleStandbyLeader && d.upstream == active {
+		return cs, nil
 	}
 
-	return []check.Check{f.divergence(target, active)}, nil
+	return append(cs, f.divergence(target, active)), nil
 }
 
 // oldPrimary makes dc_c a primary on timeline 4 that wrote diverged bytes past the point
@@ -253,6 +274,18 @@ func (w *world) runStandby(action preflight.Action, maxDiscard int64) *dcctlv1.O
 	return op
 }
 
+// assertMarked checks that every voter holds generation 5 of dc_a with dc_c in
+// needs_recovery, written once.
+func (w *world) assertMarked() {
+	w.t.Helper()
+
+	for _, s := range w.voterStates() {
+		assert.Equal(w.t, kv.State{
+			Generation: 5, Revision: 1, ActiveDatacenter: dcA, OpID: "old", PatroniTimeline: 5, NeedsRecovery: []string{dcC},
+		}, withoutTime(s))
+	}
+}
+
 // assertUntouched checks that the voters still hold generation 5 of dc_a as it was.
 func (w *world) assertUntouched() {
 	w.t.Helper()
@@ -273,7 +306,7 @@ func TestDemote_notDiverged(t *testing.T) {
 		assert.Equal(t, dcctlv1.Operation_DEMOTE, op.GetType())
 		assert.Equal(t, int64(5), op.GetPreviousGeneration())
 		assert.Zero(t, op.GetNewGeneration(), "a demotion writes no generation")
-		assert.Equal(t, dcctlv1.Operation_MODE_UNSPECIFIED, op.GetMode())
+		assert.Equal(t, dcctlv1.Operation_QUORUM, op.GetMode())
 
 		for _, st := range op.GetSteps() {
 			assert.Equal(t, succeeded, st.GetState(), "%s: %s", st.GetType(), st.GetDetail())
@@ -288,8 +321,124 @@ func TestDemote_notDiverged(t *testing.T) {
 		assert.Equal(t, dcA, c.upstream)
 		assert.Equal(t, int64(5), c.timeline, "dc_c follows dc_a on its timeline")
 		assert.Equal(t, patroni.RolePrimary, w.infra.dc(dcA).role, "the active primary is never touched")
-		w.assertUntouched()
+		w.assertMarked()
 		assert.True(t, w.lockFree())
+	})
+}
+
+// A datacenter in need of recovery already is demoted without a write: the step that
+// marks it is skipped.
+func TestDemote_alreadyNeedsRecovery(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		w := newWorld(t)
+		w.setVoters(kv.State{Generation: 5, ActiveDatacenter: dcA, OpID: "old", PatroniTimeline: 5, NeedsRecovery: []string{dcC}})
+		w.oldPrimary(0)
+
+		op := w.runStandby(preflight.Demote, 0)
+
+		require.Equal(t, dcctlv1.Operation_SUCCEEDED, op.GetState(), op.GetError().GetDetail())
+		assert.Equal(t, skipped, stepOf(t, op, dcctlv1.Operation_Step_GENERATION, 0).GetState())
+
+		for _, st := range w.voterStates() {
+			assert.Zero(t, st.Revision, "nothing is written")
+			assert.Equal(t, []string{dcC}, st.NeedsRecovery)
+		}
+	})
+}
+
+// Without a majority of voters, or on a payload split, the demotion is refused before
+// anything is written or demoted.
+func TestDemote_needsRecoveryRefused(t *testing.T) {
+	tests := []struct {
+		name string
+		// twoVoters makes the voters the KVs of dc_a and dc_b only.
+		twoVoters bool
+		setup     func(w *world)
+		detail    string
+	}{
+		{
+			// The forced record of the KV of dc_a still tells the active datacenter, but
+			// the KV is no majority.
+			name: "no_quorum", twoVoters: true,
+			setup: func(w *world) {
+				w.voters[0].setState(w.t, kv.State{Generation: 5, ActiveDatacenter: dcA, OpID: "old", PatroniTimeline: 5, Forced: true})
+				w.voters[1].set(func(v *fakeVoter) { v.getErr = unreachable() })
+			},
+			detail: string(check.CoordQuorum),
+		},
+		{
+			name: "payload_split",
+			setup: func(w *world) {
+				x := kv.State{Generation: 5, Revision: 1, ActiveDatacenter: dcA, OpID: "old", PatroniTimeline: 5, NeedsRecovery: []string{dcB}}
+				y := kv.State{Generation: 5, Revision: 1, ActiveDatacenter: dcA, OpID: "old", PatroniTimeline: 5}
+
+				w.voters[0].setState(w.t, x)
+				w.voters[2].setState(w.t, y)
+				w.voters[1].set(func(v *fakeVoter) { v.getErr = unreachable() })
+			},
+			detail: string(check.CoordPayloadSettled),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				w := newWorld(t)
+				if tt.twoVoters {
+					w = newTwoVoterWorld(t)
+				}
+
+				w.oldPrimary(0)
+				tt.setup(w)
+
+				_, err := w.startPlan(w.standbyPlan(preflight.Demote, 0))
+				require.Error(t, err)
+				assert.Equal(t, apierr.ReasonPreflightFailed, apierr.ReasonOf(err))
+				assert.Contains(t, err.Error(), tt.detail)
+				assert.Empty(t, w.infra.allCalls())
+				assert.NotContains(t, w.voters[0].state(t).NeedsRecovery, dcC, "nothing is written")
+			})
+		})
+	}
+}
+
+// A demotion crashed after its write reached the voters, before the step was recorded,
+// finds the write on resume and writes nothing more.
+func TestDemote_resumeDoesNotWriteTwice(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		w := newWorld(t)
+		w.oldPrimary(0)
+
+		var saved map[string][]byte
+
+		w.voters[2].set(func(v *fakeVoter) {
+			v.beforeCAS = func(*fakeVoter, []byte) {
+				if saved == nil {
+					saved = w.rawOps()
+				}
+			}
+		})
+
+		op := w.runStandby(preflight.Demote, 0)
+		require.Equal(t, dcctlv1.Operation_SUCCEEDED, op.GetState(), op.GetError().GetDetail())
+		require.NotNil(t, saved)
+
+		w.setRawOps(saved)
+
+		e := w.engine()
+		stop := start(t, e)
+
+		defer stop()
+
+		synctest.Wait()
+
+		require.Equal(t, dcctlv1.Operation_INTERRUPTED, w.op().GetState())
+
+		op = w.resume(e, operationID(op), operation.ResumeRequest{})
+
+		require.Equal(t, dcctlv1.Operation_SUCCEEDED, op.GetState(), op.GetError().GetDetail())
+		assert.Equal(t, skipped, stepOf(t, op, dcctlv1.Operation_Step_GENERATION, 0).GetState())
+		w.assertMarked()
 	})
 }
 
@@ -418,8 +567,10 @@ func TestDemote_divergenceMeasuredAtTheStep(t *testing.T) {
 				demote := stepOf(t, op, dcctlv1.Operation_Step_PATRONI_DEMOTE, 0)
 				assert.Equal(t, failed, demote.GetState())
 				assert.Contains(t, demote.GetDetail(), tt.detail)
+				assert.Contains(t, demote.GetDetail(), "dc_c stays in needs_recovery")
 				assert.Empty(t, w.infra.allCalls(), "nothing is demoted")
 				assert.Equal(t, patroni.RolePrimary, w.infra.dc(dcC).role)
+				w.assertMarked()
 
 				w.infra.do(func(dcs map[string]*dcState) { historyKnown(dcs[dcC]) })
 
@@ -580,7 +731,7 @@ func TestDemote_crashResumes(t *testing.T) {
 				assert.Equal(t, patroni.RoleStandbyLeader, c.role)
 				assert.Equal(t, dcA, c.upstream)
 				assert.Equal(t, int64(5), c.timeline)
-				w.assertUntouched()
+				w.assertMarked()
 			})
 		})
 	}
@@ -920,7 +1071,10 @@ func TestStandbyPlan(t *testing.T) {
 		types = append(types, st.GetType())
 	}
 
-	assert.Equal(t, []dcctlv1.Operation_Step_Type{dcctlv1.Operation_Step_PATRONI_DEMOTE, dcctlv1.Operation_Step_PATRONI_FOLLOW}, types)
+	assert.Equal(t, []dcctlv1.Operation_Step_Type{
+		dcctlv1.Operation_Step_GENERATION, dcctlv1.Operation_Step_PATRONI_DEMOTE, dcctlv1.Operation_Step_PATRONI_FOLLOW,
+	}, types)
+	assert.Equal(t, dcctlv1.Operation_QUORUM, p.Mode)
 
 	p = w.standbyPlan(preflight.Repoint, 0)
 	assert.Equal(t, dcctlv1.Operation_REPOINT, p.Type)

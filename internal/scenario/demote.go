@@ -10,9 +10,10 @@ import (
 	"github.com/webitel/webitel-dcctl/internal/preflight"
 )
 
-// Demote is the demotion of warm_standby of an old primary: the Patroni cluster of a
-// datacenter that is not active but runs a primary becomes a standby of the active
-// datacenter, which Patroni rewinds it to, and every member of it follows.
+// Demote is the demotion of warm_standby of an old primary: the datacenter that is not
+// active but runs a primary is written in need of recovery on a majority of voters, its
+// Patroni cluster becomes a standby of the active datacenter, which Patroni rewinds it
+// to, and every member of it follows.
 //
 // The WAL the old primary holds past the history of the active datacenter is discarded:
 // it is decided before the demotion and measured again by it, which goes on only when
@@ -35,7 +36,7 @@ func NewDemote(d Deps) (*Demote, error) {
 // state does not tell the active datacenter, when the datacenter of req is it or is not
 // configured, or for a profile other than warm_standby.
 func (d *Demote) Plan(req *dcctlv1.DemoteDatacenterRequest, initiator *dcctlv1.Initiator, pre preflight.Result) (operation.Plan, error) {
-	return d.planStandby(dcctlv1.Operation_DEMOTE, preflight.Demote, dcctlv1.Operation_MODE_UNSPECIFIED, req, initiator, pre, d.steps)
+	return d.planStandby(dcctlv1.Operation_DEMOTE, preflight.Demote, dcctlv1.Operation_QUORUM, req, initiator, pre, d.steps)
 }
 
 // Resume rebuilds the steps of the interrupted demotion op, see [operation.Resumer].
@@ -45,11 +46,20 @@ func (d *Demote) Resume(_ context.Context, op *dcctlv1.Operation) ([]operation.S
 
 func (d *Demote) steps(dc string, generation int64) []operation.Step {
 	return []operation.Step{
+		{Type: dcctlv1.Operation_Step_GENERATION, Datacenter: dc, Run: d.markNeedsRecovery(dc, generation)},
 		{
 			Type: dcctlv1.Operation_Step_PATRONI_DEMOTE, Datacenter: dc, PointOfNoReturn: true,
 			Recheck: d.discardBeforeDemote(dc, generation), Run: d.demoteDiverged(dc, generation),
 		},
 		{Type: dcctlv1.Operation_Step_PATRONI_FOLLOW, Datacenter: dc, Run: d.follow(dc, generation)},
+	}
+}
+
+// markNeedsRecovery writes dc in need of recovery before its cluster is touched, see
+// [core.writeRecovery]: an old primary that is demoted is no target until it recovers.
+func (d *Demote) markNeedsRecovery(dc string, generation int64) operation.StepFunc {
+	return func(ctx context.Context, x *operation.Exec) error {
+		return d.writeRecovery(ctx, x, generation, dc, true, nil)
 	}
 }
 
@@ -68,16 +78,25 @@ func (d *Demote) discardBeforeDemote(dc string, generation int64) func(context.C
 
 		div, err := d.d.Patroni.DivergenceOf(ctx, d.d.cluster(dc), d.d.cluster(active))
 
-		return []check.Check{discardCheck(dc, active, div, err)}, nil
+		c := discardCheck(dc, active, div, err)
+		if c.Result == check.Fail {
+			c.Detail += stays(dc)
+		}
+
+		return []check.Check{c}, nil
 	}
 }
+
+// stays is what a refusal of the demotion of dc adds: the step before wrote it in need of
+// recovery, which is kept.
+func stays(dc string) string { return "; " + dc + " stays in needs_recovery" }
 
 // demoteDiverged makes the cluster of dc a standby of the active datacenter. The WAL
 // that discards is measured again, against max_discard_bytes the run of the step
 // confirmed, unless dc is a standby of the active datacenter already, as after a
 // demotion an interrupted run made. The active datacenter must be read as primary.
 func (d *Demote) demoteDiverged(dc string, generation int64) operation.StepFunc {
-	return func(ctx context.Context, x *operation.Exec) error {
+	run := func(ctx context.Context, x *operation.Exec) error {
 		active, err := d.activeAt(ctx, generation, dc)
 		if err != nil {
 			return err
@@ -103,6 +122,15 @@ func (d *Demote) demoteDiverged(dc string, generation int64) operation.StepFunc 
 		}
 
 		return interrupt(fmt.Errorf("%s is not demoted, the operator decides: %w", dc, err))
+	}
+
+	return func(ctx context.Context, x *operation.Exec) error {
+		err := run(ctx, x)
+		if err == nil || ctx.Err() != nil {
+			return err
+		}
+
+		return fmt.Errorf("%w%s", err, stays(dc))
 	}
 }
 
