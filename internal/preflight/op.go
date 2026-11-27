@@ -220,7 +220,19 @@ func (in *Input) initStateAbsent() check.Check {
 		}
 	}
 
-	return c.pass("no Consul KV holds dcctl/state", facts)
+	// The arbiter is never written by init: one that holds a state from before, or may
+	// as it does not answer, would hold a record the KVs do not, above or beside the
+	// new one.
+	switch a := in.Snapshot.Arbiter; {
+	case a == nil:
+	case !a.Reachable:
+		return c.fail("the arbiter does not answer and may hold dcctl/state from before; bring it back, or clear its "+
+			"data_dir", facts)
+	case a.Data.Initialized:
+		return c.fail("the arbiter holds dcctl/state; clear its data_dir first", facts)
+	}
+
+	return c.pass("no Consul KV and no arbiter holds dcctl/state", facts)
 }
 
 func (in *Input) initAllReachable() check.Check {

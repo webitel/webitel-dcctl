@@ -169,6 +169,23 @@ func TestInit(t *testing.T) {
 			uninitialized(s)
 			s.Voters[1].KV = down[collect.KV]()
 		}), action: Init, params: a, want: check.Fail},
+		{name: "arbiter_holds_state", snap: snap(func(s *collect.Snapshot) {
+			uninitialized(s)
+			s.Arbiter = new(up(collect.Arbiter{Initialized: true}))
+		}), action: Init, params: a, want: check.Fail},
+		{name: "arbiter_unreachable", snap: snap(func(s *collect.Snapshot) {
+			uninitialized(s)
+			s.Arbiter = new(down[collect.Arbiter]())
+		}), action: Init, params: a, want: check.Fail},
+		{name: "no_arbiter", snap: snap(func(s *collect.Snapshot) {
+			uninitialized(s)
+			s.Arbiter = nil
+		}), action: Init, params: a, want: check.Pass},
+		{name: "stretch", snap: stretchSnap(func(s *collect.Snapshot) {
+			for i := range s.Voters {
+				s.Voters[i].KV.Data.State = nil
+			}
+		}), action: Init, params: a, want: check.Pass},
 	})
 
 	runCases(t, (*Input).initAllReachable, []caseOf{
