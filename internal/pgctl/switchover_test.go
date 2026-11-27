@@ -62,7 +62,7 @@ func TestSwitchover(t *testing.T) {
 
 				var rec recorder
 
-				res, err := w.ctl.Switchover(t.Context(), pgctl.Cluster{Datacenter: dcB, Patroni: f}, "s3",
+				res, err := w.ctl.Switchover(t.Context(), pgctl.Cluster{Datacenter: dcB, Patroni: f}, "s1", "s3",
 					pgctl.Options{Guard: allow, Progress: rec.add})
 				require.NoError(t, err)
 				assert.Equal(t, tt.want, res.Request)
@@ -135,7 +135,7 @@ func TestSwitchoverNotDone(t *testing.T) {
 
 				start := time.Now()
 
-				res, err := w.ctl.Switchover(t.Context(), pgctl.Cluster{Datacenter: dcB, Patroni: f}, "s3", pgctl.Options{Guard: allow})
+				res, err := w.ctl.Switchover(t.Context(), pgctl.Cluster{Datacenter: dcB, Patroni: f}, "s1", "s3", pgctl.Options{Guard: allow})
 				require.ErrorIs(t, err, tt.want)
 				require.ErrorIs(t, err, pgctl.ErrTimeout)
 				assert.Equal(t, timeouts.Promote, time.Since(start))
@@ -152,7 +152,7 @@ func TestSwitchoverRefused(t *testing.T) {
 		f := stretch(w)
 		f.postErr = refusal(http.StatusPreconditionFailed)
 
-		res, err := w.ctl.Switchover(t.Context(), pgctl.Cluster{Datacenter: dcB, Patroni: f}, "s3", pgctl.Options{Guard: allow})
+		res, err := w.ctl.Switchover(t.Context(), pgctl.Cluster{Datacenter: dcB, Patroni: f}, "s1", "s3", pgctl.Options{Guard: allow})
 		require.ErrorIs(t, err, pgctl.ErrRefused)
 		assert.Equal(t, pgctl.RequestRefused, res.Request)
 		assert.Equal(t, "s1", res.Leader)
@@ -193,7 +193,7 @@ func TestSwitchoverPrecondition(t *testing.T) {
 
 				start := time.Now()
 
-				_, err := w.ctl.Switchover(t.Context(), pgctl.Cluster{Datacenter: tt.dc, Patroni: f}, tt.candidate, pgctl.Options{Guard: allow})
+				_, err := w.ctl.Switchover(t.Context(), pgctl.Cluster{Datacenter: tt.dc, Patroni: f}, "s1", tt.candidate, pgctl.Options{Guard: allow})
 				require.ErrorIs(t, err, pgctl.ErrPrecondition)
 				assert.Zero(t, time.Since(start))
 				assert.Empty(t, f.postCalls())
@@ -213,7 +213,7 @@ func TestSwitchoverAlreadyLeads(t *testing.T) {
 			f.setTimeline("s3", 8)
 		})
 
-		res, err := w.ctl.Switchover(t.Context(), pgctl.Cluster{Datacenter: dcB, Patroni: f}, "s3", pgctl.Options{Guard: allow})
+		res, err := w.ctl.Switchover(t.Context(), pgctl.Cluster{Datacenter: dcB, Patroni: f}, "s1", "s3", pgctl.Options{Guard: allow})
 		require.NoError(t, err)
 		assert.Equal(t, pgctl.RequestNone, res.Request)
 		assert.Equal(t, "s3", res.Leader)
@@ -226,7 +226,7 @@ func TestSwitchoverGuard(t *testing.T) {
 		w := newWorld(t)
 		f := stretch(w)
 
-		_, err := w.ctl.Switchover(t.Context(), pgctl.Cluster{Datacenter: dcB, Patroni: f}, "s3",
+		_, err := w.ctl.Switchover(t.Context(), pgctl.Cluster{Datacenter: dcB, Patroni: f}, "s1", "s3",
 			pgctl.Options{Guard: remoteGuard(time.Hour)})
 		require.ErrorIs(t, err, pgctl.ErrTimeout)
 		require.NotErrorIs(t, err, pgctl.ErrGuard)
@@ -300,4 +300,26 @@ func TestFailoverTimeout(t *testing.T) {
 			})
 		})
 	}
+}
+
+// The leader moved to s9 of dc_c after the caller decided to switch over from s1: the
+// switchover is refused before any request.
+func TestSwitchover_leaderChanged(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		w := newWorld(t)
+		f := stretch(w)
+		f.add(dcC, member("s9", "10.0.9.1", patroni.RoleReplica, 7, 1))
+		w.catalog.hosts["10.0.9.1"] = dcC
+
+		f.do(func(f *fakeCluster) {
+			f.setRole("s1", patroni.RoleReplica)
+			f.setRole("s9", patroni.RolePrimary)
+		})
+
+		res, err := w.ctl.Switchover(t.Context(), pgctl.Cluster{Datacenter: dcB, Patroni: f}, "s1", "s3", pgctl.Options{Guard: allow})
+		require.ErrorIs(t, err, pgctl.ErrPrecondition)
+		assert.ErrorContains(t, err, "leader is s9, not s1")
+		assert.Equal(t, pgctl.RequestNone, res.Request)
+		assert.Empty(t, f.postCalls())
+	})
 }

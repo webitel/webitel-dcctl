@@ -7,15 +7,17 @@ import (
 	"github.com/webitel/webitel-dcctl/internal/source/patroni"
 )
 
-// Switchover hands the leadership of the cluster of cl over to candidate, which must run
-// in cl.Datacenter: POST /switchover to the leader. Patroni holds the request until the
-// switch is done or given up; the condition is polled meanwhile, as the answer may be an
-// error or a 200 for another member. Within patroni.timeouts.promote.
+// Switchover hands the leadership of the cluster of cl over from leader to candidate,
+// which must run in cl.Datacenter: POST /switchover to the leader. A cluster led by
+// another member fails the precondition, and Patroni refuses the request as well when the
+// leader changes before it. Patroni holds the request until the switch is done or given
+// up; the condition is polled meanwhile, as the answer may be an error or a 200 for
+// another member. Within patroni.timeouts.promote.
 //
 // A candidate that leads already, as after an attempt with an unknown outcome, is done
 // without a request when it is the only primary; otherwise it fails the precondition.
-func (c *Controller) Switchover(ctx context.Context, cl Cluster, candidate string, opts Options) (Result, error) {
-	s := &switchover{c: c, cl: cl, candidate: candidate}
+func (c *Controller) Switchover(ctx context.Context, cl Cluster, leader, candidate string, opts Options) (Result, error) {
+	s := &switchover{c: c, cl: cl, expected: leader, candidate: candidate}
 
 	return c.run(ctx, primitive{
 		action: ActionSwitchover, dc: cl.Datacenter, timeout: c.cfg.Timeouts.Promote,
@@ -27,6 +29,8 @@ type switchover struct {
 	c         *Controller
 	cl        Cluster
 	candidate string
+	// expected is the leader the caller switches over from.
+	expected string
 
 	endpoint, leader string
 	startTimeline    int64
@@ -51,8 +55,12 @@ func (s *switchover) prepare(ctx context.Context, _ bool) (Observation, error) {
 		return obs, errNoLeader
 	}
 
-	if l.Name == s.candidate {
+	switch l.Name {
+	case s.candidate:
 		return s.alreadyLeads(ctx, members)
+	case s.expected:
+	default:
+		return obs, precondition("leader is %s, not %s", l.Name, s.expected)
 	}
 
 	if err := ownEndpoint(l); err != nil {
