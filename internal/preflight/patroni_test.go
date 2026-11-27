@@ -289,6 +289,68 @@ func TestTargetMaxLSN(t *testing.T) {
 	assert.Equal(t, check.ConfirmNotMaxLSN, c.Confirmation)
 }
 
+func TestSourceDiscard(t *testing.T) {
+	eval := func(in *Input) check.Check { return in.sourceDiscard(in.activeName(), dcB) }
+
+	runCases(t, eval, []caseOf{
+		{name: "source_primary", snap: snap(nil), action: Failover, params: Params{Datacenter: dcB}, want: check.Fail},
+		{name: "target_received_all", snap: snap(func(s *collect.Snapshot) {
+			editPatroni(s, dcB, func(p *collect.Patroni) {
+				m := memberNamed(p, "pg-dc_b-1")
+				pr := *m.Probe
+				pr.Xlog.ReceivedLocation = i64(5000)
+				m.Probe = &pr
+			})
+		}), action: Failover, params: Params{Datacenter: dcB}, want: check.Pass},
+		{name: "source_not_read", snap: snap(func(s *collect.Snapshot) { cutPatroni(s, dcA) }), action: Failover, params: Params{Datacenter: dcB}, want: check.Skip},
+		{name: "source_not_primary", snap: snap(func(s *collect.Snapshot) {
+			editPatroni(s, dcA, func(p *collect.Patroni) {
+				m := memberNamed(p, "pg-a1")
+				pr := *m.Probe
+				pr.Role, m.Role = patroni.RoleStandbyLeader, patroni.ClusterRoleStandbyLeader
+				m.Probe = &pr
+			})
+		}), action: Failover, params: Params{Datacenter: dcB}, want: check.Skip},
+		{name: "target_received_unknown", snap: snap(func(s *collect.Snapshot) { memberDown(s, dcB, "pg-dc_b-1") }), action: Failover, params: Params{Datacenter: dcB}, want: check.Fail},
+	})
+
+	c := eval(newInput(snap(nil)(t), Failover, Params{Datacenter: dcB}))
+	assert.Equal(t, check.ConfirmMaxDiscardBytes, c.Confirmation)
+	require.NotNil(t, c.DiscardBytes)
+	assert.Equal(t, int64(100), *c.DiscardBytes)
+	assert.Equal(t, int64(100), c.Facts["divergence_bytes"])
+	assert.Equal(t, "0/1388", c.Facts["xlog_location"])
+	requireStruct(t, c)
+
+	unknown := eval(newInput(snap(func(s *collect.Snapshot) { memberDown(s, dcB, "pg-dc_b-1") })(t), Failover, Params{Datacenter: dcB}))
+	assert.Nil(t, unknown.DiscardBytes, "an amount that is not known has no bound")
+
+	// dc_a left timeline 2 at 3000 and wrote up to 5000 on timeline 3; dc_b stayed on
+	// timeline 2 with 4900 received: only 3000 is shared.
+	bOnTimeline2 := func(s *collect.Snapshot) {
+		editPatroni(s, dcB, func(p *collect.Patroni) {
+			m := memberNamed(p, "pg-dc_b-1")
+			pr := *m.Probe
+			pr.Timeline, m.Timeline = i64(2), i64(2)
+			m.Probe = &pr
+		})
+	}
+
+	timelines := eval(newInput(snap(bOnTimeline2)(t), Failover, Params{Datacenter: dcB}))
+	assert.Equal(t, check.Fail, timelines.Result)
+	require.NotNil(t, timelines.DiscardBytes)
+	assert.Equal(t, int64(2000), *timelines.DiscardBytes)
+
+	noHistory := eval(newInput(snap(func(s *collect.Snapshot) {
+		bOnTimeline2(s)
+
+		cl, _ := s.ClusterOf(dcA)
+		cl.Patroni.Data.History = down[[]patroni.HistoryEntry]()
+	})(t), Failover, Params{Datacenter: dcB}))
+	assert.Equal(t, check.Fail, noHistory.Result)
+	assert.Nil(t, noHistory.DiscardBytes, "without the history of dc_a the amount is not known")
+}
+
 func TestTargetCandidate(t *testing.T) {
 	runCases(t, (*Input).targetCandidate, []caseOf{
 		{name: "candidate", snap: stretchSnap(nil), want: check.Pass},

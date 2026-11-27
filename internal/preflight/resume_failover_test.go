@@ -56,9 +56,17 @@ func TestResumeFailoverBeforePromote(t *testing.T) {
 	v := check.Decide(cs, check.Confirmations{Isolation: true})
 	assert.Equal(t, check.NeedsConfirmation, v.Outcome)
 
+	// dc_a is primary at 5000, dc_b received 4900: the demotion of dc_a discards 100.
+	discard := find(t, cs, check.PatroniSourceDiscard, dcA)
+	assert.Equal(t, check.Fail, discard.Result)
+	assert.Equal(t, int64(100), discard.Facts["divergence_bytes"])
+
 	v = check.Decide(cs, check.Confirmations{Isolation: true, NotMaxLSN: true})
+	assert.Equal(t, check.NeedsConfirmation, v.Outcome)
+
+	v = check.Decide(cs, check.Confirmations{Isolation: true, NotMaxLSN: true, MaxDiscardBytes: 100})
 	assert.Equal(t, check.Allowed, v.Outcome)
-	assert.Equal(t, check.Confirmations{Isolation: true, NotMaxLSN: true}, v.Confirmed)
+	assert.Equal(t, check.Confirmations{Isolation: true, NotMaxLSN: true, MaxDiscardBytes: 100}, v.Confirmed)
 }
 
 func TestResumeFailoverChecks(t *testing.T) {

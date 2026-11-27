@@ -43,14 +43,17 @@ const (
 	PatroniOthersFollowSource  ID = "patroni.others_follow_source"
 	PatroniTargetNotStreaming  ID = "patroni.target_not_streaming"
 	PatroniTargetMaxLSN        ID = "patroni.target_max_lsn"
-	PatroniTargetCandidate     ID = "patroni.target_candidate"
-	PatroniTargetLeader        ID = "patroni.target_leader"
-	PatroniCandidateLoss       ID = "patroni.candidate_loss"
-	PatroniActivePrimary       ID = "patroni.active_primary"
-	PatroniDCPrimary           ID = "patroni.dc_primary"
-	PatroniDCStandby           ID = "patroni.dc_standby"
-	PatroniDivergence          ID = "patroni.divergence"
-	PatroniDCRecovered         ID = "patroni.dc_recovered"
+	// PatroniSourceDiscard needs the WAL accepted that the old primary, still primary,
+	// holds beyond the target of a failover: the failover demotes it.
+	PatroniSourceDiscard   ID = "patroni.source_discard"
+	PatroniTargetCandidate ID = "patroni.target_candidate"
+	PatroniTargetLeader    ID = "patroni.target_leader"
+	PatroniCandidateLoss   ID = "patroni.candidate_loss"
+	PatroniActivePrimary   ID = "patroni.active_primary"
+	PatroniDCPrimary       ID = "patroni.dc_primary"
+	PatroniDCStandby       ID = "patroni.dc_standby"
+	PatroniDivergence      ID = "patroni.divergence"
+	PatroniDCRecovered     ID = "patroni.dc_recovered"
 )
 
 // Nomad and infrastructure checks.

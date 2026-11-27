@@ -61,6 +61,30 @@ func Diverge(ta int64, ha []HistoryEntry, td int64, hd []HistoryEntry, pos *int6
 	return Divergence{Diverged: true, LSN: lsn, Bytes: max(0, *pos-lsn)}, true
 }
 
+// DemoteLoss returns the WAL a primary on timeline ta that wrote up to loc holds beyond
+// what a standby on timeline tb received up to recv: demoting the primary to follow the
+// standby discards it. On another timeline than the standby the primary shares WAL with
+// it only up to where it left timeline tb, by its history ha. ok is false when ha does
+// not tell that point, or when the standby is on a newer timeline than the primary.
+func DemoteLoss(ta int64, ha []HistoryEntry, loc, tb, recv int64) (loss int64, ok bool) {
+	if tb > ta {
+		return 0, false
+	}
+
+	shared := recv
+
+	if ta != tb {
+		x, ok := SwitchPoint(ha, tb)
+		if !ok {
+			return 0, false
+		}
+
+		shared = min(recv, x)
+	}
+
+	return max(0, loc-shared), true
+}
+
 // SwitchPoint returns where the cluster of history left timeline.
 func SwitchPoint(history []HistoryEntry, timeline int64) (int64, bool) {
 	i := slices.IndexFunc(history, func(e HistoryEntry) bool { return e.Timeline == timeline })

@@ -55,3 +55,36 @@ func TestDiverge(t *testing.T) {
 		})
 	}
 }
+
+func TestDemoteLoss(t *testing.T) {
+	// The primary left timeline 5 at 1000; the standby stayed on it and received 1200.
+	history := []patroni.HistoryEntry{{Timeline: 4, LSN: 400}, {Timeline: 5, LSN: 1000}}
+
+	tests := []struct {
+		name     string
+		ta       int64
+		ha       []patroni.HistoryEntry
+		loc      int64
+		received int64
+		want     int64
+		ok       bool
+	}{
+		{name: "same_timeline", ta: 5, loc: 1500, received: 1200, want: 300, ok: true},
+		{name: "same_timeline_received_all", ta: 5, loc: 1200, received: 1200, ok: true},
+		{name: "newer_timeline", ta: 6, ha: history, loc: 1500, received: 1200, want: 500, ok: true},
+		{name: "newer_timeline_behind_received", ta: 6, ha: history, loc: 1100, received: 1200, want: 100, ok: true},
+		{name: "newer_timeline_received_less", ta: 6, ha: history, loc: 1500, received: 800, want: 700, ok: true},
+		{name: "history_not_read", ta: 6, loc: 1500, received: 1200},
+		{name: "timeline_not_in_history", ta: 6, ha: history[:1], loc: 1500, received: 1200},
+		{name: "standby_on_newer_timeline", ta: 4, ha: history, loc: 1500, received: 1200},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := patroni.DemoteLoss(tt.ta, tt.ha, tt.loc, 5, tt.received)
+
+			assert.Equal(t, tt.ok, ok)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
