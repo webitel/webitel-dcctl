@@ -67,6 +67,17 @@ func TestHealthyAddrs(t *testing.T) {
 		assert.Equal(t, []string{"webitel_datacenter:dc_a"}, req.URL.Query()["node-meta"])
 	})
 
+	t.Run("cluster_query_has_no_node_meta_filter", func(t *testing.T) {
+		f, req := serve(t)
+		c := newTestClients(t, config.ProfileStretch, f.addr())
+
+		addrs, err := c.ClusterHealthyAddrs(ctx, "dc_a", "web", "primary")
+		require.NoError(t, err)
+		assert.Equal(t, []string{"10.0.1.1:8080"}, addrs)
+		assert.Empty(t, req.URL.Query()["node-meta"])
+		assert.NotEmpty(t, req.URL.Query()["passing"])
+	})
+
 	t.Run("unknown_datacenter", func(t *testing.T) {
 		f, _ := serve(t)
 		c := newTestClients(t, config.ProfileStretch, f.addr())

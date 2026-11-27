@@ -23,12 +23,14 @@
 //     primary, and the primary streams to its address;
 //   - [Controller.Switchover], PATRONI_SWITCHOVER, within promote: the candidate leads on
 //     a newer timeline and is the only primary, by GET /patroni and in Consul;
-//   - [Controller.Failover], PATRONI_FAILOVER (pending in the proto), within promote: the
-//     candidate leads.
+//   - [Controller.Failover], PATRONI_FAILOVER, within promote: the candidate leads;
+//   - [Controller.Rejoin], PATRONI_FOLLOW in stretch, within rewind: the members of a
+//     datacenter stream as replicas on the timeline of the leader.
 //
-// [Controller.Leader], [Controller.Divergence] and [Controller.DemoteLoss] read the
-// clusters once, for the decisions of a step: what the leader received, whether a
-// standby left the history of the primary, and what demoting a primary discards.
+// [Controller.Leader], [Controller.Divergence], [Controller.DemoteLoss] and
+// [Controller.Place] read the clusters once, for the decisions of a step: what the
+// leader received, whether a standby left the history of the primary, what demoting a
+// primary discards, and where the members of the cluster of stretch run.
 //
 // The timeline is taken from GET /patroni of the member itself: GET /cluster comes from
 // the DCS, which lags by loop_wait.
@@ -99,6 +101,9 @@ type Catalog interface {
 	HealthyAddrs(ctx context.Context, dc, service, tag string) ([]string, error)
 	// RegisteredAddrs returns host:port of every instance of service in dc.
 	RegisteredAddrs(ctx context.Context, dc, service string) ([]string, error)
+	// ClusterHealthyAddrs is HealthyAddrs through the Consul of dc without the
+	// datacenter filter; in stretch it covers the whole cluster.
+	ClusterHealthyAddrs(ctx context.Context, dc, service, tag string) ([]string, error)
 }
 
 // Cluster is the Patroni cluster of a datacenter. In stretch, where one cluster spans

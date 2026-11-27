@@ -14,6 +14,7 @@ const (
 	ActionSwitchover Action = "switchover"
 	ActionFailover   Action = "failover"
 	ActionNoPrimary  Action = "no_primary"
+	ActionRejoin     Action = "rejoin"
 )
 
 // Phase is where a primitive is.
@@ -87,6 +88,9 @@ type Result struct {
 	// request only removed standby_cluster, nothing was promoted.
 	FromPrimary bool
 	// Unread are the clusters [Controller.NoPrimary] did not read among those it does not
-	// need.
+	// need, or the members that did not answer [Controller.Rejoin].
 	Unread []string
+	// Missing are the hosts of the instances of the scope in the datacenter of
+	// [Controller.Rejoin] that GET /cluster does not list.
+	Missing []string
 }

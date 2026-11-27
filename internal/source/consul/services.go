@@ -126,6 +126,23 @@ func (c *Clients) RegisteredAddrs(ctx context.Context, dc, service string) ([]st
 	return c.addrs(ctx, dc, service, "", false)
 }
 
+// ClusterHealthyAddrs is [Clients.HealthyAddrs] through the Consul of dc without the
+// datacenter filter: in stretch it returns the passing instances of the whole cluster,
+// also those on nodes of no configured datacenter.
+func (c *Clients) ClusterHealthyAddrs(ctx context.Context, dc, service, tag string) ([]string, error) {
+	cl, err := c.Client(dc)
+	if err != nil {
+		return nil, err
+	}
+
+	nodes, _, err := cl.ClusterInstances(ctx, service, tag, true)
+	if err != nil {
+		return nil, err
+	}
+
+	return hostPorts(nodes), nil
+}
+
 func (c *Clients) addrs(ctx context.Context, dc, service, tag string, passingOnly bool) ([]string, error) {
 	cl, err := c.Client(dc)
 	if err != nil {
@@ -137,12 +154,16 @@ func (c *Clients) addrs(ctx context.Context, dc, service, tag string, passingOnl
 		return nil, err
 	}
 
+	return hostPorts(nodes), nil
+}
+
+func hostPorts(nodes []ServiceNode) []string {
 	addrs := make([]string, len(nodes))
 	for i, n := range nodes {
 		addrs[i] = n.HostPort()
 	}
 
-	return addrs, nil
+	return addrs
 }
 
 func serviceNodes(entries []*api.ServiceEntry) []ServiceNode {
