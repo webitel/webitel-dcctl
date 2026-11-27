@@ -42,7 +42,9 @@ type AbandonRequest struct {
 // confirmed, otherwise the refusal of op.generation_determined, as the
 // preflight gives it. A committed generation stays. A revert that does not
 // finish fails Abandon and leaves the operation INTERRUPTED. Every revert is
-// journaled as it ends.
+// journaled as it ends. The record of a resolve or an initialization is never
+// reverted: one that voters hold refuses the abandon instead, see
+// [preflight.Abandonable].
 func (e *Engine) Abandon(ctx context.Context, req AbandonRequest) (*dcctlv1.Operation, error) {
 	if _, err := e.enter(); err != nil {
 		return nil, err
@@ -77,7 +79,13 @@ func (e *Engine) Abandon(ctx context.Context, req AbandonRequest) (*dcctlv1.Oper
 
 	var reverted map[string]any
 
-	if op.GetNewGeneration() > 0 && op.GetTarget() != "" {
+	switch t := op.GetType(); {
+	case op.GetNewGeneration() <= 0 || op.GetTarget() == "":
+	case t == dcctlv1.Operation_RESOLVE_CONFLICT || t == dcctlv1.Operation_INITIALIZE:
+		if reverted, err = e.keep(ctx, op, req); err != nil {
+			return nil, err
+		}
+	default:
 		if reverted, err = e.revert(ctx, op, req); err != nil {
 			return nil, err
 		}
@@ -105,6 +113,23 @@ func (e *Engine) Abandon(ctx context.Context, req AbandonRequest) (*dcctlv1.Oper
 	e.cfg.Log.InfoCtx(ctx, "operation abandoned", logging.Str("operation", name), logging.Any("generation", reverted))
 
 	return abandoned, nil
+}
+
+// keep decides again under the lock that op, a resolve or an initialization whose
+// record is never reverted, may be abandoned, see [preflight.Abandonable], and returns
+// what it found.
+func (e *Engine) keep(ctx context.Context, op *dcctlv1.Operation, req AbandonRequest) (map[string]any, error) {
+	view, err := e.cfg.Coordinator.Read(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	c := preflight.Abandonable(op, view)
+	if refused := refusal(c, req.Confirmations); refused != nil {
+		return nil, fmt.Errorf("abandon %s: %w", op.GetName(), refused)
+	}
+
+	return map[string]any{"generation": op.GetNewGeneration(), "reverted": false, "detail": c.Detail}, nil
 }
 
 // revert reverts the new generation of op to the one before, when voters hold
