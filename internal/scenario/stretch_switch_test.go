@@ -201,14 +201,14 @@ func TestStretchSwitch_interrupts(t *testing.T) {
 			step: dcctlv1.Operation_Step_GENERATION, calls: stretchStops, detail: "not committed", generation: 5,
 		},
 		{
-			// T2 §5.5 step 4: Patroni refused, the leader stays in dc_a.
+			// Patroni refused, the leader stays in dc_a.
 			name:  "switchover_refused",
 			setup: func(w *world) { w.infra.fail("switchover dc_b to b1", refused) },
 			step:  dcctlv1.Operation_Step_PATRONI_SWITCHOVER, calls: slices.Concat(stretchStops, []string{"switchover dc_b to b1"}),
 			detail: `ended with the leader "a1"`, generation: 6,
 		},
 		{
-			// T2 §5.5 step 4: the leader is in another datacenter.
+			// The leader is in another datacenter.
 			name:  "leader_elsewhere",
 			setup: func(w *world) { w.infra.pg(func(c *stretchCluster) { c.lead("c1") }) },
 			step:  dcctlv1.Operation_Step_PATRONI_SWITCHOVER, calls: stretchStops,
@@ -314,7 +314,6 @@ func TestStretchSwitch_warnings(t *testing.T) {
 		want  string
 	}{
 		{
-			// T3 §6.1 step 2.
 			name:  "old_leader_does_not_rejoin",
 			setup: func(w *world) { w.infra.fail("rejoin dc_a", fmt.Errorf("a1 not streaming: %w", pgctl.ErrTimeout)) },
 			step:  dcctlv1.Operation_Step_PATRONI_FOLLOW, want: "dc_a needs attention",
@@ -332,7 +331,6 @@ func TestStretchSwitch_warnings(t *testing.T) {
 			step: dcctlv1.Operation_Step_PATRONI_FOLLOW, want: "instance on host 10.0.1.9 of dc_a is not in the Patroni cluster",
 		},
 		{
-			// T2 §5.5 step 6.
 			name: "verify",
 			setup: func(w *world) {
 				w.verifier.checks = []check.Check{{ID: check.VerifyJobs, Result: check.Fail, Detail: "job x is not healthy in dc_b"}}
