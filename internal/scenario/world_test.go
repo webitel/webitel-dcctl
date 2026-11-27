@@ -55,6 +55,7 @@ type world struct {
 	sync     *scenario.SyncApps
 	resolve  *scenario.Resolve
 	init     *scenario.Initialize
+	arbiter  *scenario.InitializeArbiter
 	// kvs are the Consul KVs that take dcctl/lock and dcctl/op; opKV is the one op reads.
 	kvs  []string
 	opKV string
@@ -155,6 +156,9 @@ func (w *world) useVoters(voters ...coord.Voter) {
 
 	w.init, err = scenario.NewInitialize(d, profile)
 	require.NoError(w.t, err)
+
+	w.arbiter, err = scenario.NewInitializeArbiter(d)
+	require.NoError(w.t, err)
 }
 
 // engine returns an engine of this instance on w that resumes switches and failovers.
@@ -170,6 +174,7 @@ func (w *world) engine() *operation.Engine {
 		dcctlv1.Operation_SWITCH: w.sw, dcctlv1.Operation_FAILOVER: w.fo,
 		dcctlv1.Operation_DEMOTE: w.demote, dcctlv1.Operation_REPOINT: w.repoint, dcctlv1.Operation_MARK_RECOVERED: w.mark,
 		dcctlv1.Operation_SYNC_APPS: w.sync, dcctlv1.Operation_RESOLVE_CONFLICT: w.resolve, dcctlv1.Operation_INITIALIZE: w.init,
+		dcctlv1.Operation_INITIALIZE_ARBITER: w.arbiter,
 	}
 	if w.stretch {
 		resumers = map[dcctlv1.Operation_Type]operation.Resumer{
