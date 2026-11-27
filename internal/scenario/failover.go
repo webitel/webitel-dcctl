@@ -45,16 +45,31 @@ func NewFailover(d Deps) (*Failover, error) {
 // verdict of pre does not ask for: it bounds only the WAL the demotion of an old active
 // datacenter read as primary discards.
 func (f *Failover) Plan(req *dcctlv1.FailoverDatacenterRequest, initiator *dcctlv1.Initiator, pre preflight.Result) (operation.Plan, error) {
+	return f.planFailover(req, initiator, pre, config.ProfileWarmStandby, f.steps)
+}
+
+// planFailover is the plan of a failover of profile, whose steps are those steps returns.
+// max_discard_bytes is refused unless the verdict of pre asks for it: in warm_standby it
+// bounds the WAL the demotion of the old primary discards, in stretch the WAL the
+// candidate of a failover without a leader lacks.
+func (f *core) planFailover(req *dcctlv1.FailoverDatacenterRequest, initiator *dcctlv1.Initiator, pre preflight.Result,
+	profile config.Profile, steps func(route) []operation.Step,
+) (operation.Plan, error) {
 	st := pre.Status
 
-	if st.Profile != config.ProfileWarmStandby {
-		return operation.Plan{}, fmt.Errorf("%w: failover of %s is not a failover of %s", ErrCannotPlan, st.Profile, config.ProfileWarmStandby)
+	if st.Profile != profile {
+		return operation.Plan{}, fmt.Errorf("%w: failover of %s is not a failover of %s", ErrCannotPlan, st.Profile, profile)
+	}
+
+	discard := check.PatroniSourceDiscard
+	if profile == config.ProfileStretch {
+		discard = check.PatroniCandidateLoss
 	}
 
 	c := req.GetConfirmation()
-	if c.GetMaxDiscardBytes() > 0 && !discardAsked(pre.Verdict) {
-		return operation.Plan{}, fmt.Errorf("%w: max_discard_bytes confirms only the WAL the demotion of the old primary discards, "+
-			"and the preflight does not read it as primary", ErrCannotPlan)
+	if c.GetMaxDiscardBytes() > 0 && !discardAsked(pre.Verdict, discard) {
+		return operation.Plan{}, fmt.Errorf("%w: max_discard_bytes confirms only the WAL %s accepts, and the preflight does not ask for it",
+			ErrCannotPlan, discard)
 	}
 
 	base := coord.Base(st.View, true)
@@ -67,7 +82,7 @@ func (f *Failover) Plan(req *dcctlv1.FailoverDatacenterRequest, initiator *dcctl
 		return operation.Plan{}, err
 	}
 
-	r.failover = true
+	r.failover, r.stretch = true, profile == config.ProfileStretch
 
 	next := kv.State{Generation: base.State.Generation + 1, ActiveDatacenter: r.b}
 
@@ -98,31 +113,22 @@ func (f *Failover) Plan(req *dcctlv1.FailoverDatacenterRequest, initiator *dcctl
 		PreviousGeneration: base.State.Generation,
 		NewGeneration:      next.Generation,
 		PreviousActive:     r.a,
-		Steps:              f.steps(r),
+		Steps:              steps(r),
 	}, nil
 }
 
-// discardAsked reports whether v asks for max_discard_bytes: the old active datacenter
-// is read as primary and its demotion discards a known amount.
-func discardAsked(v check.Verdict) bool {
+// discardAsked reports whether v asks for max_discard_bytes by the check id: it fails
+// with a known amount.
+func discardAsked(v check.Verdict, id check.ID) bool {
 	return slices.ContainsFunc(v.Checks, func(c check.Check) bool {
-		return c.ID == check.PatroniSourceDiscard && c.Result == check.Fail && c.DiscardBytes != nil
+		return c.ID == id && c.Result == check.Fail && c.DiscardBytes != nil
 	})
 }
 
 // Resume rebuilds the steps of the interrupted failover op from its recorded steps, see
 // [operation.Resumer].
 func (f *Failover) Resume(_ context.Context, op *dcctlv1.Operation) ([]operation.Step, error) {
-	r, err := routeOf(op, dcctlv1.Operation_FAILOVER)
-	if err != nil {
-		return nil, fmt.Errorf("failover %s: %w", op.GetName(), err)
-	}
-
-	if err := f.d.known(slices.Concat([]string{r.a, r.b}, r.c)...); err != nil {
-		return nil, fmt.Errorf("failover %s: %w", op.GetName(), err)
-	}
-
-	return f.steps(r), nil
+	return f.resume(op, dcctlv1.Operation_FAILOVER, false, f.steps)
 }
 
 // steps returns the steps of r. The last stop step stops every stage, a job whose stage

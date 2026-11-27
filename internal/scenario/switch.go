@@ -1,10 +1,12 @@
 package scenario
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"math"
 	"slices"
+	"strings"
 
 	dcctlv1 "github.com/webitel/webitel-dcctl/gen/go/dcctl/v1"
 	"github.com/webitel/webitel-dcctl/internal/check"
@@ -37,13 +39,15 @@ func NewSwitch(d Deps) (*Switch, error) {
 
 // route is a switch, or with failover a failover, from a to b. c are the other
 // datacenters, stop the Nomad stages of a from the highest down and start those of b
-// from the lowest up.
+// from the lowest up. stretch tells the profile: one Patroni cluster spans the
+// datacenters.
 type route struct {
 	a, b     string
 	c        []string
 	stop     []int
 	start    []int
 	failover bool
+	stretch  bool
 }
 
 // Plan returns the plan of req on the state pre was decided on, whatever its verdict,
@@ -51,10 +55,17 @@ type route struct {
 // state does not tell the active datacenter, when the target is it or is not
 // configured, or for a profile other than warm_standby.
 func (s *Switch) Plan(req *dcctlv1.SwitchDatacenterRequest, initiator *dcctlv1.Initiator, pre preflight.Result) (operation.Plan, error) {
+	return s.planSwitch(req, initiator, pre, config.ProfileWarmStandby, s.steps)
+}
+
+// planSwitch is the plan of a switch of profile, whose steps are those steps returns.
+func (s *core) planSwitch(req *dcctlv1.SwitchDatacenterRequest, initiator *dcctlv1.Initiator, pre preflight.Result,
+	profile config.Profile, steps func(route) []operation.Step,
+) (operation.Plan, error) {
 	st := pre.Status
 
-	if st.Profile != config.ProfileWarmStandby {
-		return operation.Plan{}, fmt.Errorf("%w: switch of %s is not a switch of %s", ErrCannotPlan, st.Profile, config.ProfileWarmStandby)
+	if st.Profile != profile {
+		return operation.Plan{}, fmt.Errorf("%w: switch of %s is not a switch of %s", ErrCannotPlan, st.Profile, profile)
 	}
 
 	base := coord.Base(st.View, false)
@@ -67,6 +78,7 @@ func (s *Switch) Plan(req *dcctlv1.SwitchDatacenterRequest, initiator *dcctlv1.I
 		return operation.Plan{}, err
 	}
 
+	r.stretch = profile == config.ProfileStretch
 	c := req.GetConfirmation()
 
 	return operation.Plan{
@@ -86,7 +98,7 @@ func (s *Switch) Plan(req *dcctlv1.SwitchDatacenterRequest, initiator *dcctlv1.I
 		PreviousGeneration: base.State.Generation,
 		NewGeneration:      base.State.Generation + 1,
 		PreviousActive:     r.a,
-		Steps:              s.steps(r),
+		Steps:              steps(r),
 	}, nil
 }
 
@@ -153,25 +165,34 @@ func stagesOf(n status.Nomad, down bool) []int {
 // Resume rebuilds the steps of the interrupted switch op from its recorded steps, see
 // [operation.Resumer].
 func (s *Switch) Resume(_ context.Context, op *dcctlv1.Operation) ([]operation.Step, error) {
-	r, err := routeOf(op, dcctlv1.Operation_SWITCH)
-	if err != nil {
-		return nil, fmt.Errorf("switch %s: %w", op.GetName(), err)
-	}
-
-	if err := s.d.known(slices.Concat([]string{r.a, r.b}, r.c)...); err != nil {
-		return nil, fmt.Errorf("switch %s: %w", op.GetName(), err)
-	}
-
-	return s.steps(r), nil
+	return s.resume(op, dcctlv1.Operation_SWITCH, false, s.steps)
 }
 
-// routeOf reads the route of a switch or a failover, by typ, from its recorded steps.
-func routeOf(op *dcctlv1.Operation, typ dcctlv1.Operation_Type) (route, error) {
+// resume rebuilds the steps of op, an operation of type typ in the profile stretch
+// tells, by steps.
+func (s *core) resume(op *dcctlv1.Operation, typ dcctlv1.Operation_Type, stretch bool, steps func(route) []operation.Step) (
+	[]operation.Step, error,
+) {
+	r, err := routeOf(op, typ, stretch)
+	if err == nil {
+		err = s.d.known(slices.Concat([]string{r.a, r.b}, r.c)...)
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("%s %s: %w", strings.ToLower(typ.String()), op.GetName(), err)
+	}
+
+	return steps(r), nil
+}
+
+// routeOf reads the route of a switch or a failover, by typ, in the profile stretch
+// tells, from its recorded steps.
+func routeOf(op *dcctlv1.Operation, typ dcctlv1.Operation_Type, stretch bool) (route, error) {
 	if op.GetType() != typ {
 		return route{}, fmt.Errorf("operation of type %s is not of type %s", op.GetType(), typ)
 	}
 
-	r := route{b: datacenterID(op.GetTarget()), failover: typ == dcctlv1.Operation_FAILOVER}
+	r := route{b: datacenterID(op.GetTarget()), failover: typ == dcctlv1.Operation_FAILOVER, stretch: stretch}
 
 	setA := func(dc string) error {
 		if r.a != "" && r.a != dc {
@@ -185,34 +206,23 @@ func routeOf(op *dcctlv1.Operation, typ dcctlv1.Operation_Type) (route, error) {
 
 	for i, st := range op.GetSteps() {
 		dc := datacenterID(st.GetDatacenter())
-		foreign := fmt.Errorf("step %d of type %s is not a step of %s", i, st.GetType(), typ)
 
 		var err error
+		if !stepOf(r, st.GetType()) {
+			err = fmt.Errorf("step %d of type %s is not a step of %s", i, st.GetType(), typ)
+		}
 
+		//exhaustive:ignore // stepOf refuses the steps of another scenario
 		switch st.GetType() {
 		case dcctlv1.Operation_Step_APPS_STOP:
 			r.stop = append(r.stop, int(st.GetStage()))
-			err = setA(dc)
-		case dcctlv1.Operation_Step_PATRONI_DEMOTE:
-			err = setA(dc)
-		case dcctlv1.Operation_Step_PATRONI_FOLLOW:
-			if err = setA(dc); r.failover {
-				err = foreign
-			}
+			err = cmp.Or(err, setA(dc))
+		case dcctlv1.Operation_Step_PATRONI_DEMOTE, dcctlv1.Operation_Step_PATRONI_FOLLOW:
+			err = cmp.Or(err, setA(dc))
 		case dcctlv1.Operation_Step_APPS_START:
 			r.start = append(r.start, int(st.GetStage()))
 		case dcctlv1.Operation_Step_PATRONI_REPOINT:
 			r.c = append(r.c, dc)
-		case dcctlv1.Operation_Step_PATRONI_CATCHUP, dcctlv1.Operation_Step_PATRONI_NO_PRIMARY:
-			if r.failover {
-				err = foreign
-			}
-		case dcctlv1.Operation_Step_GENERATION, dcctlv1.Operation_Step_PATRONI_PROMOTE, dcctlv1.Operation_Step_VERIFY:
-		case dcctlv1.Operation_Step_TYPE_UNSPECIFIED, dcctlv1.Operation_Step_APPS_PREFLIGHT,
-			dcctlv1.Operation_Step_PATRONI_SWITCHOVER, dcctlv1.Operation_Step_PATRONI_FAILOVER:
-			err = foreign
-		default:
-			err = foreign
 		}
 
 		if err != nil {
@@ -225,6 +235,28 @@ func routeOf(op *dcctlv1.Operation, typ dcctlv1.Operation_Type) (route, error) {
 	}
 
 	return r, nil
+}
+
+// stepOf reports whether a step of type typ is one of the scenario of r.
+func stepOf(r route, typ dcctlv1.Operation_Step_Type) bool {
+	switch typ {
+	case dcctlv1.Operation_Step_APPS_STOP, dcctlv1.Operation_Step_APPS_START, dcctlv1.Operation_Step_GENERATION,
+		dcctlv1.Operation_Step_VERIFY:
+		return true
+	case dcctlv1.Operation_Step_PATRONI_DEMOTE, dcctlv1.Operation_Step_PATRONI_PROMOTE, dcctlv1.Operation_Step_PATRONI_REPOINT:
+		return !r.stretch
+	case dcctlv1.Operation_Step_PATRONI_CATCHUP, dcctlv1.Operation_Step_PATRONI_NO_PRIMARY:
+		return !r.stretch && !r.failover
+	case dcctlv1.Operation_Step_PATRONI_FOLLOW:
+		return !r.failover
+	case dcctlv1.Operation_Step_PATRONI_SWITCHOVER:
+		return r.stretch && !r.failover
+	case dcctlv1.Operation_Step_PATRONI_FAILOVER:
+		return r.stretch && r.failover
+	case dcctlv1.Operation_Step_TYPE_UNSPECIFIED, dcctlv1.Operation_Step_APPS_PREFLIGHT:
+	}
+
+	return false
 }
 
 // steps returns the steps of r. The last stop step stops every stage and the first one
