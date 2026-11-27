@@ -61,8 +61,11 @@ func Checks(in *Input) ([]check.Check, error) {
 			cs = append(cs, in.isolation())
 		}
 
-		if unpromoted {
+		switch {
+		case unpromoted && in.warm():
 			cs = append(cs, in.maxLSN(r.target, r.others), in.sourceDiscard(r.source, r.target))
+		case unpromoted:
+			cs = append(cs, in.candidateLossOf(r.target))
 		}
 
 		return cs, nil
