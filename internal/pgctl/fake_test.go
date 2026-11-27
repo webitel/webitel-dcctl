@@ -369,7 +369,9 @@ type fakeCatalog struct {
 	hosts map[string]string
 	// primaryOverride replaces the healthy primary hosts of a datacenter.
 	primaryOverride map[string][]string
-	err             error
+	// alsoIn registers a host in a second datacenter.
+	alsoIn map[string]string
+	err    error
 }
 
 func (c *fakeCatalog) HealthyAddrs(_ context.Context, dc, service, tag string) ([]string, error) {
@@ -384,8 +386,41 @@ func (c *fakeCatalog) HealthyAddrs(_ context.Context, dc, service, tag string) (
 		return nil, c.err
 	}
 
+	return addrs(c.primaries(dc)), nil
+}
+
+// ClusterHealthyAddrs returns the healthy primary instances of every datacenter.
+func (c *fakeCatalog) ClusterHealthyAddrs(_ context.Context, _, service, tag string) ([]string, error) {
+	if service != scope || tag != "primary" {
+		return nil, errors.New("unexpected query")
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.err != nil {
+		return nil, c.err
+	}
+
+	dcs := slices.Collect(maps.Keys(c.primaryOverride))
+	for _, dc := range c.hosts {
+		dcs = append(dcs, dc)
+	}
+
+	slices.Sort(dcs)
+
+	var hosts []string
+	for _, dc := range slices.Compact(dcs) {
+		hosts = append(hosts, c.primaries(dc)...)
+	}
+
+	return addrs(hosts), nil
+}
+
+// primaries returns the hosts of the healthy primary instances of dc; c.mu is held.
+func (c *fakeCatalog) primaries(dc string) []string {
 	if hosts, ok := c.primaryOverride[dc]; ok {
-		return addrs(hosts), nil
+		return hosts
 	}
 
 	var hosts []string
@@ -402,7 +437,7 @@ func (c *fakeCatalog) HealthyAddrs(_ context.Context, dc, service, tag string) (
 		})
 	}
 
-	return addrs(hosts), nil
+	return hosts
 }
 
 func (c *fakeCatalog) RegisteredAddrs(_ context.Context, dc, service string) ([]string, error) {
@@ -420,7 +455,7 @@ func (c *fakeCatalog) RegisteredAddrs(_ context.Context, dc, service string) ([]
 	var hosts []string
 
 	for h, d := range c.hosts {
-		if d == dc {
+		if d == dc || c.alsoIn[h] == dc {
 			hosts = append(hosts, h)
 		}
 	}
