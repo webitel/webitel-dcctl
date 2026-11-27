@@ -51,6 +51,7 @@ type world struct {
 	sfo      *scenario.StretchFailover
 	demote   *scenario.Demote
 	repoint  *scenario.Repoint
+	mark     *scenario.MarkRecovered
 	// kvs are the Consul KVs that take dcctl/lock and dcctl/op; opKV is the one op reads.
 	kvs  []string
 	opKV string
@@ -140,6 +141,9 @@ func (w *world) useVoters(voters ...coord.Voter) {
 
 	w.repoint, err = scenario.NewRepoint(d)
 	require.NoError(w.t, err)
+
+	w.mark, err = scenario.NewMarkRecovered(d)
+	require.NoError(w.t, err)
 }
 
 // engine returns an engine of this instance on w that resumes switches and failovers.
@@ -153,7 +157,7 @@ func (w *world) engine() *operation.Engine {
 
 	resumers := map[dcctlv1.Operation_Type]operation.Resumer{
 		dcctlv1.Operation_SWITCH: w.sw, dcctlv1.Operation_FAILOVER: w.fo,
-		dcctlv1.Operation_DEMOTE: w.demote, dcctlv1.Operation_REPOINT: w.repoint,
+		dcctlv1.Operation_DEMOTE: w.demote, dcctlv1.Operation_REPOINT: w.repoint, dcctlv1.Operation_MARK_RECOVERED: w.mark,
 	}
 	if w.stretch {
 		resumers = map[dcctlv1.Operation_Type]operation.Resumer{

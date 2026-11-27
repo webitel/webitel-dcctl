@@ -473,7 +473,14 @@ func (f fakePreflight) Run(ctx context.Context, req preflight.Request) (check.Ve
 		}
 
 		cs = append(cs, more...)
-	case preflight.MarkRecovered, preflight.Abandon, preflight.Resolve,
+	case preflight.MarkRecovered:
+		more, err := f.markRecoveredChecks(ctx, req.Params.Datacenter)
+		if err != nil {
+			return check.Verdict{}, err
+		}
+
+		cs = append(cs, more...)
+	case preflight.Abandon, preflight.Resolve,
 		preflight.Init, preflight.ArbiterInit, preflight.AppsSync, preflight.Verify:
 		return check.Verdict{}, fmt.Errorf("unexpected action %s", req.Action)
 	}
