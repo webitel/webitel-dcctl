@@ -1167,10 +1167,15 @@ func (in *Input) divergenceOf(dc string) check.Check {
 }
 
 // dcRecovered needs every member of the datacenter to stream on the timeline of the
-// active one, the standby leader from the active datacenter.
+// active one, the standby leader from the active datacenter, by the rule the step of
+// mark-recovered reads it again with, see [patroni.NotFollowing].
 func (in *Input) dcRecovered() check.Check {
 	dc := in.Params.Datacenter
 	c := block(check.PatroniDCRecovered, dc)
+
+	if !in.warm() {
+		return c.skip("a datacenter of stretch does not need recovery, see " + string(check.CoordProfile))
+	}
 
 	a, ok := in.active()
 	if !ok {
@@ -1183,13 +1188,8 @@ func (in *Input) dcRecovered() check.Check {
 	}
 
 	var timeline *int64
-
-	if in.warm() {
-		if ad, ok := in.datacenter(a); ok {
-			timeline = ad.Patroni.Timeline
-		}
-	} else if l := in.pgCluster().leader; l != nil {
-		timeline = l.Timeline
+	if ad, ok := in.datacenter(a); ok {
+		timeline = ad.Patroni.Timeline
 	}
 
 	facts := map[string]any{"members": membersFacts(s.members)}
@@ -1202,20 +1202,21 @@ func (in *Input) dcRecovered() check.Check {
 
 	var why []string
 
-	if len(s.members) == 0 {
+	if len(s.raw) == 0 {
 		why = append(why, "no member is found")
 	}
 
-	if in.warm() {
-		if s.model.Patroni.UpstreamDatacenter != a || s.leader == nil || s.leader.Role != status.RoleStandbyLeader {
-			why = append(why, "the leader is not a standby leader of "+a)
-		}
+	if s.model.Patroni.UpstreamDatacenter != a {
+		why = append(why, "the leader is not a standby leader of "+a)
 	}
 
-	for _, m := range s.members {
-		if !m.Reachable || m.ReplicationState != stateStreaming || m.Timeline == nil || *m.Timeline != *timeline {
-			why = append(why, m.Name+" does not stream on the timeline of "+a)
-		}
+	members := make([]patroni.Member, 0, len(s.raw))
+	for _, m := range s.raw {
+		members = append(members, m.Member)
+	}
+
+	if lagging := patroni.NotFollowing(members, s.model.Patroni.Leader, *timeline); len(lagging) > 0 {
+		why = append(why, "not streaming on the timeline of "+a+": "+strings.Join(lagging, ", "))
 	}
 
 	if len(why) > 0 {
