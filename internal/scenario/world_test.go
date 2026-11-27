@@ -53,6 +53,7 @@ type world struct {
 	repoint  *scenario.Repoint
 	mark     *scenario.MarkRecovered
 	sync     *scenario.SyncApps
+	resolve  *scenario.Resolve
 	init     *scenario.Initialize
 	// kvs are the Consul KVs that take dcctl/lock and dcctl/op; opKV is the one op reads.
 	kvs  []string
@@ -144,6 +145,9 @@ func (w *world) useVoters(voters ...coord.Voter) {
 	w.sync, err = scenario.NewSyncApps(d)
 	require.NoError(w.t, err)
 
+	w.resolve, err = scenario.NewResolve(d)
+	require.NoError(w.t, err)
+
 	profile := config.ProfileWarmStandby
 	if w.stretch {
 		profile = config.ProfileStretch
@@ -165,7 +169,7 @@ func (w *world) engine() *operation.Engine {
 	resumers := map[dcctlv1.Operation_Type]operation.Resumer{
 		dcctlv1.Operation_SWITCH: w.sw, dcctlv1.Operation_FAILOVER: w.fo,
 		dcctlv1.Operation_DEMOTE: w.demote, dcctlv1.Operation_REPOINT: w.repoint, dcctlv1.Operation_MARK_RECOVERED: w.mark,
-		dcctlv1.Operation_SYNC_APPS: w.sync, dcctlv1.Operation_INITIALIZE: w.init,
+		dcctlv1.Operation_SYNC_APPS: w.sync, dcctlv1.Operation_RESOLVE_CONFLICT: w.resolve, dcctlv1.Operation_INITIALIZE: w.init,
 	}
 	if w.stretch {
 		resumers = map[dcctlv1.Operation_Type]operation.Resumer{
