@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 
+	dcctlv1 "github.com/webitel/webitel-dcctl/gen/go/dcctl/v1"
 	"github.com/webitel/webitel-dcctl/internal/check"
 	"github.com/webitel/webitel-dcctl/internal/status"
 )
@@ -70,7 +71,7 @@ func Checks(in *Input) ([]check.Check, error) {
 			cs = append(cs, in.candidateLossOf(r.target))
 		}
 
-		return cs, nil
+		return append(cs, in.recoveryResume(in.operation())...), nil
 	case Abandon:
 		return []check.Check{in.opInterrupted(), in.opGenerationDetermined(), in.pointOfNoReturn()}, nil
 	case Resolve:
@@ -93,6 +94,57 @@ func Checks(in *Input) ([]check.Check, error) {
 	}
 
 	return nil, fmt.Errorf("%w: %q", ErrUnknownAction, in.Action)
+}
+
+// recoveryResume returns what a resumed demote, repoint or mark-recovered op decides
+// anew, on what the datacenters show now, before the step that acts on it: the WAL a
+// demotion or a repoint that did not succeed discards, and the payload split the write
+// of mark-recovered must not meet. A demotion that took already, its datacenter a
+// standby of the active one, discards nothing more.
+func (in *Input) recoveryResume(op *dcctlv1.Operation) []check.Check {
+	target := datacenterID(op.GetTarget())
+
+	//exhaustive:ignore // the other operations decide nothing more on resume
+	switch op.GetType() {
+	case dcctlv1.Operation_DEMOTE:
+		if !Unfinished(op, dcctlv1.Operation_Step_PATRONI_DEMOTE) {
+			return nil
+		}
+
+		if a := in.activeName(); a != "" && in.standbyOf(target, a) {
+			return []check.Check{
+				confirm(check.PatroniDivergence, check.ConfirmMaxDiscardBytes, target).skip(target + " is a standby of " + a + " already"),
+			}
+		}
+
+		return []check.Check{in.divergenceOf(target)}
+	case dcctlv1.Operation_REPOINT:
+		if Unfinished(op, dcctlv1.Operation_Step_PATRONI_REPOINT) {
+			return []check.Check{in.divergenceOf(target)}
+		}
+	case dcctlv1.Operation_MARK_RECOVERED:
+		if Unfinished(op, dcctlv1.Operation_Step_GENERATION) {
+			return []check.Check{in.payloadSettled()}
+		}
+	}
+
+	return nil
+}
+
+// standbyOf reports whether the leader of dc is a standby leader of a.
+func (in *Input) standbyOf(dc, a string) bool {
+	s := in.pgDatacenter(dc)
+
+	return s.src.Reachable && s.leader != nil && s.leader.Role == status.RoleStandbyLeader && s.model.Patroni.UpstreamDatacenter == a
+}
+
+// Unfinished reports whether op has a step of type typ that neither succeeded nor was
+// skipped.
+func Unfinished(op *dcctlv1.Operation, typ dcctlv1.Operation_Step_Type) bool {
+	return slices.ContainsFunc(op.GetSteps(), func(st *dcctlv1.Operation_Step) bool {
+		return st.GetType() == typ && st.GetState() != dcctlv1.Operation_Step_SUCCEEDED &&
+			st.GetState() != dcctlv1.Operation_Step_SKIPPED
+	})
 }
 
 func concat(sets ...[]check.Check) []check.Check {
