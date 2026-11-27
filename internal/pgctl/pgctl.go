@@ -21,6 +21,9 @@
 //   - [Controller.Repoint], PATRONI_REPOINT, within repoint, and [Controller.Follow],
 //     PATRONI_FOLLOW, within rewind: the standby leader streams on the timeline of the
 //     primary, and the primary streams to its address;
+//   - [Controller.Recover], PATRONI_FOLLOW of demote, within rewind: the condition of
+//     Follow, and every other member and instance of the datacenter a replica that
+//     streams on that timeline; [Controller.Recovered] reads it once;
 //   - [Controller.Switchover], PATRONI_SWITCHOVER, within promote: the candidate leads on
 //     a newer timeline and is the only primary, by GET /patroni and in Consul;
 //   - [Controller.Failover], PATRONI_FAILOVER, within promote: the candidate leads;
