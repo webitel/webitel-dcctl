@@ -48,6 +48,10 @@ type Patroni interface {
 	Follow(ctx context.Context, standby, primary pgctl.Cluster, opts pgctl.Options) (pgctl.Result, error)
 	Leader(ctx context.Context, cl pgctl.Cluster) (patroni.Member, error)
 	Divergence(ctx context.Context, standby, primary pgctl.Cluster) (patroni.Divergence, error)
+	DivergenceOf(ctx context.Context, cl, primary pgctl.Cluster) (patroni.Divergence, error)
+	Demoted(ctx context.Context, cl, target pgctl.Cluster) (bool, error)
+	Recover(ctx context.Context, standby, primary pgctl.Cluster, opts pgctl.Options) (pgctl.Result, error)
+	Recovered(ctx context.Context, standby, primary pgctl.Cluster) error
 	DemoteLoss(ctx context.Context, primary, standby pgctl.Cluster) (int64, error)
 	Switchover(ctx context.Context, cl pgctl.Cluster, leader, candidate string, opts pgctl.Options) (pgctl.Result, error)
 	Failover(ctx context.Context, cl pgctl.Cluster, candidate string, opts pgctl.Options) (pgctl.Result, error)

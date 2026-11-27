@@ -622,14 +622,14 @@ func TestFailover_demoteLossAcrossTimelines(t *testing.T) {
 	})
 }
 
-// A standby that diverged from dc_b is not repointed: it waits for repoint with the
-// discard confirmed.
+// A standby that received more WAL than dc_b diverged from it once dc_b is promoted: it is
+// not repointed, it waits for repoint with the discard confirmed.
 func TestFailover_divergedStandbyIsNotRepointed(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		w := newWorld(t)
-		w.infra.do(func(dcs map[string]*dcState) { dcs[dcC].diverged = 300 })
+		w.infra.do(func(dcs map[string]*dcState) { dcs[dcB].received, dcs[dcC].received = 1000, 1300 })
 
-		op := w.runFailover(isolation)
+		op := w.runFailover(&dcctlv1.Confirmation{Isolation: true, NotMaxLsn: true})
 
 		require.Equal(t, dcctlv1.Operation_SUCCEEDED, op.GetState(), op.GetError().GetDetail())
 		assert.Equal(t, []string{"dc_c is not repointed to dc_b, it diverged by 300 bytes: repoint it with the discard confirmed"},
