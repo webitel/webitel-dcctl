@@ -80,12 +80,14 @@ func (f fakePreflight) divergence(dc, active string) check.Check {
 	return c
 }
 
-// resumeStandby is what a resume of op, a demote or repoint whose Patroni step did not
-// succeed, decides anew: patroni.divergence of its target.
+// resumeStandby is what a resume of op decides anew: patroni.divergence of the target of
+// a demote or repoint whose Patroni step did not succeed, coord.payload_settled for a
+// mark-recovered whose write did not.
 func (f fakePreflight) resumeStandby(ctx context.Context, op *dcctlv1.Operation) ([]check.Check, error) {
 	step := map[dcctlv1.Operation_Type]dcctlv1.Operation_Step_Type{
-		dcctlv1.Operation_DEMOTE:  dcctlv1.Operation_Step_PATRONI_DEMOTE,
-		dcctlv1.Operation_REPOINT: dcctlv1.Operation_Step_PATRONI_REPOINT,
+		dcctlv1.Operation_DEMOTE:         dcctlv1.Operation_Step_PATRONI_DEMOTE,
+		dcctlv1.Operation_REPOINT:        dcctlv1.Operation_Step_PATRONI_REPOINT,
+		dcctlv1.Operation_MARK_RECOVERED: dcctlv1.Operation_Step_GENERATION,
 	}[op.GetType()]
 
 	if step == dcctlv1.Operation_Step_TYPE_UNSPECIFIED || !preflight.Unfinished(op, step) {
@@ -95,6 +97,10 @@ func (f fakePreflight) resumeStandby(ctx context.Context, op *dcctlv1.Operation)
 	view, err := f.view(ctx)
 	if err != nil {
 		return nil, err
+	}
+
+	if op.GetType() == dcctlv1.Operation_MARK_RECOVERED {
+		return []check.Check{payloadSettled(view)}, nil
 	}
 
 	active, err := activeOf(view)
