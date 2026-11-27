@@ -447,13 +447,14 @@ func (in *Input) leaderHost(dc string) string {
 }
 
 // profileSupported rejects an action the profile has no scenario for: demote and
-// repoint move a Patroni cluster of a datacenter between primary and standby, which
-// stretch, with one cluster over all datacenters, does not have.
+// repoint move a Patroni cluster of a datacenter between primary and standby, and
+// mark-recovered clears what only a failover of such clusters sets, which stretch, with
+// one cluster over all datacenters, does not have.
 func (in *Input) profileSupported() check.Check {
 	s := block(check.CoordProfile, "")
 	facts := map[string]any{"profile": string(in.Snapshot.Profile)}
 
-	if (in.Action == Demote || in.Action == Repoint) && !in.warm() {
+	if (in.Action == Demote || in.Action == Repoint || in.Action == MarkRecovered) && !in.warm() {
 		return s.fail(fmt.Sprintf("%s applies to warm_standby only", in.Action), facts)
 	}
 

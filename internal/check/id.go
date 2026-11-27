@@ -19,8 +19,8 @@ const (
 	CoordTargetNotNeedsRecovery ID = "coord.target_not_needs_recovery"
 	CoordDCNotActive            ID = "coord.dc_not_active"
 	CoordDCNeedsRecovery        ID = "coord.dc_needs_recovery"
-	// CoordProfile fails on an action the profile has no scenario for, as demote and
-	// repoint in stretch.
+	// CoordProfile fails on an action the profile has no scenario for, as demote,
+	// repoint and mark-recovered in stretch.
 	CoordProfile ID = "coord.profile"
 	// CoordBaseUnchanged fails when the voters no longer hold the record an operation
 	// was planned from. The engine decides it under the lock, after the preflight.

@@ -426,6 +426,8 @@ func TestProfileSupported(t *testing.T) {
 		{name: "repoint_warm", snap: snap(nil), action: Repoint, want: check.Pass},
 		{name: "demote_stretch", snap: stretchSnap(nil), action: Demote, want: check.Fail},
 		{name: "repoint_stretch", snap: stretchSnap(nil), action: Repoint, want: check.Fail},
+		{name: "mark_recovered_warm", snap: snap(nil), action: MarkRecovered, want: check.Pass},
+		{name: "mark_recovered_stretch", snap: stretchSnap(nil), action: MarkRecovered, want: check.Fail},
 	})
 }
 
