@@ -74,6 +74,13 @@ type Divergence struct {
 	// it, which a rewind discards.
 	LSN   int64
 	Bytes int64
+	// Unverified is set for a standby whose upstream is not read: the history of the
+	// active datacenter alone told it.
+	Unverified bool
+	// Rebuild is set, with Known false, for such a standby on the timeline the active
+	// datacenter took on promotion or newer: it may follow a line only its upstream had,
+	// and it needs a rebuild by hand.
+	Rebuild bool
 }
 
 // Member is a Patroni member.
@@ -275,7 +282,7 @@ func (b *builder) patroni(dc string, p dcPatroni) Patroni {
 	}
 
 	out.LagBytes = b.lag(dc, p)
-	out.Divergence = b.divergence(dc, p)
+	out.Divergence = b.divergence(dc, p, out.UpstreamDatacenter)
 
 	return out
 }
@@ -406,8 +413,13 @@ func (b *builder) lag(dc string, p dcPatroni) *int64 {
 }
 
 // divergence tells whether the timeline of the datacenter left the history of the
-// active datacenter, see [patroni.Diverge].
-func (b *builder) divergence(dc string, p dcPatroni) Divergence {
+// active datacenter, see [patroni.Diverge]. Patroni keeps GET /history current on a
+// primary only: a datacenter led by a primary is judged by its own history, and then
+// not at all on the timeline of the active one, where two promotions apart are not told
+// from each other; a standby by the history of upstream, the datacenter it streams from,
+// while that one is led by a primary, and otherwise by the history of the active
+// datacenter alone, unverified, below the timeline it took on promotion only.
+func (b *builder) divergence(dc string, p dcPatroni, upstream string) Divergence {
 	if !b.warm() || dc == b.active() {
 		return Divergence{Known: true}
 	}
@@ -426,13 +438,50 @@ func (b *builder) divergence(dc string, p dcPatroni) Divergence {
 		return Divergence{}
 	}
 
-	d, ok := patroni.Diverge(*ta, history(a.cluster.Patroni.Data.History), *td, history(p.cluster.Patroni.Data.History),
-		walPosition(p.leader))
-	if !ok {
-		return Divergence{}
+	ha, pos := history(a.cluster.Patroni.Data.History), walPosition(p.leader)
+
+	var (
+		d     patroni.Divergence
+		ok    bool
+		alone bool
+	)
+
+	shared := b.effective.PatroniTimeline
+
+	switch line, read := b.line(upstream); {
+	case p.leader.Probe != nil && p.leader.Probe.Role == patroni.RolePrimary:
+		if *ta != *td && p.cluster.Patroni.Data.History.Reachable {
+			d, ok = patroni.Diverge(*ta, ha, *td, history(p.cluster.Patroni.Data.History), pos)
+		}
+	case read:
+		d, ok = patroni.Diverge(*ta, ha, *td, line, pos)
+	default:
+		d, ok = patroni.DivergeByPrimary(*ta, ha, *td, pos, shared)
+		alone = true
 	}
 
-	return Divergence{Known: true, Diverged: d.Diverged, LSN: d.LSN, Bytes: d.Bytes}
+	if !ok {
+		return Divergence{Rebuild: alone && pos != nil && *td >= shared && *td < *ta}
+	}
+
+	return Divergence{Known: true, Diverged: d.Diverged, LSN: d.LSN, Bytes: d.Bytes, Unverified: d.Unverified}
+}
+
+// line returns the history of the cluster of dc while it is led by a primary, which
+// keeps it current; false otherwise.
+func (b *builder) line(dc string) ([]patroni.HistoryEntry, bool) {
+	if dc == "" {
+		return nil, false
+	}
+
+	u := b.patroniIn(dc)
+
+	if u.cluster == nil || !u.src.Reachable || u.leader == nil || u.leader.Probe == nil || u.leader.Probe.Role != patroni.RolePrimary ||
+		!u.cluster.Patroni.Data.History.Reachable {
+		return nil, false
+	}
+
+	return u.cluster.Patroni.Data.History.Data, true
 }
 
 // walPosition is the WAL a member holds: written by a primary, received by a replica.

@@ -118,9 +118,15 @@ func TestFailover_sourceAnswers(t *testing.T) {
 
 		for _, st := range op.GetSteps() {
 			assert.Equal(t, succeeded, st.GetState(), "%s: %s", st.GetType(), st.GetDetail())
-			assert.Empty(t, st.GetWarnings(), st.GetType())
+
+			if st.GetType() != dcctlv1.Operation_Step_PATRONI_REPOINT {
+				assert.Empty(t, st.GetWarnings(), st.GetType())
+			}
 		}
 
+		// dc_c streams from dc_a, demoted now, whose history Patroni no longer keeps.
+		assert.Equal(t, []string{"the cluster dc_c streams from is not read, the history of dc_b alone tells whether it diverged"},
+			stepOf(t, op, dcctlv1.Operation_Step_PATRONI_REPOINT, 0).GetWarnings())
 		assert.Equal(t, failoverForward, w.infra.allCalls())
 
 		a, b, c := w.infra.dc(dcA), w.infra.dc(dcB), w.infra.dc(dcC)
@@ -632,10 +638,33 @@ func TestFailover_divergedStandbyIsNotRepointed(t *testing.T) {
 		op := w.runFailover(&dcctlv1.Confirmation{Isolation: true, NotMaxLsn: true})
 
 		require.Equal(t, dcctlv1.Operation_SUCCEEDED, op.GetState(), op.GetError().GetDetail())
-		assert.Equal(t, []string{"dc_c is not repointed to dc_b, it diverged by 300 bytes: repoint it with the discard confirmed"},
+		assert.Equal(t, []string{
+			"the cluster dc_c streams from is not read, the history of dc_b alone tells whether it diverged",
+			"dc_c is not repointed to dc_b, it diverged by 300 bytes: repoint it with the discard confirmed",
+		},
 			stepOf(t, op, dcctlv1.Operation_Step_PATRONI_REPOINT, 0).GetWarnings())
 		assert.NotContains(t, w.infra.allCalls(), "repoint dc_c")
 		assert.Equal(t, dcA, w.infra.dc(dcC).upstream)
+	})
+}
+
+// dc_c followed a local failover of dc_a, lost now, to a timeline 6 of dc_a's own: the
+// history of dc_b alone does not tell its line, so it is not repointed but left with a
+// warning, to be rebuilt.
+func TestFailover_standbyOnTheLostTimelineIsNotRepointed(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		w := newWorld(t)
+		w.loseA()
+		w.infra.do(func(dcs map[string]*dcState) { dcs[dcC].timeline, dcs[dcC].received = 6, 2500 })
+
+		op := w.runFailover(&dcctlv1.Confirmation{Isolation: true, NotMaxLsn: true})
+
+		require.Equal(t, dcctlv1.Operation_SUCCEEDED, op.GetState(), op.GetError().GetDetail())
+
+		repoint := stepOf(t, op, dcctlv1.Operation_Step_PATRONI_REPOINT, 0)
+		require.Len(t, repoint.GetWarnings(), 1)
+		assert.Contains(t, repoint.GetWarnings()[0], "dc_c is not repointed to dc_b, whether it diverged is not known")
+		assert.NotContains(t, w.infra.allCalls(), "repoint dc_c")
 	})
 }
 

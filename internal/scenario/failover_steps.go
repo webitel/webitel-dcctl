@@ -10,6 +10,7 @@ import (
 	dcctlv1 "github.com/webitel/webitel-dcctl/gen/go/dcctl/v1"
 	"github.com/webitel/webitel-dcctl/internal/apps"
 	"github.com/webitel/webitel-dcctl/internal/check"
+	"github.com/webitel/webitel-dcctl/internal/coord"
 	"github.com/webitel/webitel-dcctl/internal/operation"
 	"github.com/webitel/webitel-dcctl/internal/pgctl"
 	"github.com/webitel/webitel-dcctl/internal/source/patroni"
@@ -348,12 +349,21 @@ func checkDiscard(x *operation.Exec, r route, lb patroni.Member, standbys []stan
 
 // repointUnlessDiverged points the standby c at b unless c diverged from it: a diverged
 // standby, or one whose divergence is not known, is a warning and waits for repoint
-// with the discard confirmed. c read as primary interrupts the operation: b is primary.
+// with the discard confirmed. A divergence the history of b alone told is a warning
+// too. c read as primary interrupts the operation: b is primary.
 func (f *Failover) repointUnlessDiverged(r route, c string) operation.StepFunc {
 	repoint := f.repoint(r, c)
 
 	return func(ctx context.Context, x *operation.Exec) error {
-		d, err := f.d.Patroni.Divergence(ctx, f.d.cluster(c), f.d.cluster(r.b))
+		view, err := f.d.Coordinator.Read(ctx)
+		if err != nil {
+			return err
+		}
+
+		d, err := f.d.Patroni.Divergence(ctx, f.d.cluster(c), f.d.cluster(r.b), f.d.others(c, r.b), promoted(view, r, x.Operation()))
+		if err == nil && d.Unverified {
+			x.Warn(unverifiedLine(c, r.b))
+		}
 
 		var pe *pgctl.PrimaryError
 
@@ -375,6 +385,24 @@ func (f *Failover) repointUnlessDiverged(r route, c string) operation.StepFunc {
 
 		return repoint(ctx, x)
 	}
+}
+
+// promoted returns the timeline b took on its promotion, as the generation the failover
+// of op wrote holds it; 0 when the effective record is not that one.
+func promoted(view coord.View, r route, op *dcctlv1.Operation) int64 {
+	_, next := records(op, r)
+
+	if eff := view.Effective; eff != nil && coord.KeyOf(eff.State) == next {
+		return eff.State.PatroniTimeline
+	}
+
+	return 0
+}
+
+// unverifiedLine is the warning of a divergence of dc the history of primary alone told,
+// as the cluster dc streams from is not read.
+func unverifiedLine(dc, primary string) string {
+	return fmt.Sprintf("the cluster %s streams from is not read, the history of %s alone tells whether it diverged", dc, primary)
 }
 
 // verifyFailover verifies the failover as the switch does, and warns again when the stop

@@ -3,6 +3,7 @@ package pgctl
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/webitel/webitel-dcctl/internal/source/patroni"
@@ -20,25 +21,35 @@ func (c *Controller) Leader(ctx context.Context, cl Cluster) (patroni.Member, er
 
 // Divergence reads whether the standby cluster of standby left the history of the
 // primary cluster of primary, see [patroni.Diverge]: a standby that diverged follows
-// primary only once the WAL past the divergence is discarded. A standby whose leader is
+// primary only once the WAL past the divergence is discarded. Patroni keeps GET /history
+// current on a primary only, so the line of the standby is the history of the cluster
+// its standby_cluster points at: primary, or one of others whose leader is primary. When
+// that one is not read, the history of primary alone tells, see
+// [patroni.DivergeByPrimary], and the result is Unverified; shared is the timeline primary
+// took when it was promoted, patroni_timeline of the effective record, and a standby on
+// that timeline or newer may have followed a line only its upstream had, so its
+// divergence is not known. A standby whose leader is
 // primary fails with [*PrimaryError], a primary side whose leader is not primary with
 // [ErrPrecondition]; it fails too when what it reads does not tell. It sends nothing and
 // takes no guard.
-func (c *Controller) Divergence(ctx context.Context, standby, primary Cluster) (patroni.Divergence, error) {
-	return divergence(ctx, standby, primary, false)
+func (c *Controller) Divergence(ctx context.Context, standby, primary Cluster, others []Cluster, shared int64) (patroni.Divergence, error) {
+	return c.readDivergence(ctx, standby, primary, others, shared, false)
 }
 
 // DivergenceOf is [Controller.Divergence] for a cluster whose leader may be primary, as
 // an old primary to demote: what it holds past the point it left the history of the
 // primary cluster of primary is what following primary discards. A leader that is
-// primary on the timeline of primary fails: the histories do not tell its WAL apart.
+// primary is judged by its own history, which Patroni keeps current; one that is primary
+// on the timeline of primary fails: the histories do not tell its WAL apart.
 func (c *Controller) DivergenceOf(ctx context.Context, cl, primary Cluster) (patroni.Divergence, error) {
-	return divergence(ctx, cl, primary, true)
+	return c.readDivergence(ctx, cl, primary, nil, 0, true)
 }
 
-// divergence reads the divergence of standby from primary; a standby whose leader is
+// readDivergence reads the divergence of standby from primary; a standby whose leader is
 // primary fails with [*PrimaryError] unless leaderPrimary allows it.
-func divergence(ctx context.Context, standby, primary Cluster, leaderPrimary bool) (patroni.Divergence, error) {
+func (c *Controller) readDivergence(ctx context.Context, standby, primary Cluster, others []Cluster, shared int64, leaderPrimary bool) (
+	patroni.Divergence, error,
+) {
 	ctx, cancel := context.WithTimeout(ctx, readTimeout)
 	defer cancel()
 
@@ -73,18 +84,113 @@ func divergence(ctx context.Context, standby, primary Cluster, leaderPrimary boo
 		return patroni.Divergence{}, fmt.Errorf("history of %s not read: %w", primary.Datacenter, err)
 	}
 
-	hs, err := standby.Patroni.History(ctx, sl.Endpoint)
-	if err != nil {
-		return patroni.Divergence{}, fmt.Errorf("history of %s not read: %w", standby.Datacenter, err)
+	tp, ts, pos := *pl.Probe.Timeline, *sl.Probe.Timeline, sl.Probe.WALPosition()
+
+	var (
+		line []patroni.HistoryEntry
+		read bool
+	)
+
+	if sl.Probe.Role == patroni.RolePrimary {
+		if line, err = standby.Patroni.History(ctx, sl.Endpoint); err != nil {
+			return patroni.Divergence{}, fmt.Errorf("history of %s not read: %w", standby.Datacenter, err)
+		}
+	} else if line, read = c.upstreamLine(ctx, standby, sl, primary, hp, others); !read {
+		d, ok := patroni.DivergeByPrimary(tp, hp, ts, pos, shared)
+
+		switch {
+		case !ok && shared <= 0 && ts < tp:
+			return d, fmt.Errorf("the cluster %s streams from is not read and the timeline %s took on promotion is not known: "+
+				"whether %s diverged is not known", standby.Datacenter, primary.Datacenter, standby.Datacenter)
+		case !ok && ts >= shared && ts < tp:
+			return d, fmt.Errorf("the cluster %s streams from is not read and %s is on timeline %d, not below %d, the one %s took "+
+				"on promotion: it may follow a line only that cluster had; rebuild %s by hand",
+				standby.Datacenter, standby.Datacenter, ts, shared, primary.Datacenter, standby.Datacenter)
+		case !ok:
+			return d, fmt.Errorf("the cluster %s streams from is not read and the history of %s alone does not tell whether %s "+
+				"diverged", standby.Datacenter, primary.Datacenter, standby.Datacenter)
+		}
+
+		return d, nil
 	}
 
-	d, ok := patroni.Diverge(*pl.Probe.Timeline, hp, *sl.Probe.Timeline, hs, sl.Probe.WALPosition())
+	d, ok := patroni.Diverge(tp, hp, ts, line, pos)
 	if !ok {
 		return d, fmt.Errorf("the histories of %s and %s do not tell whether %s diverged; rebuild %s by hand",
 			primary.Datacenter, standby.Datacenter, standby.Datacenter, standby.Datacenter)
 	}
 
 	return d, nil
+}
+
+// upstreamLine returns the line of standby, whose leader sl is a standby leader: hp, the
+// history of primary, when its standby_cluster points at primary, or the history of the
+// one of others it points at while that one is led by a primary. ok is false when that
+// cluster is not known or not read.
+func (c *Controller) upstreamLine(ctx context.Context, standby Cluster, sl patroni.Member, primary Cluster, hp []patroni.HistoryEntry,
+	others []Cluster,
+) (line []patroni.HistoryEntry, ok bool) {
+	cfg, err := standby.Patroni.Config(ctx, sl.Endpoint)
+	if err != nil {
+		return nil, false
+	}
+
+	hosts := standbyHosts(cfg)
+	if len(hosts) == 0 {
+		return nil, false
+	}
+
+	for _, cl := range slices.Concat([]Cluster{primary}, others) {
+		if in, err := c.instances(ctx, cl.Datacenter); err != nil || !allIn(hosts, in) {
+			continue
+		}
+
+		if cl.Datacenter == primary.Datacenter {
+			return hp, true
+		}
+
+		l, err := readLeader(ctx, cl)
+		if err != nil || l.Probe.Role != patroni.RolePrimary {
+			return nil, false
+		}
+
+		h, err := cl.Patroni.History(ctx, l.Endpoint)
+
+		return h, err == nil
+	}
+
+	return nil, false
+}
+
+// standbyHosts returns the hosts of standby_cluster of cfg, GET /config.
+func standbyHosts(cfg map[string]any) []string {
+	sc, ok := cfg["standby_cluster"].(map[string]any)
+	if !ok {
+		return nil
+	}
+
+	list, ok := sc["host"].(string)
+	if !ok || list == "" {
+		return nil
+	}
+
+	var out []string
+	for h := range strings.SplitSeq(list, ",") {
+		out = append(out, strings.TrimSpace(h))
+	}
+
+	return out
+}
+
+// allIn reports whether every host of hosts is in set.
+func allIn(hosts []string, set map[string]bool) bool {
+	for _, h := range hosts {
+		if !set[h] {
+			return false
+		}
+	}
+
+	return true
 }
 
 // DemoteLoss reads how many bytes of WAL the primary cluster of primary holds beyond what
@@ -155,28 +261,14 @@ func (c *Controller) Demoted(ctx context.Context, cl, target Cluster) (bool, err
 		return false, fmt.Errorf("config of %s not read: %w", cl.Datacenter, err)
 	}
 
-	hosts, err := c.instances(ctx, target.Datacenter)
+	in, err := c.instances(ctx, target.Datacenter)
 	if err != nil {
 		return false, err
 	}
 
-	sc, ok := cfg["standby_cluster"].(map[string]any)
-	if !ok {
-		return false, nil
-	}
+	hosts := standbyHosts(cfg)
 
-	list, ok := sc["host"].(string)
-	if !ok || list == "" {
-		return false, nil
-	}
-
-	for h := range strings.SplitSeq(list, ",") {
-		if !hosts[strings.TrimSpace(h)] {
-			return false, nil
-		}
-	}
-
-	return true, nil
+	return len(hosts) > 0 && allIn(hosts, in), nil
 }
 
 // readLeader returns the leader of cl with its GET /patroni.
