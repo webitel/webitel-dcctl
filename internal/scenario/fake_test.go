@@ -425,6 +425,8 @@ func (f *fakeJournal) Append(_ context.Context, e *dcctlv1.JournalEntry) (journa
 type fakePreflight struct {
 	w  *infra
 	op func() *dcctlv1.Operation
+	// view reads the voters, for the actions on a standby.
+	view func(ctx context.Context) (coord.View, error)
 	// stretch decides as the sets of stretch do, see stretchChecks.
 	stretch bool
 }
@@ -457,7 +459,21 @@ func (f fakePreflight) Run(ctx context.Context, req preflight.Request) (check.Ve
 		if unpromoted {
 			cs = append(cs, f.maxLSN(target, others), f.sourceDiscard(source, target))
 		}
-	case preflight.Demote, preflight.Repoint, preflight.MarkRecovered, preflight.Abandon, preflight.Resolve,
+
+		more, err := f.resumeStandby(ctx, f.op())
+		if err != nil {
+			return check.Verdict{}, err
+		}
+
+		cs = append(cs, more...)
+	case preflight.Demote, preflight.Repoint:
+		more, err := f.standbyChecks(ctx, req.Action, req.Params.Datacenter)
+		if err != nil {
+			return check.Verdict{}, err
+		}
+
+		cs = append(cs, more...)
+	case preflight.MarkRecovered, preflight.Abandon, preflight.Resolve,
 		preflight.Init, preflight.ArbiterInit, preflight.AppsSync, preflight.Verify:
 		return check.Verdict{}, fmt.Errorf("unexpected action %s", req.Action)
 	}
@@ -607,8 +623,11 @@ type dcState struct {
 	// timeline of a standby on another timeline, 0 when its history does not tell.
 	location int64
 	leftAt   int64
-	// diverged is how many bytes the cluster holds past its divergence from the primary.
-	diverged int64
+	// history is GET /history of its leader, every timeline before its own; a promotion
+	// adds the one it leaves.
+	history []patroni.HistoryEntry
+	// lagging makes a member of the cluster not stream once its leader follows.
+	lagging bool
 }
 
 // infra is the infrastructure the fake primitives change. A hook runs once, when the
@@ -637,6 +656,21 @@ func (w *infra) fail(key string, err error) {
 func (w *infra) call(ctx context.Context, key string) error {
 	w.mu.Lock()
 	w.calls = append(w.calls, key)
+	fn := w.hooks[key]
+	delete(w.hooks, key)
+	w.mu.Unlock()
+
+	if fn != nil {
+		return fn(ctx)
+	}
+
+	return nil
+}
+
+// react runs the hook of key as call does, without recording a call: the hook of a read
+// that a test changes the infrastructure at.
+func (w *infra) react(ctx context.Context, key string) error {
+	w.mu.Lock()
 	fn := w.hooks[key]
 	delete(w.hooks, key)
 	w.mu.Unlock()
@@ -876,6 +910,7 @@ func (f fakePatroni) Promote(ctx context.Context, cl pgctl.Cluster, opts pgctl.O
 	f.w.do(func(dcs map[string]*dcState) {
 		d := dcs[cl.Datacenter]
 		if fromPrimary = d.role == patroni.RolePrimary; !fromPrimary {
+			d.history = append(slices.Clone(d.history), patroni.HistoryEntry{Timeline: d.timeline, LSN: d.received})
 			d.role = patroni.RolePrimary
 			d.timeline++
 		}
@@ -949,18 +984,128 @@ func (f fakePatroni) Leader(_ context.Context, cl pgctl.Cluster) (patroni.Member
 	return patroni.Member{Name: cl.Datacenter + "1", Probe: st}, nil
 }
 
-// Divergence reads the divergence of standby; it records no call.
-func (f fakePatroni) Divergence(_ context.Context, standby, _ pgctl.Cluster) (patroni.Divergence, error) {
-	switch d := f.w.dc(standby.Datacenter); {
-	case d.unread:
-		return patroni.Divergence{}, fmt.Errorf("patroni cluster of %s not read", standby.Datacenter)
-	case d.role == patroni.RolePrimary:
-		return patroni.Divergence{}, &pgctl.PrimaryError{Datacenter: standby.Datacenter, Where: "leader " + standby.Datacenter + "1"}
-	case d.diverged > 0:
-		return patroni.Divergence{Diverged: true, LSN: 1000, Bytes: d.diverged}, nil
+// Divergence reads the divergence of standby; it records no call, but runs the hook of
+// "divergence <standby>" first.
+func (f fakePatroni) Divergence(ctx context.Context, standby, primary pgctl.Cluster) (patroni.Divergence, error) {
+	if err := f.w.react(ctx, "divergence "+standby.Datacenter); err != nil {
+		return patroni.Divergence{}, err
 	}
 
-	return patroni.Divergence{}, nil
+	if d := f.w.dc(standby.Datacenter); !d.unread && d.role == patroni.RolePrimary {
+		return patroni.Divergence{}, &pgctl.PrimaryError{Datacenter: standby.Datacenter, Where: "leader " + standby.Datacenter + "1"}
+	}
+
+	return f.divergence(standby.Datacenter, primary.Datacenter)
+}
+
+// Demoted reads whether cl is a standby leader pointed at target; it records no call.
+func (f fakePatroni) Demoted(_ context.Context, cl, target pgctl.Cluster) (bool, error) {
+	d := f.w.dc(cl.Datacenter)
+	if d.unread {
+		return false, fmt.Errorf("patroni cluster of %s not read", cl.Datacenter)
+	}
+
+	return d.role == patroni.RoleStandbyLeader && d.upstream == target.Datacenter, nil
+}
+
+// DivergenceOf reads the divergence of cl whatever the role of its leader, as Divergence
+// does.
+func (f fakePatroni) DivergenceOf(ctx context.Context, cl, primary pgctl.Cluster) (patroni.Divergence, error) {
+	if err := f.w.react(ctx, "divergence "+cl.Datacenter); err != nil {
+		return patroni.Divergence{}, err
+	}
+
+	return f.divergence(cl.Datacenter, primary.Datacenter)
+}
+
+// divergence is the divergence of dc from primary, whose leader must be primary.
+func (f fakePatroni) divergence(dc, primary string) (patroni.Divergence, error) {
+	d, p := f.w.dc(dc), f.w.dc(primary)
+
+	switch {
+	case d.unread:
+		return patroni.Divergence{}, fmt.Errorf("patroni cluster of %s not read", dc)
+	case p.unread || p.role != patroni.RolePrimary:
+		return patroni.Divergence{}, fmt.Errorf("%w: leader of %s is not a primary", pgctl.ErrPrecondition, primary)
+	case d.role == patroni.RolePrimary && d.timeline == p.timeline:
+		return patroni.Divergence{}, fmt.Errorf("%s and %s are primary on the same timeline %d", dc, primary, d.timeline)
+	}
+
+	var pos *int64
+
+	switch {
+	case d.role == patroni.RolePrimary:
+		pos = &d.location
+	case !d.receivedUnknown:
+		pos = &d.received
+	}
+
+	div, ok := patroni.Diverge(p.timeline, p.history, d.timeline, d.history, pos)
+	if !ok {
+		return patroni.Divergence{}, fmt.Errorf("the histories of %s and %s do not tell whether %s diverged", primary, dc, dc)
+	}
+
+	return div, nil
+}
+
+// ancestry is the history of a cluster on timeline: it left every earlier timeline t at
+// 100 × t.
+func ancestry(timeline int64) []patroni.HistoryEntry {
+	out := make([]patroni.HistoryEntry, 0, timeline)
+	for t := int64(1); t < timeline; t++ {
+		out = append(out, patroni.HistoryEntry{Timeline: t, LSN: 100 * t})
+	}
+
+	return out
+}
+
+// follows reports why the cluster of standby does not follow primary in full, "" when it
+// does.
+func (f fakePatroni) follows(standby, primary string) string {
+	d, p := f.w.dc(standby), f.w.dc(primary)
+
+	switch {
+	case d.unread:
+		return "patroni cluster of " + standby + " not read"
+	case d.role != patroni.RoleStandbyLeader || d.upstream != primary:
+		return fmt.Sprintf("%s is %s of %q", standby, d.role, d.upstream)
+	case d.timeline != p.timeline:
+		return fmt.Sprintf("%s is on timeline %d", standby, d.timeline)
+	case d.lagging:
+		return "not streaming: " + standby + "2"
+	}
+
+	return ""
+}
+
+// Recover makes standby, pointed at primary, follow it on its timeline.
+func (f fakePatroni) Recover(ctx context.Context, standby, primary pgctl.Cluster, _ pgctl.Options) (pgctl.Result, error) {
+	if err := f.w.call(ctx, "recover "+standby.Datacenter); err != nil {
+		return f.result(standby.Datacenter), err
+	}
+
+	if d := f.w.dc(standby.Datacenter); d.role == patroni.RoleStandbyLeader && d.upstream == primary.Datacenter {
+		f.w.do(func(dcs map[string]*dcState) { dcs[standby.Datacenter].timeline = dcs[primary.Datacenter].timeline })
+	}
+
+	if why := f.follows(standby.Datacenter, primary.Datacenter); why != "" {
+		return f.result(standby.Datacenter), fmt.Errorf("%w: %s", pgctl.ErrTimeout, why)
+	}
+
+	return f.result(standby.Datacenter), nil
+}
+
+// Recovered reads whether standby follows primary in full.
+func (f fakePatroni) Recovered(ctx context.Context, standby, primary pgctl.Cluster) error {
+	if err := f.w.call(ctx, "recovered "+standby.Datacenter); err != nil {
+		return err
+	}
+
+	if why := f.follows(standby.Datacenter, primary.Datacenter); why != "" {
+		return fmt.Errorf("%s: %w", why, pgctl.ErrNotRecovered)
+	}
+
+	return nil
 }
 
 // DemoteLoss is what demoting primary to follow standby discards; it records no call.

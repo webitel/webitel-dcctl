@@ -49,6 +49,8 @@ type world struct {
 	fo       *scenario.Failover
 	ssw      *scenario.StretchSwitch
 	sfo      *scenario.StretchFailover
+	demote   *scenario.Demote
+	repoint  *scenario.Repoint
 	// kvs are the Consul KVs that take dcctl/lock and dcctl/op; opKV is the one op reads.
 	kvs  []string
 	opKV string
@@ -65,9 +67,15 @@ func newWorld(t *testing.T) *world {
 		t: t,
 		infra: &infra{
 			dcs: map[string]*dcState{
-				dcA: {running: map[int]bool{1: true, 2: true, 3: true}, role: patroni.RolePrimary, timeline: 5},
-				dcB: {running: map[int]bool{1: false, 2: false, 3: false}, role: patroni.RoleStandbyLeader, timeline: 5, upstream: dcA},
-				dcC: {running: map[int]bool{1: false, 2: false, 3: false}, role: patroni.RoleStandbyLeader, timeline: 5, upstream: dcA},
+				dcA: {running: map[int]bool{1: true, 2: true, 3: true}, role: patroni.RolePrimary, timeline: 5, history: ancestry(5)},
+				dcB: {
+					running: map[int]bool{1: false, 2: false, 3: false}, role: patroni.RoleStandbyLeader, timeline: 5, upstream: dcA,
+					history: ancestry(5),
+				},
+				dcC: {
+					running: map[int]bool{1: false, 2: false, 3: false}, role: patroni.RoleStandbyLeader, timeline: 5, upstream: dcA,
+					history: ancestry(5),
+				},
 			},
 			hooks: map[string]func(context.Context) error{},
 		},
@@ -126,6 +134,12 @@ func (w *world) useVoters(voters ...coord.Voter) {
 
 	w.sfo, err = scenario.NewStretchFailover(d)
 	require.NoError(w.t, err)
+
+	w.demote, err = scenario.NewDemote(d)
+	require.NoError(w.t, err)
+
+	w.repoint, err = scenario.NewRepoint(d)
+	require.NoError(w.t, err)
 }
 
 // engine returns an engine of this instance on w that resumes switches and failovers.
@@ -139,6 +153,7 @@ func (w *world) engine() *operation.Engine {
 
 	resumers := map[dcctlv1.Operation_Type]operation.Resumer{
 		dcctlv1.Operation_SWITCH: w.sw, dcctlv1.Operation_FAILOVER: w.fo,
+		dcctlv1.Operation_DEMOTE: w.demote, dcctlv1.Operation_REPOINT: w.repoint,
 	}
 	if w.stretch {
 		resumers = map[dcctlv1.Operation_Type]operation.Resumer{
@@ -171,7 +186,10 @@ func (w *world) engine() *operation.Engine {
 
 // preflight decides the confirmations on w, see fakePreflight.
 func (w *world) preflight() fakePreflight {
-	return fakePreflight{w: w.infra, stretch: w.stretch, op: func() *dcctlv1.Operation { return storedOp(w.consuls[w.opKV]) }}
+	return fakePreflight{
+		w: w.infra, stretch: w.stretch, op: func() *dcctlv1.Operation { return storedOp(w.consuls[w.opKV]) },
+		view: func(ctx context.Context) (coord.View, error) { return w.coord.Read(ctx) },
+	}
 }
 
 // start runs e until the returned stop, which waits for Run to return.
