@@ -1100,11 +1100,16 @@ func (in *Input) activePrimary() check.Check {
 	return c.pass("the leader runs in "+a, facts)
 }
 
-// divergence needs the operator to accept the WAL of the datacenter that left the
-// history of the active one; a rewind discards it. A divergence that cannot be told
-// has no amount, which no bound covers.
+// divergence needs the operator to accept the WAL of the datacenter of the action that
+// left the history of the active one, see [Input.divergenceOf].
 func (in *Input) divergence() check.Check {
-	dc := in.Params.Datacenter
+	return in.divergenceOf(in.Params.Datacenter)
+}
+
+// divergenceOf needs the operator to accept the WAL of dc that left the history of the
+// active datacenter; a rewind discards it. A divergence that cannot be told has no
+// amount, which no bound covers.
+func (in *Input) divergenceOf(dc string) check.Check {
 	c := confirm(check.PatroniDivergence, check.ConfirmMaxDiscardBytes, dc)
 
 	d, ok := in.datacenter(dc)
